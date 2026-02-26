@@ -1,4 +1,6 @@
 export { FileReadOption } from "./FileReadOption.js";
+export { Endian, LocalMachine, Network, swap, isLittle, isBig } from "./Endian.js";
+export * as ByteConverter from "./ByteConverter.js";
 export type { ByteSourceCallback, IByteSource } from "./IByteSource.js";
 export type { ByteTargetCallback, IByteTarget } from "./IByteTarget.js";
 

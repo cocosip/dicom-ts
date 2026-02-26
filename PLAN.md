@@ -382,8 +382,8 @@
 - [x] `StreamByteTarget` / `MemoryByteTarget`
 
 ### 6.3 工具类
-- [ ] `ByteConverter` — DataView 包装，读写各类型
-- [ ] `Endian` — 小端/大端枚举
+- [x] `ByteConverter` — DataView 包装，读写各类型
+- [x] `Endian` — 小端/大端枚举
 
 ### 6.4 测试
 - [ ] 各 Buffer 实现（参考 `Tests/IO/`）
@@ -778,7 +778,7 @@
 - 日志模块（提前实现，源自 Phase 12.7）：`✅ 已完成`（13 个测试）
 - Phase 4 — 数据元素类型系统：`✅ 已完成`（全部 VR 元素类、序列类、缓冲层基础）
 - Phase 5 — DicomDataset：`✅ 已完成`（108 个测试全部通过）
-- Phase 6 — I/O 缓冲层：`🔶 部分完成`（IByteBuffer / MemoryByteBuffer / EmptyBuffer / LazyByteBuffer 已在 Phase 4 内实现；其余 FileByteBuffer、IByteSource 等待 Phase 6 补齐）
+- Phase 6 — I/O 缓冲层：`🔶 部分完成`（缓冲区 + ByteSource/ByteTarget + ByteConverter/Endian 已实现，部分测试仍待补充）
 - Phase 7 — 二进制读写引擎：`⬜ 未开始`
 - Phase 8 — DicomFile：`⬜ 未开始`
 - Phase 9 — JSON 序列化：`⬜ 未开始`
@@ -804,7 +804,7 @@ fo-dicom 的 `Microsoft.Extensions.Logging` 适配已在 fo-dicom v5 中标记�
 - `IByteBuffer` 接口（`src/io/buffer/IByteBuffer.ts`）
 - `MemoryByteBuffer`、`EmptyBuffer`、`LazyByteBuffer`
 
-Phase 6 仍需补充：`FileByteBuffer`、`IByteSource`/`IByteTarget`、`CompositeByteBuffer` 等读写引擎所需类型。
+Phase 6 仍需补充：缓冲层全面测试与字节序转换测试。
 
 ### 3. DicomElement 构造器模式调整（fo-dicom 重载 → 静态工厂）
 fo-dicom 使用 C# 构造函数重载区分"从值构造"和"从缓冲区构造"两种情况。TypeScript 的 `super()` 规则要求在有字段初始化器的类中，`super()` 必须是根级语句（不能在 `if/else` 分支中）。
