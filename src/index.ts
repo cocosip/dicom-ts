@@ -7,4 +7,5 @@
 export * from "./core/index.js";
 export * from "./logging/index.js";
 export * from "./io/buffer/index.js";
+export * from "./io/index.js";
 export * from "./dataset/index.js";

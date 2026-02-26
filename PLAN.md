@@ -296,9 +296,9 @@
 - [x] `DicomFragmentSequence extends DicomItem` — 压缩像素数据分片序列
 
 ### 4.9 统一测试
-- [ ] 测试每种 VR 的 get/set/validate（参考 `DicomElementTest.cs`）
-- [ ] 测试个人名称分量解析（参考 `DicomPersonNameTest.cs`）
-- [ ] 测试日期时间（参考 `DicomDateTimeTest.cs`）
+- [x] 测试每种 VR 的 get/set/validate（参考 `DicomElementTest.cs`）
+- [x] 测试个人名称分量解析（参考 `DicomPersonNameTest.cs`）
+- [x] 测试日期时间（参考 `DicomDateTimeTest.cs`）
 
 ---
 
@@ -360,26 +360,26 @@
 - [x] `MemoryByteBuffer` — 内存中字节数组（Phase 4 中实现）
 - [x] `EmptyBuffer` — 零长度缓冲单例（Phase 4 中实现）
 - [x] `LazyByteBuffer` — 延迟计算（回调生成 buffer）（Phase 4 中实现）
-- [ ] `FileByteBuffer` — 文件偏移范围引用
-- [ ] `StreamByteBuffer` — 流中的字节范围
-- [ ] `CompositeByteBuffer` — 多 buffer 拼接
-- [ ] `RangeByteBuffer` — 已有 buffer 的子范围视图
-- [ ] `EndianByteBuffer` — 自动字节序交换包装器
-- [ ] `EvenLengthBuffer` — 奇数长度自动填充 0x00
-- [ ] `SwapByteBuffer` — 按单元大小交换字节序
-- [ ] `TempFileBuffer` — 大数据写入临时文件
-- [ ] `BulkDataUriByteBuffer` — WADO-RS 批量数据 URI 引用
+- [x] `FileByteBuffer` — 文件偏移范围引用
+- [x] `StreamByteBuffer` — 流中的字节范围
+- [x] `CompositeByteBuffer` — 多 buffer 拼接
+- [x] `RangeByteBuffer` — 已有 buffer 的子范围视图
+- [x] `EndianByteBuffer` — 自动字节序交换包装器
+- [x] `EvenLengthBuffer` — 奇数长度自动填充 0x00
+- [x] `SwapByteBuffer` — 按单元大小交换字节序
+- [x] `TempFileBuffer` — 大数据写入临时文件
+- [x] `BulkDataUriByteBuffer` — WADO-RS 批量数据 URI 引用
 
 ### 6.2 字节源/目标接口
-- [ ] `IByteSource` 接口 — 顺序读取、标记/回退
+- [x] `IByteSource` 接口 — 顺序读取、标记/回退
   - `read(count): Uint8Array`
   - `mark()` / `rewind()` / `skip(count)`
   - `isEOF: boolean`
-- [ ] `IByteTarget` 接口 — 顺序写入
+- [x] `IByteTarget` 接口 — 顺序写入
   - `write(data: Uint8Array)`
-- [ ] `StreamByteSource` — 基于 Node.js ReadableStream
-- [ ] `FileByteSource` / `FileByteTarget` — 文件 I/O
-- [ ] `StreamByteTarget` / `MemoryByteTarget`
+- [x] `StreamByteSource` — 基于 Node.js ReadableStream
+- [x] `FileByteSource` / `FileByteTarget` — 文件 I/O
+- [x] `StreamByteTarget` / `MemoryByteTarget`
 
 ### 6.3 工具类
 - [ ] `ByteConverter` — DataView 包装，读写各类型
@@ -461,7 +461,7 @@
   - `save(path: string): Promise<void>`
   - `save(stream: WritableStream): Promise<void>`
 - [ ] `DicomFile.hasValidHeader(path): Promise<boolean>`
-- [ ] `FileReadOption` — 控制大标签的读取策略
+- [x] `FileReadOption` — 控制大标签的读取策略
   - `ReadAll` — 全量加载
   - `SkipLargeTags` — 跳过大标签（>= 某阈值）
   - `ReadLargeOnDemand` — 延迟加载像素数据

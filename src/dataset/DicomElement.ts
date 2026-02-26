@@ -248,21 +248,38 @@ function parseDicomDate(s: string): Date | null {
 }
 
 function parseDicomTime(s: string): Date | null {
-  const clean = s.replace(/[:.]/g, "").trim().padEnd(6, "0");
+  const trimmed = s.trim();
+  if (!trimmed) return null;
+  const [timePart, fracPart] = trimmed.split(".");
+  const clean = (timePart ?? "").replace(/:/g, "");
+  if (clean.length < 2) return null;
   const hh = parseInt(clean.slice(0, 2), 10);
-  const mm = parseInt(clean.slice(2, 4), 10);
-  const sc = parseInt(clean.slice(4, 6), 10);
-  const d = new Date(Date.UTC(1970, 0, 1, hh, mm, sc));
+  const mm = clean.length >= 4 ? parseInt(clean.slice(2, 4), 10) : 0;
+  const sc = clean.length >= 6 ? parseInt(clean.slice(4, 6), 10) : 0;
+  if ([hh, mm, sc].some((v) => Number.isNaN(v))) return null;
+  let ms = 0;
+  if (fracPart && fracPart.length > 0) {
+    const digits = fracPart.replace(/\D/g, "");
+    if (digits.length > 0) {
+      const padded = digits.padEnd(3, "0").slice(0, 3);
+      ms = parseInt(padded, 10);
+    }
+  }
+  const d = new Date(Date.UTC(1970, 0, 1, hh, mm, sc, ms));
   return isNaN(d.getTime()) ? null : d;
 }
 
 function parseDicomDateTime(s: string): Date | null {
-  const clean = s.replace(/[.:-]/g, "").trim().replace(/[+-]\d{4}$/, "");
-  const d = parseDicomDate(clean.slice(0, 8));
+  const trimmed = s.trim();
+  if (!trimmed) return null;
+  const withoutZone = trimmed.replace(/[+-]\d{4}$/, "");
+  const datePart = withoutZone.slice(0, 8);
+  const d = parseDicomDate(datePart);
   if (!d) return null;
-  if (clean.length >= 12) {
-    const t = parseDicomTime(clean.slice(8));
-    if (t) d.setUTCHours(t.getUTCHours(), t.getUTCMinutes(), t.getUTCSeconds());
+  const timePart = withoutZone.slice(8);
+  if (timePart.length > 0) {
+    const t = parseDicomTime(timePart);
+    if (t) d.setUTCHours(t.getUTCHours(), t.getUTCMinutes(), t.getUTCSeconds(), t.getUTCMilliseconds());
   }
   return d;
 }
@@ -278,7 +295,11 @@ function formatTime(d: Date): string {
   const h  = String(d.getUTCHours()).padStart(2, "0");
   const mi = String(d.getUTCMinutes()).padStart(2, "0");
   const sc = String(d.getUTCSeconds()).padStart(2, "0");
-  return `${h}${mi}${sc}`;
+  const ms = d.getUTCMilliseconds();
+  if (ms === 0) return `${h}${mi}${sc}`;
+  let frac = String(ms).padStart(3, "0").replace(/0+$/, "");
+  if (frac.length === 0) frac = "0";
+  return `${h}${mi}${sc}.${frac}`;
 }
 
 function formatDateTime(d: Date): string { return `${formatDate(d)}${formatTime(d)}`; }
