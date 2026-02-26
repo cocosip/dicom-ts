@@ -1,4 +1,4 @@
-# dicom-ts 开发计划
+﻿# dicom-ts 开发计划
 
 基于 fo-dicom v5.2.5 完整移植到 TypeScript 的开发路线图。
 
@@ -386,8 +386,8 @@
 - [x] `Endian` — 小端/大端枚举
 
 ### 6.4 测试
-- [ ] 各 Buffer 实现（参考 `Tests/IO/`）
-- [ ] 字节序转换测试
+- [x] 各 Buffer 实现（参考 `Tests/IO/`）
+- [x] 字节序转换测试
 
 ---
 

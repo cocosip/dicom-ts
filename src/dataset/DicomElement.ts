@@ -400,10 +400,7 @@ export class DicomAttributeTag extends DicomElement {
 
   static fromBuffer(tag: DicomTag, b: IByteBuffer): DicomAttributeTag {
     const e = Object.create(DicomAttributeTag.prototype) as DicomAttributeTag;
-    (DicomElement.prototype as unknown as { constructor: (...a: unknown[]) => void }).constructor.call(e, tag, b);
-    // Call parent constructor directly
-    e._buffer = b;
-    (e as unknown as { tag: DicomTag }).tag = tag;
+    initElement(e as unknown as DicomElement, tag, b);
     e._tags = null;
     return e;
   }
@@ -784,19 +781,19 @@ function _fromBuf<T extends DicomMultiStringElement>(ctor: MultiStrCtor, tag: Di
 function _fromBuf<T extends DicomStringElement>(ctor: StrCtor, tag: DicomTag, src: BufSrc): T;
 function _fromBuf<T extends DicomDateElement>(ctor: DateCtor, tag: DicomTag, fmts: readonly string[], src: BufSrc): T;
 function _fromBuf(ctor: Function, tag: DicomTag, fmtsOrSrc: readonly string[] | BufSrc, maybeSrc?: BufSrc): unknown {
-  const proto = ctor.prototype as object;
-  const e = Object.create(proto) as DicomElement;
+  const e = Object.create(ctor.prototype) as DicomElement;
 
   if (maybeSrc !== undefined) {
     // DicomDateElement path: (ctor, tag, fmts, src)
     const src = maybeSrc;
-    DicomDateElement.prototype.constructor.call(e, tag, fmtsOrSrc as readonly string[], src);
+    initDateElement(e as DicomDateElement, tag, fmtsOrSrc as readonly string[], src);
   } else if (isBufSrc(fmtsOrSrc)) {
     // DicomMultiStringElement / DicomStringElement path
-    if (proto instanceof DicomMultiStringElement.prototype.constructor) {
-      DicomMultiStringElement.prototype.constructor.call(e, tag, fmtsOrSrc);
+    const src = fmtsOrSrc;
+    if (e instanceof DicomMultiStringElement) {
+      initMultiStringElement(e as DicomMultiStringElement, tag, src);
     } else {
-      DicomStringElement.prototype.constructor.call(e, tag, fmtsOrSrc);
+      initStringElement(e as DicomStringElement, tag, src);
     }
   }
   return e;
@@ -804,7 +801,7 @@ function _fromBuf(ctor: Function, tag: DicomTag, fmtsOrSrc: readonly string[] | 
 
 function _fromBufVal<C extends DicomValueElement<any>>(ctor: ValCtor<C>, tag: DicomTag, b: IByteBuffer): C {
   const e = Object.create(ctor.prototype) as C;
-  DicomElement.prototype.constructor.call(e, tag, b);
+  initElement(e as unknown as DicomElement, tag, b);
   return e;
 }
 
@@ -812,6 +809,31 @@ function _typedOrBuf(data: ArrayBufferView | IByteBuffer): IByteBuffer {
   if ("size" in data && "isMemory" in data) return data as IByteBuffer;
   const v = data as ArrayBufferView;
   return new MemoryByteBuffer(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+}
+
+function initItem(target: DicomItem, tag: DicomTag): void {
+  (target as { tag: DicomTag }).tag = tag;
+}
+
+function initElement(target: DicomElement, tag: DicomTag, buffer: IByteBuffer): void {
+  initItem(target, tag);
+  (target as { _buffer: IByteBuffer })._buffer = buffer;
+}
+
+function initStringElement(target: DicomStringElement, tag: DicomTag, src: BufSrc): void {
+  initElement(target, tag, src.buffer);
+  (target as { _value: string | null })._value = null;
+  (target as { _encodings: readonly string[] })._encodings = src.encodings;
+}
+
+function initMultiStringElement(target: DicomMultiStringElement, tag: DicomTag, src: BufSrc): void {
+  initStringElement(target, tag, src);
+  (target as { _values: string[] | null })._values = null;
+}
+
+function initDateElement(target: DicomDateElement, tag: DicomTag, fmts: readonly string[], src: BufSrc): void {
+  initMultiStringElement(target, tag, src);
+  (target as { _dateFormats: readonly string[] })._dateFormats = fmts;
 }
 
 // ---------------------------------------------------------------------------
