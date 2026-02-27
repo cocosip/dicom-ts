@@ -510,71 +510,71 @@
 > 注：部分功能（JPEG/JPEG2000 编解码）在浏览器环境可依赖 Web API 或第三方库。
 
 ### 10.1 像素数据基础
-- [ ] `DicomPixelData` — 从 Dataset 提取像素数据
+- [x] `DicomPixelData` — 从 Dataset 提取像素数据
   - 支持单帧和多帧
   - 支持压缩（Encapsulated）和非压缩像素数据
   - `bitsAllocated`, `bitsStored`, `highBit`, `pixelRepresentation`
   - `samplesPerPixel`, `planarConfiguration`
   - `getFrame(index): IByteBuffer`
   - `addFrame(buffer: IByteBuffer)`
-- [ ] `PhotometricInterpretation` — 色彩空间枚举
+- [x] `PhotometricInterpretation` — 色彩空间枚举
   - MONOCHROME1, MONOCHROME2, RGB, YBR_FULL, YBR_FULL_422, PALETTE COLOR 等
-- [ ] `PixelRepresentation` — 有/无符号像素
-- [ ] `PlanarConfiguration` — 像素数据平面排列（交错/平面）
-- [ ] `BitDepth` — 位深度结构
+- [x] `PixelRepresentation` — 有/无符号像素
+- [x] `PlanarConfiguration` — 像素数据平面排列（交错/平面）
+- [x] `BitDepth` — 位深度结构
 
 ### 10.2 颜色转换
-- [ ] `Color32` — RGBA 颜色结构
-- [ ] `ColorSpace` — 色彩空间转换
-- [ ] `ColorTable` — 调色板颜色查找表
-- [ ] `PixelDataConverter` — 格式转换（YBR → RGB 等）
+- [x] `Color32` — RGBA 颜色结构
+- [x] `ColorSpace` — 色彩空间转换
+- [x] `ColorTable` — 调色板颜色查找表
+- [x] `PixelDataConverter` — 格式转换（YBR → RGB 等）
 
 ### 10.3 LUT（查找表）系统
-- [ ] `ILUT` 接口
-- [ ] `ModalityRescaleLUT` — 模态 Rescale（斜率/截距）
-- [ ] `ModalitySequenceLUT` — 模态 LUT 序列
-- [ ] `VOILUT` — VOI LUT（窗宽/窗位）
-- [ ] `VOISequenceLUT` — VOI LUT 序列
-- [ ] `PaletteColorLUT` — 调色板颜色 LUT
-- [ ] `OutputLUT` — 输出 LUT
-- [ ] `PaddingLUT` — 填充值处理
-- [ ] `InvertLUT` — 反色 LUT
-- [ ] `CompositeLUT` — 多 LUT 级联
-- [ ] `PrecalculatedLUT` — 预计算 LUT
+- [x] `ILUT` 接口
+- [x] `ModalityRescaleLUT` — 模态 Rescale（斜率/截距）
+- [x] `ModalitySequenceLUT` — 模态 LUT 序列
+- [x] `VOILUT` — VOI LUT（窗宽/窗位）
+- [x] `VOISequenceLUT` — VOI LUT 序列
+- [x] `PaletteColorLUT` — 调色板颜色 LUT
+- [x] `OutputLUT` — 输出 LUT
+- [x] `PaddingLUT` — 填充值处理
+- [x] `InvertLUT` — 反色 LUT
+- [x] `CompositeLUT` — 多 LUT 级联
+- [x] `PrecalculatedLUT` — 预计算 LUT
 
 ### 10.4 渲染管线
-- [ ] `IGraphic` 接口
-- [ ] `IPipeline` 接口
-- [ ] `ImageGraphic` — 基础图像图元
-- [ ] `OverlayGraphic` — 叠加层图形
-- [ ] `CompositeGraphic` — 组合图形
-- [ ] `GenericGrayscalePipeline` — 灰度渲染管线
-- [ ] `PaletteColorPipeline` — 调色板颜色管线
-- [ ] `RgbColorPipeline` — RGB 渲染管线
+- [x] `IGraphic` 接口
+- [x] `IPipeline` 接口
+- [x] `ImageGraphic` — 基础图像图元
+- [x] `OverlayGraphic` — 叠加层图形
+- [x] `CompositeGraphic` — 组合图形
+- [x] `GenericGrayscalePipeline` — 灰度渲染管线
+- [x] `PaletteColorPipeline` — 调色板颜色管线
+- [x] `RgbColorPipeline` — RGB 渲染管线
 
 ### 10.5 编解码器
-- [ ] `IDicomCodec` 接口（插件接口，供外部注册编解码器）
-- [ ] `IDicomTranscoder` 接口
-- [ ] `TranscoderManager` — 编解码器注册/查找（工厂模式）
-- [ ] `DicomRleCodec` — RLE 无损压缩（**纯 TypeScript 实现**，参考 `DicomRleCodec.cs`）
+- [x] `IDicomCodec` 接口（插件接口，供外部注册编解码器）
+- [x] `IDicomTranscoder` 接口
+- [x] `TranscoderManager` — 编解码器注册/查找（工厂模式）
+- [x] `DicomRleCodec` — RLE 无损压缩（**纯 TypeScript 实现**，参考 `DicomRleCodec.cs`）
 - [ ] `DicomJpegLosslessDecoder` — JPEG 无损 Process 14（**纯 TypeScript 移植**，参考 `JpegLossless/` 子目录）
 - [ ] JPEG 有损（Process 1/2）— 仅定义接口，**不内置**；用户通过 `TranscoderManager.register()` 注册
 - [ ] JPEG2000 / HTJ2K — 仅定义接口，**不内置**；用户按需注册（可对接 WASM 库）
-- [ ] `DicomTranscoder` — 在传输语法间转换（使用已注册的编解码器）
+- [x] `DicomTranscoder` — 在传输语法间转换（使用已注册的编解码器）
 
 ### 10.6 叠加层
-- [ ] `DicomOverlayData` — 从 Dataset 提取叠加层位图
-- [ ] `DicomOverlayDataFactory`
+- [x] `DicomOverlayData` — 从 Dataset 提取叠加层位图
+- [x] `DicomOverlayDataFactory`
 
 ### 10.7 DicomImage（主 API）
-- [ ] 实现 `DicomImage` 类
+- [x] 实现 `DicomImage` 类
   - 帧级缓存（像素 + 渲染结果）
   - `renderImage(frame?): IImage` — 执行渲染管线
   - 窗宽/窗位（`windowCenter`, `windowWidth`）
   - 缩放（`scale`）
   - 叠加层显示开关
-- [ ] `IImage` 接口 — 平台中立的输出图像
-- [ ] `RawImage` / `RawImageManager` — Uint8Array 原始像素输出（Node.js 用）
+- [x] `IImage` 接口 — 平台中立的输出图像
+- [x] `RawImage` / `RawImageManager` — Uint8Array 原始像素输出（Node.js 用）
 
 ### 10.8 数学工具
 - [ ] `Geometry3D` / `GeometryHelper` — 3D 几何运算
@@ -593,7 +593,7 @@
 - [ ] 渲染管线测试（参考 `Tests/Imaging/`）
 - [ ] LUT 测试
 - [ ] 编解码器转码测试
-- [ ] 像素数据提取测试
+- [x] 像素数据提取测试
 
 ---
 
@@ -782,7 +782,7 @@
 - Phase 7 — 二进制读写引擎：`✅ 已完成`
 - Phase 8 — DicomFile：`✅ 已完成`
 - Phase 9 — JSON 序列化：`✅ 已完成`
-- Phase 10 — 影像处理：`⬜ 未开始`
+- Phase 10 — 影像处理：`🟡 进行中`
 - Phase 11 — 网络/DIMSE：`⬜ 未开始`
 - Phase 12 — 高级功能：`⬜ 未开始`（日志子项已完成）
 
