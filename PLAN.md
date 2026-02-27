@@ -485,21 +485,21 @@
 遵循 DICOM PS3.18 Annex F DICOM JSON Model。
 
 ### 9.1 DICOM JSON 格式
-- [ ] `DicomJsonConverter` — 主序列化/反序列化类
+- [x] `DicomJsonConverter` — 主序列化/反序列化类
   - 序列化 `DicomDataset → JSON`
   - 反序列化 `JSON → DicomDataset`
-- [ ] 各 VR 的 JSON 映射规则：
+- [x] 各 VR 的 JSON 映射规则：
   - 字符串 VR → `{ "vr": "LO", "Value": ["..."] }`
   - 数值 VR → `{ "vr": "US", "Value": [123] }`
   - OB/OW 等 → `{ "vr": "OB", "InlineBinary": "<base64>" }` 或 BulkDataURI
   - SQ → `{ "vr": "SQ", "Value": [{ ... }] }`
   - PN → 三组分量对象格式
   - AT → `{ "vr": "AT", "Value": ["GGGGEEEE"] }`
-- [ ] 处理 null/空值、未知 VR
-- [ ] 单元测试（参考 `Tests/Serialization/JsonDicomConverterTest.cs`）
+- [x] 处理 null/空值、未知 VR
+- [x] 单元测试（参考 `Tests/Serialization/JsonDicomConverterTest.cs`）
 
 ### 9.2 XML 序列化（可选，P2）
-- [ ] DICOM XML 格式（PS3.19 Native DICOM Model）
+- [x] DICOM XML 格式（PS3.19 Native DICOM Model）
 
 ---
 
@@ -781,7 +781,7 @@
 - Phase 6 — I/O 缓冲层：`✅ 已完成`
 - Phase 7 — 二进制读写引擎：`✅ 已完成`
 - Phase 8 — DicomFile：`✅ 已完成`
-- Phase 9 — JSON 序列化：`⬜ 未开始`
+- Phase 9 — JSON 序列化：`✅ 已完成`
 - Phase 10 — 影像处理：`⬜ 未开始`
 - Phase 11 — 网络/DIMSE：`⬜ 未开始`
 - Phase 12 — 高级功能：`⬜ 未开始`（日志子项已完成）
