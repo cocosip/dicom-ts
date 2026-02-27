@@ -15,6 +15,7 @@ import { DicomVR } from "../core/DicomVR.js";
 import { DicomTransferSyntax } from "../core/DicomTransferSyntax.js";
 import { DicomDictionary, UnknownTag } from "../core/DicomDictionary.js";
 import { DicomUID } from "../core/DicomUID.js";
+import * as DicomTags from "../core/DicomTag.generated.js";
 import { DicomItem } from "./DicomItem.js";
 import {
   DicomElement,
@@ -410,8 +411,45 @@ export class DicomDataset implements Iterable<DicomItem> {
         throw e;
       }
     }
+
+    if (item.tag.equals(DicomTags.SpecificCharacterSet)) {
+      this._updateFallbackEncodings(item);
+    }
+
+    if (item instanceof DicomStringElement) {
+      this._applyEncodings(item);
+    }
+
     this._items.set(key, item);
     return this;
+  }
+
+  private _applyEncodings(item: DicomStringElement): void {
+    if (this.fallbackEncodings.length === 0) return;
+    const current = (item as unknown as { _encodings?: readonly string[] })._encodings ?? [];
+    if (current.length > 0) return;
+    (item as unknown as { _encodings: readonly string[] })._encodings = [...this.fallbackEncodings];
+  }
+
+  private _updateFallbackEncodings(item: DicomItem): void {
+    let values: string[] = [];
+    if (item instanceof DicomMultiStringElement) {
+      values = item.values;
+    } else if (item instanceof DicomStringElement) {
+      values = [item.value];
+    } else {
+      return;
+    }
+
+    const next = values.map((v) => v.trim());
+    this.fallbackEncodings = next.length === 1 && next[0] === "" ? [] : next;
+
+    if (this.fallbackEncodings.length === 0) return;
+    for (const existing of this._items.values()) {
+      if (existing instanceof DicomStringElement) {
+        this._applyEncodings(existing);
+      }
+    }
   }
 }
 

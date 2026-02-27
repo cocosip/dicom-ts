@@ -34,5 +34,8 @@
     "@types/node": "^22.19.11",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "iconv-lite": "^0.7.2"
   }
 }

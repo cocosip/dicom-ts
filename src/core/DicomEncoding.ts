@@ -20,6 +20,7 @@
 // Import TextDecoder / TextEncoder from node:util so TypeScript recognises
 // them as proper types in projects with lib: ["ES2020"] (no DOM).
 import { TextDecoder, TextEncoder } from "node:util";
+import * as iconv from "iconv-lite";
 
 // Re-export so callers can type against these without depending on DOM lib.
 export type { TextDecoder, TextEncoder };
@@ -79,6 +80,17 @@ function normalise(charset: string): string {
   return charset.trim().replace(/ISO[\s-]IR/i, "ISO_IR");
 }
 
+function resolveLabel(charset: string): string {
+  const norm = normalise(charset);
+  return _customMap.get(norm) ?? CHARSET_MAP.get(norm) ?? norm;
+}
+
+function iconvLabel(label: string): string {
+  if (label === "us-ascii") return "ascii";
+  if (label === "iso-8859-1") return "latin1";
+  return label;
+}
+
 // ---------------------------------------------------------------------------
 // Decoder cache
 // ---------------------------------------------------------------------------
@@ -115,13 +127,12 @@ export const Default: TextDecoder = new TextDecoder("ascii");
 export function getEncoding(charset: string): TextDecoder {
   if (!charset || charset.trim().length === 0) return Default;
 
-  const norm = normalise(charset);
-  const label = CHARSET_MAP.get(norm);
+  const label = resolveLabel(charset);
   if (label) return getDecoder(label);
 
   // Fallback: try the charset string directly as a WHATWG label
   try {
-    return getDecoder(norm);
+    return getDecoder(label);
   } catch {
     return Default;
   }
@@ -213,11 +224,12 @@ export function decodeBytes(bytes: Uint8Array, charsets: readonly string[]): str
 
   const firstCharset = charsets[0] ?? "";
   if (charsets.length === 1 && !firstCharset.startsWith("ISO 2022")) {
-    return getEncoding(firstCharset).decode(bytes);
+    const label = resolveLabel(firstCharset);
+    return decodeWithLabel(label, bytes);
   }
 
   // ISO 2022 multi-charset path: walk the bytes, track current encoding
-  let currentLabel = CHARSET_MAP.get(normalise(firstCharset)) ?? "us-ascii";
+  let currentLabel = resolveLabel(firstCharset);
   const parts: string[] = [];
   let i = 0;
   let segStart = 0;
@@ -228,7 +240,7 @@ export function decodeBytes(bytes: Uint8Array, charsets: readonly string[]): str
     if (b === 0x1b) {
       // Flush current segment
       if (i > segStart) {
-        parts.push(getDecoder(currentLabel).decode(bytes.slice(segStart, i)));
+        parts.push(decodeWithLabel(currentLabel, bytes.slice(segStart, i)));
       }
 
       // Try to match ESC sequence (2, 3, or 4 bytes after ESC)
@@ -263,7 +275,7 @@ export function decodeBytes(bytes: Uint8Array, charsets: readonly string[]): str
 
   // Flush remaining segment
   if (segStart < bytes.length) {
-    parts.push(getDecoder(currentLabel).decode(bytes.slice(segStart)));
+    parts.push(decodeWithLabel(currentLabel, bytes.slice(segStart)));
   }
 
   return parts.join("");
@@ -276,22 +288,111 @@ export function decodeBytes(bytes: Uint8Array, charsets: readonly string[]): str
  * not yet implemented — returns UTF-8 as a safe fallback for non-ASCII text.
  */
 export function encodeString(s: string, charsets: readonly string[]): Uint8Array {
-  const label = charsets.length > 0
-    ? (CHARSET_MAP.get(normalise(charsets[0] ?? "")) ?? "us-ascii")
-    : "us-ascii";
+  const labels = charsets.length > 0
+    ? charsets.map((c) => resolveLabel(c ?? ""))
+    : ["us-ascii"];
 
-  // TextEncoder only supports UTF-8; for other encodings we need a workaround.
-  // For Latin-1 range strings, manual byte-by-byte encoding is sufficient.
+  if (labels.length === 1) {
+    return encodeWithLabel(labels[0]!, s);
+  }
+
+  return encodeWithEscapes(s, labels);
+}
+
+function decodeWithLabel(label: string, bytes: Uint8Array): string {
+  if (label === "utf-8" || label === "us-ascii") {
+    return new TextDecoder(label).decode(bytes);
+  }
+  const encLabel = iconvLabel(label);
+  if (iconv.encodingExists(encLabel)) {
+    return iconv.decode(Buffer.from(bytes), encLabel);
+  }
+  return getDecoder(label).decode(bytes);
+}
+
+function encodeWithLabel(label: string, s: string): Uint8Array {
   if (label === "utf-8" || label === "us-ascii") {
     return new TextEncoder().encode(s);
   }
 
-  // For other charsets: TextEncoder doesn't support them natively in Node.js.
-  // Use latin1 as a best-effort for single-byte charsets in the 0x80-0xFF range.
-  // Full ISO 2022 encoding is a future enhancement.
+  const encLabel = iconvLabel(label);
+  if (iconv.encodingExists(encLabel)) {
+    return new Uint8Array(iconv.encode(s, encLabel));
+  }
+
   const bytes = new Uint8Array(s.length);
   for (let i = 0; i < s.length; i++) {
     bytes[i] = s.charCodeAt(i) & 0xff;
   }
   return bytes;
+}
+
+const ESC_FOR_LABEL: ReadonlyMap<string, Uint8Array> = new Map(
+  Array.from(ESC_SEQUENCES.entries()).reduce<Array<[string, Uint8Array]>>((acc, [seq, label]) => {
+    if (!acc.some(([lbl]) => lbl === label)) {
+      acc.push([label, Uint8Array.from(seq, (ch) => ch.charCodeAt(0))]);
+    }
+    return acc;
+  }, [])
+);
+
+function canEncodeChar(label: string, ch: string, cache: Map<string, boolean>): boolean {
+  const key = `${label}\u0000${ch}`;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+  const bytes = encodeWithLabel(label, ch);
+  const decoded = decodeWithLabel(label, bytes);
+  const ok = decoded === ch;
+  cache.set(key, ok);
+  return ok;
+}
+
+function encodeWithEscapes(s: string, labels: readonly string[]): Uint8Array {
+  const parts: Uint8Array[] = [];
+  const cache = new Map<string, boolean>();
+  let currentLabel = labels[0] ?? "us-ascii";
+
+  const initialEscape = ESC_FOR_LABEL.get(currentLabel);
+  if (initialEscape && currentLabel !== "us-ascii") {
+    parts.push(initialEscape);
+  }
+
+  let segment = "";
+
+  const flush = () => {
+    if (segment.length === 0) return;
+    parts.push(encodeWithLabel(currentLabel, segment));
+    segment = "";
+  };
+
+  for (const ch of s) {
+    let targetLabel = currentLabel;
+    if (!canEncodeChar(currentLabel, ch, cache)) {
+      const found = labels.find((lbl) => canEncodeChar(lbl, ch, cache));
+      if (found) targetLabel = found;
+    }
+
+    if (targetLabel !== currentLabel) {
+      flush();
+      const esc = ESC_FOR_LABEL.get(targetLabel);
+      if (esc) parts.push(esc);
+      currentLabel = targetLabel;
+    }
+
+    segment += ch;
+  }
+
+  flush();
+  return concatBytes(parts);
+}
+
+function concatBytes(chunks: Uint8Array[]): Uint8Array {
+  const total = chunks.reduce((sum, c) => sum + c.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return out;
 }
