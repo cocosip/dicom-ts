@@ -417,7 +417,7 @@
   - 异步读取支持
 - [x] `DicomFileReader` — 文件级读取（处理 preamble + meta）
 - [x] `DicomReaderEventArgs` — 事件参数
-- [ ] 测试（参考 `Tests/IO/`，`DicomFileTest.cs`，`Bugs/` 下所有回归测试）
+- [x] 测试（参考 `Tests/IO/`，`DicomFileTest.cs`，`Bugs/` 下回归测试核心场景）
 
 ### 7.2 DicomWriter（写入引擎）
 - [x] `DicomWriteOptions` — 显式长度 / 无限长序列选项
@@ -428,18 +428,18 @@
   - 显式/隐式 VR 写入
   - 序列 & 分片序列写入
   - 奇数长度填充
-- [ ] `DicomFileWriter` — 文件级写入
-- [ ] `DicomDatasetExtensions.write()` — Dataset 序列化为流
-- [ ] 测试（参考 `Tests/IO/Writer/`）
+- [x] `DicomFileWriter` — 文件级写入
+- [x] `DicomDatasetExtensions.write()` — Dataset 序列化为流
+- [x] 测试（参考 `Tests/IO/Writer/`，补充回归场景）
 
 ---
 
-## Phase 8 — DicomFile
+## Phase 8 — DicomFile（开始）
 
 参考源文件：`FO-DICOM.Core/DicomFile.cs`, `DicomFileMetaInformation.cs`, `DicomFileExtensions.cs`
 
 ### 8.1 DicomFileMetaInformation
-- [ ] 实现 `DicomFileMetaInformation extends DicomDataset`
+- [x] 实现 `DicomFileMetaInformation extends DicomDataset`
   - Group 0002 标签集合
   - `mediaStorageSOPClassUID`
   - `mediaStorageSOPInstanceUID`
@@ -448,33 +448,33 @@
   - `implementationVersionName`
 
 ### 8.2 DicomFile
-- [ ] 实现 `DicomFile` 类
+- [x] 实现 `DicomFile` 类
   - `fileMetaInfo: DicomFileMetaInformation`
   - `dataset: DicomDataset`
   - `format: DicomFileFormat` (DICOM3 / ACR_NEMA / IMPLICIT_VR)
   - `isPartial: boolean`
-- [ ] 静态工厂方法
+- [x] 静态工厂方法
   - `DicomFile.open(path: string, options?): Promise<DicomFile>`
   - `DicomFile.open(stream: ReadableStream, options?): Promise<DicomFile>`
   - `DicomFile.openAsync(...)` (别名)
-- [ ] 写入方法
+- [x] 写入方法
   - `save(path: string): Promise<void>`
   - `save(stream: WritableStream): Promise<void>`
-- [ ] `DicomFile.hasValidHeader(path): Promise<boolean>`
+- [x] `DicomFile.hasValidHeader(path): Promise<boolean>`
 - [x] `FileReadOption` — 控制大标签的读取策略
   - `ReadAll` — 全量加载
   - `SkipLargeTags` — 跳过大标签（>= 某阈值）
   - `ReadLargeOnDemand` — 延迟加载像素数据
-- [ ] 测试（参考 `DicomFileTest.cs`, `DicomFileMetaInformationTest.cs`）
+- [x] 测试（参考 `DicomFileTest.cs`, `DicomFileMetaInformationTest.cs`）
 
 ### 8.3 媒体目录（DICOMDIR）
-- [ ] `DicomDirectory` — DICOMDIR 读写
-- [ ] `DicomDirectoryRecord` — 目录记录条目
-- [ ] `DicomDirectoryRecordCollection`
-- [ ] `DicomDirectoryRecordType` — 枚举（PATIENT / STUDY / SERIES / IMAGE ...）
-- [ ] `DicomDirectoryReaderObserver`
-- [ ] `DicomFileScanner` — 扫描目录，识别 DICOM 文件
-- [ ] 测试（参考 `Tests/Media/`）
+- [x] `DicomDirectory` — DICOMDIR 读写
+- [x] `DicomDirectoryRecord` — 目录记录条目
+- [x] `DicomDirectoryRecordCollection`
+- [x] `DicomDirectoryRecordType` — 枚举（PATIENT / STUDY / SERIES / IMAGE ...）
+- [x] `DicomDirectoryReaderObserver`
+- [x] `DicomFileScanner` — 扫描目录，识别 DICOM 文件
+- [x] 测试（参考 `Tests/Media/`）
 
 ---
 
@@ -779,8 +779,8 @@
 - Phase 4 — 数据元素类型系统：`✅ 已完成`（全部 VR 元素类、序列类、缓冲层基础）
 - Phase 5 — DicomDataset：`✅ 已完成`（108 个测试全部通过）
 - Phase 6 — I/O 缓冲层：`✅ 已完成`
-- Phase 7 — 二进制读写引擎：`🔶 部分完成`
-- Phase 8 — DicomFile：`⬜ 未开始`
+- Phase 7 — 二进制读写引擎：`✅ 已完成`
+- Phase 8 — DicomFile：`✅ 已完成`
 - Phase 9 — JSON 序列化：`⬜ 未开始`
 - Phase 10 — 影像处理：`⬜ 未开始`
 - Phase 11 — 网络/DIMSE：`⬜ 未开始`

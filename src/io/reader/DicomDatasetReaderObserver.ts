@@ -17,10 +17,9 @@ import {
 import { createElement } from "../../dataset/DicomElement.js";
 import type { IDicomReaderObserver } from "./IDicomReaderObserver.js";
 
-interface SequenceContext {
-  sequence: DicomSequence | DicomFragmentSequence;
-  isFragment: boolean;
-}
+type SequenceContext =
+  | { sequence: DicomFragmentSequence; isFragment: true }
+  | { sequence: DicomSequence; isFragment: false };
 
 /**
  * Builds a DicomDataset from DicomReader callbacks.
@@ -54,7 +53,11 @@ export class DicomDatasetReaderObserver implements IDicomReaderObserver {
       sequence = new DicomSequence(tag);
     }
     this.currentDataset().addOrUpdate(sequence);
-    this.sequenceStack.push({ sequence, isFragment });
+    this.sequenceStack.push(
+      isFragment
+        ? { sequence: sequence as DicomFragmentSequence, isFragment: true }
+        : { sequence: sequence as DicomSequence, isFragment: false }
+    );
   }
 
   onEndSequence(): void {

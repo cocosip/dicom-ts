@@ -260,7 +260,13 @@ export class DicomDataset implements Iterable<DicomItem> {
 
   add(item: DicomItem): this;
   add(items: Iterable<DicomItem>): this;
-  add(arg: DicomItem | Iterable<DicomItem>): this {
+  add(...items: DicomItem[]): this;
+  add(arg: DicomItem | Iterable<DicomItem>, ...rest: DicomItem[]): this {
+    if (rest.length > 0) {
+      this._doAdd(arg as DicomItem, false);
+      for (const item of rest) this._doAdd(item, false);
+      return this;
+    }
     if (arg instanceof DicomItem) {
       return this._doAdd(arg, false);
     }
@@ -276,7 +282,13 @@ export class DicomDataset implements Iterable<DicomItem> {
 
   addOrUpdate(item: DicomItem): this;
   addOrUpdate(items: Iterable<DicomItem>): this;
-  addOrUpdate(arg: DicomItem | Iterable<DicomItem>): this {
+  addOrUpdate(...items: DicomItem[]): this;
+  addOrUpdate(arg: DicomItem | Iterable<DicomItem>, ...rest: DicomItem[]): this {
+    if (rest.length > 0) {
+      this._doAdd(arg as DicomItem, true);
+      for (const item of rest) this._doAdd(item, true);
+      return this;
+    }
     if (arg instanceof DicomItem) {
       return this._doAdd(arg, true);
     }

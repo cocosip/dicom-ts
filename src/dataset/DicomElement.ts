@@ -450,7 +450,9 @@ export class DicomDecimalString extends DicomMultiStringElement {
     super(tag, values.map((v) => typeof v === "number" ? fmtDecimal(v) : v as string));
   }
   static fromBuffer(tag: DicomTag, b: IByteBuffer): DicomDecimalString {
-    return _fromBuf(DicomDecimalString, tag, bufSrc(b));
+    const e = _fromBuf(DicomDecimalString, tag, bufSrc(b)) as DicomDecimalString;
+    (e as unknown as { _nums: number[] | null })._nums = null;
+    return e;
   }
   get numericValue(): number   { return this._getNums()[0] ?? 0; }
   get numericValues(): number[] { return this._getNums(); }
@@ -506,7 +508,9 @@ export class DicomIntegerString extends DicomMultiStringElement {
     super(tag, values.map((v) => String(v)));
   }
   static fromBuffer(tag: DicomTag, b: IByteBuffer): DicomIntegerString {
-    return _fromBuf(DicomIntegerString, tag, bufSrc(b));
+    const e = _fromBuf(DicomIntegerString, tag, bufSrc(b)) as DicomIntegerString;
+    (e as unknown as { _ints: number[] | null })._ints = null;
+    return e;
   }
   get intValue(): number   { return this._getInts()[0] ?? 0; }
   get intValues(): number[] { return this._getInts(); }
@@ -615,6 +619,18 @@ export class DicomPersonName extends DicomMultiStringElement {
     while (parts.length > 1 && parts[parts.length - 1] === "") parts.pop();
     return parts.join("^");
   }
+
+  static haveSameContent(a: DicomPersonName | null, b: DicomPersonName | null): boolean {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return (
+      a.last.toLowerCase() === b.last.toLowerCase()
+      && a.first.toLowerCase() === b.first.toLowerCase()
+      && a.middle.toLowerCase() === b.middle.toLowerCase()
+      && a.prefix.toLowerCase() === b.prefix.toLowerCase()
+      && a.suffix.toLowerCase() === b.suffix.toLowerCase()
+    );
+  }
 }
 
 // SH
@@ -700,7 +716,9 @@ export class DicomUniqueIdentifier extends DicomMultiStringElement {
     ));
   }
   static fromBuffer(tag: DicomTag, b: IByteBuffer): DicomUniqueIdentifier {
-    return _fromBuf(DicomUniqueIdentifier, tag, bufSrc(b));
+    const e = _fromBuf(DicomUniqueIdentifier, tag, bufSrc(b)) as DicomUniqueIdentifier;
+    (e as unknown as { _uids: DicomUID[] | null })._uids = null;
+    return e;
   }
   get uidValues(): DicomUID[] {
     if (this._uids === null) {
@@ -817,23 +835,23 @@ function initItem(target: DicomItem, tag: DicomTag): void {
 
 function initElement(target: DicomElement, tag: DicomTag, buffer: IByteBuffer): void {
   initItem(target, tag);
-  (target as { _buffer: IByteBuffer })._buffer = buffer;
+  (target as unknown as { _buffer: IByteBuffer })._buffer = buffer;
 }
 
 function initStringElement(target: DicomStringElement, tag: DicomTag, src: BufSrc): void {
   initElement(target, tag, src.buffer);
-  (target as { _value: string | null })._value = null;
-  (target as { _encodings: readonly string[] })._encodings = src.encodings;
+  (target as unknown as { _value: string | null })._value = null;
+  (target as unknown as { _encodings: readonly string[] })._encodings = src.encodings;
 }
 
 function initMultiStringElement(target: DicomMultiStringElement, tag: DicomTag, src: BufSrc): void {
   initStringElement(target, tag, src);
-  (target as { _values: string[] | null })._values = null;
+  (target as unknown as { _values: string[] | null })._values = null;
 }
 
 function initDateElement(target: DicomDateElement, tag: DicomTag, fmts: readonly string[], src: BufSrc): void {
   initMultiStringElement(target, tag, src);
-  (target as { _dateFormats: readonly string[] })._dateFormats = fmts;
+  (target as unknown as { _dateFormats: readonly string[] })._dateFormats = fmts;
 }
 
 // ---------------------------------------------------------------------------

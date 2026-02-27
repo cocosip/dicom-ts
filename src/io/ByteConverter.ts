@@ -70,8 +70,11 @@ export function toArray<T extends TypedArray>(
 
     for (let j = 0, srcBit = 0; j < count; ++j) {
       for (let i = 0, dstBit = j * bitsRequested; i < bitsAllocated; ++i, ++srcBit, ++dstBit) {
-        if ((src[(srcBit / 8) | 0]! & (1 << (srcBit % 8))) !== 0) {
-          dst[(dstBit / 8) | 0] |= 1 << (dstBit % 8);
+        const srcByte = src[(srcBit / 8) | 0] ?? 0;
+        if ((srcByte & (1 << (srcBit % 8))) !== 0) {
+          const dstIndex = (dstBit / 8) | 0;
+          const existing = dst[dstIndex] ?? 0;
+          dst[dstIndex] = existing | (1 << (dstBit % 8));
         }
       }
     }
@@ -92,7 +95,10 @@ export function getValue<T extends TypedArray>(
   index: number
 ): T[number] {
   const array = toArray(buffer, ctor);
-  return array[index];
+  if (index < 0 || index >= array.length) {
+    throw new RangeError(`Index ${index} out of range (count=${array.length})`);
+  }
+  return array[index]!;
 }
 
 export function unpackLow16(buffer: IByteBuffer): IByteBuffer {

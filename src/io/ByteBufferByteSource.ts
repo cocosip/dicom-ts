@@ -117,9 +117,11 @@ export class ByteBufferByteSource implements IByteSource {
       if (this.currentIndex === -1 || this.currentData === null || this.currentPos >= this.currentData.length) {
         if (!this.swapBuffers()) throw new Error("Tried to read past end of byte source.");
       }
-      const available = this.currentData.length - this.currentPos;
+      const data = this.currentData;
+      if (!data) throw new Error("Byte source buffer unavailable.");
+      const available = data.length - this.currentPos;
       const take = Math.min(available, remaining);
-      buffer.set(this.currentData.subarray(this.currentPos, this.currentPos + take), writePos);
+      buffer.set(data.subarray(this.currentPos, this.currentPos + take), writePos);
       this.currentPos += take;
       this._position += take;
       writePos += take;

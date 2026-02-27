@@ -7,6 +7,7 @@ export { DicomVM } from "./DicomVM.js";
 export { DicomUID, DicomUIDGenerator, DicomUidType, DicomStorageCategory } from "./DicomUID.js";
 export { DicomTransferSyntax, Endian } from "./DicomTransferSyntax.js";
 export type { DicomTransferSyntaxProps } from "./DicomTransferSyntax.js";
+export { DicomImplementation } from "./DicomImplementation.js";
 export { DicomDictionaryEntry } from "./DicomDictionaryEntry.js";
 export { DicomDictionary, UnknownTag, PrivateCreatorTag } from "./DicomDictionary.js";
 export * as DicomEncoding from "./DicomEncoding.js";

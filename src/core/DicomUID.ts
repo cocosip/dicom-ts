@@ -160,11 +160,102 @@ export class DicomUID {
   equals(other: DicomUID): boolean {
     return this.uid === other.uid;
   }
+
+  // ---------------------------------------------------------------------------
+  // Storage category helpers
+  // ---------------------------------------------------------------------------
+
+  get isImageStorage(): boolean {
+    return this.storageCategory === DicomStorageCategory.Image;
+  }
+
+  get isVolumeStorage(): boolean {
+    return this.storageCategory === DicomStorageCategory.Volume;
+  }
+
+  get storageCategory(): DicomStorageCategory {
+    if (!this.uid.startsWith("1.2.840.10008") && this.type === DicomUidType.SOPClass) {
+      return DicomStorageCategory.Private;
+    }
+
+    if (this.type !== DicomUidType.SOPClass || this.name.startsWith("Storage Commitment") || !this.name.includes("Storage")) {
+      return DicomStorageCategory.None;
+    }
+
+    if (this.name.includes("Image Storage")) {
+      return DicomStorageCategory.Image;
+    }
+
+    if (this.name.includes("Volume Storage")) {
+      return DicomStorageCategory.Volume;
+    }
+
+    if (PRESENTATION_STATE_UIDS.has(this.uid)) {
+      return DicomStorageCategory.PresentationState;
+    }
+
+    if (STRUCTURED_REPORT_UIDS.has(this.uid)) {
+      return DicomStorageCategory.StructuredReport;
+    }
+
+    if (WAVEFORM_UIDS.has(this.uid)) {
+      return DicomStorageCategory.Waveform;
+    }
+
+    if (DOCUMENT_UIDS.has(this.uid)) {
+      return DicomStorageCategory.Document;
+    }
+
+    if (RAW_UIDS.has(this.uid)) {
+      return DicomStorageCategory.Raw;
+    }
+
+    return DicomStorageCategory.Other;
+  }
 }
 
 // ---------------------------------------------------------------------------
 // DicomUIDGenerator
 // ---------------------------------------------------------------------------
+
+const PRESENTATION_STATE_UIDS = new Set<string>([
+  "1.2.840.10008.5.1.4.1.1.11.4", // Blending Softcopy Presentation State Storage
+  "1.2.840.10008.5.1.4.1.1.11.2", // Color Softcopy Presentation State Storage
+  "1.2.840.10008.5.1.4.1.1.11.1", // Grayscale Softcopy Presentation State Storage
+  "1.2.840.10008.5.1.4.1.1.11.3", // Pseudo-Color Softcopy Presentation State Storage
+]);
+
+const STRUCTURED_REPORT_UIDS = new Set<string>([
+  "1.2.840.10008.5.1.4.1.1.88.2",  // Audio SR Storage (Trial) (Retired)
+  "1.2.840.10008.5.1.4.1.1.88.11", // Basic Text SR Storage
+  "1.2.840.10008.5.1.4.1.1.88.50", // Chest CAD SR Storage
+  "1.2.840.10008.5.1.4.1.1.88.33", // Comprehensive SR Storage
+  "1.2.840.10008.5.1.4.1.1.88.4",  // Comprehensive SR Storage (Trial) (Retired)
+  "1.2.840.10008.5.1.4.1.1.88.22", // Detail SR Storage (Trial) (Retired)
+  "1.2.840.10008.5.1.4.1.1.88.34", // Enhanced SR Storage
+  "1.2.840.10008.5.1.4.1.1.88.54", // Mammography CAD SR Storage
+  "1.2.840.10008.5.1.4.1.1.88.3",  // Text SR Storage (Trial) (Retired)
+  "1.2.840.10008.5.1.4.1.1.88.67", // X-Ray Radiation Dose SR Storage
+]);
+
+const WAVEFORM_UIDS = new Set<string>([
+  "1.2.840.10008.5.1.4.1.1.9.1.3", // Ambulatory ECG Waveform Storage
+  "1.2.840.10008.5.1.4.1.1.9.4.1", // Basic Voice Audio Waveform Storage
+  "1.2.840.10008.5.1.4.1.1.9.3.1", // Cardiac Electrophysiology Waveform Storage
+  "1.2.840.10008.5.1.4.1.1.9.1.2", // General ECG Waveform Storage
+  "1.2.840.10008.5.1.4.1.1.9.2.1", // Hemodynamic Waveform Storage
+  "1.2.840.10008.5.1.4.1.1.9.1.1", // Twelve Lead ECG Waveform Storage
+  "1.2.840.10008.5.1.4.1.1.9.1",   // Waveform Storage - Trial (Retired)
+]);
+
+const DOCUMENT_UIDS = new Set<string>([
+  "1.2.840.10008.5.1.4.1.1.104.2", // Encapsulated CDA Storage
+  "1.2.840.10008.5.1.4.1.1.104.1", // Encapsulated PDF Storage
+]);
+
+const RAW_UIDS = new Set<string>([
+  "1.2.840.10008.5.1.4.1.1.66", // Raw Data Storage
+]);
 
 /**
  * Generates unique DICOM UIDs.

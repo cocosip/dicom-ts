@@ -85,11 +85,11 @@ function inflateDeflated(bytes: Uint8Array): Uint8Array {
   }
 }
 
-function isFileSource(source: IByteSource): source is { filePath: string; position: number } {
+function isFileSource(source: IByteSource): source is IByteSource & { filePath: string } {
   return typeof (source as { filePath?: string }).filePath === "string";
 }
 
-function readRemainingFileBytes(source: IByteSource & { filePath: string; position: number }): Uint8Array {
+function readRemainingFileBytes(source: IByteSource & { filePath: string }): Uint8Array {
   const fileBytes = readFileSync(source.filePath);
   const start = Math.max(0, source.position);
   if (start >= fileBytes.length) return new Uint8Array(0);
