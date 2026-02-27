@@ -53,6 +53,18 @@ export {
 export { DicomDataset } from "./DicomDataset.js";
 export type { IDicomDatasetObserver } from "./DicomDataset.js";
 export {
+  cloneDataset,
+  getDateTime,
+  tryGetDateTime,
+  getDateTimeOffset,
+  tryGetDateTimeOffset,
+  enumerateMasked,
+  enumerateGroup,
+  notValidated,
+  validated,
+} from "./DicomDatasetExtensions.js";
+export type { DicomDateTimeOffset } from "./DicomDatasetExtensions.js";
+export {
   DicomDatasetWalker,
   DicomDatasetWalkerBase,
 } from "./DicomDatasetWalker.js";

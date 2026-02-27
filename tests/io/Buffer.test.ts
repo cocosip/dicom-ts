@@ -16,6 +16,7 @@ import { FileByteBuffer } from "../../src/io/buffer/FileByteBuffer.js";
 import { StreamByteBuffer } from "../../src/io/buffer/StreamByteBuffer.js";
 import { TempFileBuffer } from "../../src/io/buffer/TempFileBuffer.js";
 import { BulkDataUriByteBuffer } from "../../src/io/buffer/BulkDataUriByteBuffer.js";
+import { swapBytes } from "../../src/io/buffer/byteSwap.js";
 import { Endian } from "../../src/core/DicomTransferSyntax.js";
 import { LocalEndian } from "../../src/io/buffer/byteSwap.js";
 
@@ -165,6 +166,18 @@ describe("FileByteBuffer", () => {
       unlinkSync(path);
     }
   });
+
+  it("pads with zeros when reading beyond end of file", () => {
+    const path = tempPath();
+    writeFileSync(path, Uint8Array.from([9, 8, 7]));
+    try {
+      const buffer = new FileByteBuffer(path, 1, 5);
+      expect(buffer.size).toBe(5);
+      expect(Array.from(buffer.data)).toEqual([8, 7, 0, 0, 0]);
+    } finally {
+      unlinkSync(path);
+    }
+  });
 });
 
 describe("StreamByteBuffer", () => {
@@ -188,6 +201,20 @@ describe("StreamByteBuffer", () => {
 
   it("throws when stream has no file descriptor", () => {
     expect(() => new StreamByteBuffer({}, 0, 1)).toThrow(Error);
+  });
+
+  it("pads with zeros when reading beyond end of stream", () => {
+    const path = tempPath();
+    writeFileSync(path, Uint8Array.from([1, 2, 3]));
+    const fd = openSync(path, "r");
+    try {
+      const buffer = new StreamByteBuffer(fd, 1, 5);
+      expect(buffer.size).toBe(5);
+      expect(Array.from(buffer.data)).toEqual([2, 3, 0, 0, 0]);
+    } finally {
+      closeSync(fd);
+      unlinkSync(path);
+    }
   });
 });
 
@@ -220,5 +247,32 @@ describe("BulkDataUriByteBuffer", () => {
     expect(buffer.size).toBe(3);
     expect(Array.from(buffer.data)).toEqual([4, 5, 6]);
     expect(Array.from(buffer.getByteRange(1, 2))).toEqual([5, 6]);
+  });
+});
+
+describe("byteSwap", () => {
+  it("swaps 8-byte units and respects count", () => {
+    const bytes = Uint8Array.from([
+      1, 2, 3, 4, 5, 6, 7, 8,
+      9, 10, 11, 12, 13, 14, 15, 16,
+    ]);
+    swapBytes(8, bytes, 8);
+    expect(Array.from(bytes)).toEqual([
+      8, 7, 6, 5, 4, 3, 2, 1,
+      9, 10, 11, 12, 13, 14, 15, 16,
+    ]);
+  });
+
+  it("throws when count exceeds buffer length", () => {
+    const bytes = Uint8Array.from([1, 2, 3, 4]);
+    expect(() => swapBytes(2, bytes, 6)).toThrow(RangeError);
+  });
+
+  it("is a no-op for unit size 1 or count <= 1", () => {
+    const bytes = Uint8Array.from([1, 2, 3, 4]);
+    swapBytes(1, bytes);
+    expect(Array.from(bytes)).toEqual([1, 2, 3, 4]);
+    swapBytes(4, bytes, 1);
+    expect(Array.from(bytes)).toEqual([1, 2, 3, 4]);
   });
 });

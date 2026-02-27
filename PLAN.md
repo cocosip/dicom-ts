@@ -333,7 +333,7 @@
 - [x] `DicomDatasetWalker` — 深度优先遍历器（含嵌套序列和 DicomFragmentSequence）
 - [x] `IDicomDatasetWalker` 接口 + `DicomDatasetWalkerBase` 无操作基类
 - [x] `IDicomDatasetObserver` 接口 — 供 Phase 7 读取引擎回调构建 Dataset
-- [ ] `DicomDatasetExtensions` — 常用 helper（getDateTime / enumerateMasked 等，Phase 8+ 按需补充）
+- [x] `DicomDatasetExtensions` — 常用 helper（getDateTime / enumerateMasked 等，Phase 8+ 按需补充）
 
 ### 5.3 测试
 - [x] Dataset CRUD 操作（add / addOrUpdate / remove / clear / copyTo）
@@ -396,17 +396,17 @@
 参考源文件：`FO-DICOM.Core/IO/Reader/`, `FO-DICOM.Core/IO/Writer/`
 
 ### 7.1 DicomReader（读取引擎）
-- [ ] `IDicomReader` 接口
-- [ ] `IDicomReaderObserver` 接口（观察者回调）
+- [x] `IDicomReader` 接口
+- [x] `IDicomReaderObserver` 接口（观察者回调）
   - `onBeginSequence(source, tag, length)`
   - `onEndSequence()`
   - `onBeginSequenceItem(source, length)`
   - `onEndSequenceItem()`
   - `onBeginTag(source, tag, vr, length)`
   - `onEndTag()`
-- [ ] `DicomReaderCallbackObserver` — 函数式观察者
-- [ ] `DicomReaderMultiObserver` — 组合多个观察者
-- [ ] `DicomReader` 核心实现
+- [x] `DicomReaderCallbackObserver` — 函数式观察者
+- [x] `DicomReaderMultiObserver` — 组合多个观察者
+- [x] `DicomReader` 核心实现
   - 魔法字节检测 `DICM` (offset 128)
   - 显式/隐式 VR 切换
   - Little Endian / Big Endian 支持
@@ -415,14 +415,14 @@
   - Deflate 解压（Group 0002 之后）
   - 停止条件 (`stop: (tag) => boolean`)
   - 异步读取支持
-- [ ] `DicomFileReader` — 文件级读取（处理 preamble + meta）
-- [ ] `DicomReaderEventArgs` — 事件参数
+- [x] `DicomFileReader` — 文件级读取（处理 preamble + meta）
+- [x] `DicomReaderEventArgs` — 事件参数
 - [ ] 测试（参考 `Tests/IO/`，`DicomFileTest.cs`，`Bugs/` 下所有回归测试）
 
 ### 7.2 DicomWriter（写入引擎）
-- [ ] `DicomWriteOptions` — 显式长度 / 无限长序列选项
-- [ ] `DicomWriteLengthCalculator` — 预计算写入长度
-- [ ] `DicomWriter` 核心实现
+- [x] `DicomWriteOptions` — 显式长度 / 无限长序列选项
+- [x] `DicomWriteLengthCalculator` — 预计算写入长度
+- [x] `DicomWriter` 核心实现
   - 写 preamble + `DICM` 魔法字节
   - Group 0002 meta 信息
   - 显式/隐式 VR 写入
@@ -778,8 +778,8 @@
 - 日志模块（提前实现，源自 Phase 12.7）：`✅ 已完成`（13 个测试）
 - Phase 4 — 数据元素类型系统：`✅ 已完成`（全部 VR 元素类、序列类、缓冲层基础）
 - Phase 5 — DicomDataset：`✅ 已完成`（108 个测试全部通过）
-- Phase 6 — I/O 缓冲层：`🔶 部分完成`（缓冲区 + ByteSource/ByteTarget + ByteConverter/Endian 已实现，部分测试仍待补充）
-- Phase 7 — 二进制读写引擎：`⬜ 未开始`
+- Phase 6 — I/O 缓冲层：`✅ 已完成`
+- Phase 7 — 二进制读写引擎：`🔶 部分完成`
 - Phase 8 — DicomFile：`⬜ 未开始`
 - Phase 9 — JSON 序列化：`⬜ 未开始`
 - Phase 10 — 影像处理：`⬜ 未开始`
@@ -804,7 +804,7 @@ fo-dicom 的 `Microsoft.Extensions.Logging` 适配已在 fo-dicom v5 中标记�
 - `IByteBuffer` 接口（`src/io/buffer/IByteBuffer.ts`）
 - `MemoryByteBuffer`、`EmptyBuffer`、`LazyByteBuffer`
 
-Phase 6 仍需补充：缓冲层全面测试与字节序转换测试。
+Phase 6 已补齐：缓冲层全面测试与字节序转换测试。
 
 ### 3. DicomElement 构造器模式调整（fo-dicom 重载 → 静态工厂）
 fo-dicom 使用 C# 构造函数重载区分"从值构造"和"从缓冲区构造"两种情况。TypeScript 的 `super()` 规则要求在有字段初始化器的类中，`super()` 必须是根级语句（不能在 `if/else` 分支中）。

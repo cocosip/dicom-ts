@@ -25,6 +25,8 @@ export abstract class DicomFragmentSequence
   /** The actual compressed data fragments (one per frame, typically). */
   readonly fragments: IByteBuffer[] = [];
 
+  private offsetTableParsed = false;
+
   protected constructor(tag: DicomTag) {
     super(tag);
   }
@@ -32,8 +34,9 @@ export abstract class DicomFragmentSequence
   /** Add a fragment.  The first call populates the offset table; subsequent
    *  calls append to `fragments`. */
   addRaw(fragment: IByteBuffer): void {
-    if (this.offsetTable.length === 0 && this.fragments.length === 0) {
-      // First fragment is the basic offset table
+    if (!this.offsetTableParsed) {
+      this.offsetTableParsed = true;
+      // First fragment is the basic offset table (may be empty)
       const view = new DataView(
         fragment.data.buffer,
         fragment.data.byteOffset,
@@ -43,6 +46,7 @@ export abstract class DicomFragmentSequence
       for (let i = 0; i < n; i++) {
         this.offsetTable.push(view.getUint32(i * 4, true));
       }
+      return;
     } else {
       this.fragments.push(fragment);
     }

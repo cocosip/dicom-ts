@@ -11,6 +11,38 @@ function makeSource(bytes: Uint8Array): ByteBufferByteSource {
   return new ByteBufferByteSource([new MemoryByteBuffer(bytes)]);
 }
 
+function pushUInt16LE(out: number[], value: number): void {
+  out.push(value & 0xff, (value >> 8) & 0xff);
+}
+
+function pushUInt32LE(out: number[], value: number): void {
+  out.push(value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >> 24) & 0xff);
+}
+
+function pushTag(out: number[], group: number, element: number): void {
+  pushUInt16LE(out, group);
+  pushUInt16LE(out, element);
+}
+
+function pushVR(out: number[], vr: string): void {
+  out.push(vr.charCodeAt(0), vr.charCodeAt(1));
+}
+
+function pushElementExplicit16(out: number[], group: number, element: number, vr: string, value: Uint8Array): void {
+  pushTag(out, group, element);
+  pushVR(out, vr);
+  pushUInt16LE(out, value.length);
+  out.push(...value);
+}
+
+function pushElementExplicit32(out: number[], group: number, element: number, vr: string, value: Uint8Array): void {
+  pushTag(out, group, element);
+  pushVR(out, vr);
+  out.push(0x00, 0x00);
+  pushUInt32LE(out, value.length);
+  out.push(...value);
+}
+
 describe("DicomReader", () => {
   it("reads explicit VR little endian elements", () => {
     const value = Buffer.from("Doe^John", "ascii");
@@ -70,5 +102,88 @@ describe("DicomReader", () => {
     const seq = dataset.getSequence(DicomTags.ReferencedStudySequence);
     expect(seq.items.length).toBe(1);
     expect(seq.items[0]!.getString(DicomTags.PatientName)).toBe("Doe^John");
+  });
+
+  it("reads explicit VR with 32-bit length (OB)", () => {
+    const bytes: number[] = [];
+    pushElementExplicit32(bytes, 0x7fe0, 0x0010, "OB", Uint8Array.from([1, 2, 3, 4]));
+    const source = makeSource(Uint8Array.from(bytes));
+    const dataset = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
+    const observer = new DicomDatasetReaderObserver(dataset);
+    DicomReader.read(source, observer, { transferSyntax: DicomTransferSyntax.ExplicitVRLittleEndian });
+
+    const element = dataset.getDicomItem(DicomTags.PixelData);
+    expect(element?.buffer.size).toBe(4);
+    expect(Array.from(element!.buffer.data)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("reads undefined-length sequences with delimiters", () => {
+    const pnValue = Buffer.from("Doe^John", "ascii");
+    const bytes: number[] = [];
+    pushTag(bytes, 0x0008, 0x1110); // ReferencedStudySequence
+    pushVR(bytes, "SQ");
+    bytes.push(0x00, 0x00);
+    pushUInt32LE(bytes, 0xffffffff);
+    pushTag(bytes, 0xfffe, 0xe000); // Item
+    pushUInt32LE(bytes, 0xffffffff);
+    pushElementExplicit16(bytes, 0x0010, 0x0010, "PN", pnValue);
+    pushTag(bytes, 0xfffe, 0xe00d); // Item Delimitation
+    pushUInt32LE(bytes, 0);
+    pushTag(bytes, 0xfffe, 0xe0dd); // Sequence Delimitation
+    pushUInt32LE(bytes, 0);
+
+    const source = makeSource(Uint8Array.from(bytes));
+    const dataset = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
+    const observer = new DicomDatasetReaderObserver(dataset);
+    DicomReader.read(source, observer, { transferSyntax: DicomTransferSyntax.ExplicitVRLittleEndian });
+
+    const seq = dataset.getSequence(DicomTags.ReferencedStudySequence);
+    expect(seq.items.length).toBe(1);
+    expect(seq.items[0]!.getString(DicomTags.PatientName)).toBe("Doe^John");
+  });
+
+  it("honors stop condition and leaves position at tag", () => {
+    const bytes: number[] = [];
+    pushElementExplicit16(bytes, 0x0010, 0x0010, "PN", Buffer.from("Doe^John", "ascii"));
+    const stopPos = bytes.length;
+    pushElementExplicit16(bytes, 0x0010, 0x0020, "LO", Buffer.from("P001", "ascii"));
+
+    const source = makeSource(Uint8Array.from(bytes));
+    const dataset = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
+    const observer = new DicomDatasetReaderObserver(dataset);
+
+    DicomReader.read(source, observer, {
+      transferSyntax: DicomTransferSyntax.ExplicitVRLittleEndian,
+      stop: (tag) => tag.equals(DicomTags.PatientID),
+    });
+
+    expect(dataset.tryGetString(DicomTags.PatientName)).toBe("Doe^John");
+    expect(dataset.tryGetString(DicomTags.PatientID)).toBeUndefined();
+    expect(source.position).toBe(stopPos);
+  });
+
+  it("skips remaining bytes when observer consumes part of a value", () => {
+    const bytes: number[] = [];
+    pushElementExplicit16(bytes, 0x0010, 0x0020, "LO", Buffer.from("P001", "ascii"));
+    pushElementExplicit16(bytes, 0x0010, 0x0010, "PN", Buffer.from("Doe^John", "ascii"));
+
+    const source = makeSource(Uint8Array.from(bytes));
+    const tags: string[] = [];
+    const observer = {
+      onBeginSequence: () => {},
+      onEndSequence: () => {},
+      onBeginSequenceItem: () => {},
+      onEndSequenceItem: () => {},
+      onBeginTag: (src: ByteBufferByteSource, tag: { toString: () => string }, _vr: unknown, length: number) => {
+        tags.push(tag.toString());
+        if (length >= 2) src.getBytes(2);
+      },
+      onEndTag: () => {},
+    };
+
+    DicomReader.read(source, observer, { transferSyntax: DicomTransferSyntax.ExplicitVRLittleEndian });
+    expect(tags.length).toBe(2);
+    expect(tags[0]).toContain("(0010,0020)");
+    expect(tags[1]).toContain("(0010,0010)");
   });
 });

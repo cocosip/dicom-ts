@@ -13,3 +13,4 @@ export { StreamByteTarget } from "./StreamByteTarget.js";
 export { FileByteTarget } from "./FileByteTarget.js";
 
 export * from "./reader/index.js";
+export * from "./writer/index.js";

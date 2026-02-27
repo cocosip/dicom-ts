@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync, unlinkSync, openSync, closeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PassThrough } from "node:stream";
+import { PassThrough, Readable } from "node:stream";
 import { once } from "node:events";
 
 import { Endian, FileReadOption } from "../../src/io/index.js";
@@ -46,6 +46,30 @@ describe("IByteSource implementations", () => {
     source.add(new MemoryByteBuffer(Uint8Array.from([1, 2, 3, 4])), true);
     expect(fired).toBe(true);
     expect(source.require(4)).toBe(true);
+  });
+
+  it("ByteBufferByteSource throws when requiring beyond fixed length", () => {
+    const source = new ByteBufferByteSource([new MemoryByteBuffer(Uint8Array.from([1, 2]))]);
+    expect(() => source.require(4)).toThrow(Error);
+  });
+
+  it("ByteBufferByteSource getBytes buffer too small throws", () => {
+    const source = new ByteBufferByteSource([new MemoryByteBuffer(Uint8Array.from([1, 2, 3]))]);
+    const target = new Uint8Array(2);
+    expect(() => source.getBytes(target, 0, 3)).toThrow(RangeError);
+  });
+
+  it("ByteBufferByteSource getStream yields concatenated data", async () => {
+    const source = new ByteBufferByteSource([
+      new MemoryByteBuffer(Uint8Array.from([1, 2])),
+      new MemoryByteBuffer(Uint8Array.from([3, 4])),
+    ]);
+    const stream = source.getStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream as Readable) {
+      chunks.push(Buffer.from(chunk as Uint8Array));
+    }
+    expect(Array.from(Buffer.concat(chunks))).toEqual([1, 2, 3, 4]);
   });
 
   it("FileByteSource handles read options and buffers", () => {
