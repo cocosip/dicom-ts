@@ -10,8 +10,8 @@ import { RawImage } from "./RawImage.js";
 import { DicomPixelData } from "./DicomPixelData.js";
 
 export enum DicomOverlayType {
-  Graphics = "G",
-  ROI = "R",
+  Graphics = "Graphics",
+  ROI = "ROI",
 }
 
 /**
@@ -51,7 +51,8 @@ export class DicomOverlayData {
     throw new Error(`Unsupported overlay type: ${raw}`);
   }
   set type(value: DicomOverlayType) {
-    this.dataset.addOrUpdateElement(DicomVR.CS, this.overlayTag(0x0040), value);
+    const code = value.toString().substring(0, 1).toUpperCase();
+    this.dataset.addOrUpdateElement(DicomVR.CS, this.overlayTag(0x0040), code);
   }
 
   get bitsAllocated(): number {
@@ -333,7 +334,8 @@ function extractEmbeddedMask(overlay: DicomOverlayData, dataset: DicomDataset): 
       let n = (y + oy) * pixels.columns + ox;
       let i = y * ow;
       for (let x = 0; x < ow; x++) {
-        if ((frameData[n] & mask) !== 0) out[i] = 1;
+        const value = frameData[n] ?? 0;
+        if ((value & mask) !== 0) out[i] = 1;
         n++;
         i++;
       }

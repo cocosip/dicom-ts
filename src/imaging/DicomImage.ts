@@ -16,6 +16,7 @@ import { OutputLUT } from "./lut/OutputLUT.js";
 import { RawImage } from "./RawImage.js";
 import type { IImage } from "./IImage.js";
 import { DicomOverlayDataFactory } from "./DicomOverlayDataFactory.js";
+import { DicomOverlayType } from "./DicomOverlayData.js";
 import { Color32 } from "./Color32.js";
 
 /**
@@ -116,7 +117,7 @@ export class DicomImage {
       let current = image;
       for (const overlay of overlays) {
         try {
-          if (overlay.type !== "G") continue;
+          if (overlay.type !== DicomOverlayType.Graphics) continue;
         } catch {
           continue;
         }
