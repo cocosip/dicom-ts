@@ -7,6 +7,7 @@ import { DicomOverlayDataFactory } from "../../src/imaging/DicomOverlayDataFacto
 import { DicomOverlayData, DicomOverlayType } from "../../src/imaging/DicomOverlayData.js";
 import { RawImage } from "../../src/imaging/RawImage.js";
 import { Color32 } from "../../src/imaging/Color32.js";
+import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import * as Tags from "../../src/core/DicomTag.generated.js";
 
 const GROUP = 0x6000;
@@ -240,6 +241,28 @@ describe("DicomOverlayData", () => {
     expect([...overlay.getMask(0)]).toEqual([0, 0, 0, 0]); // before origin
     expect([...overlay.getMask(1)]).toEqual([1, 0, 0, 0]); // frame 2 -> overlay frame 0
     expect([...overlay.getMask(2)]).toEqual([0, 1, 0, 0]); // frame 3 -> overlay frame 1
+  });
+
+  it("extracts embedded overlay consistently for explicit VR big endian syntax", () => {
+    const ds = new DicomDataset(DicomTransferSyntax.ExplicitVRBigEndian);
+    ds.addOrUpdateElement(DicomVR.US, Tags.Rows, 1);
+    ds.addOrUpdateElement(DicomVR.US, Tags.Columns, 2);
+    ds.addOrUpdateElement(DicomVR.US, Tags.BitsAllocated, 16);
+    ds.addOrUpdateElement(DicomVR.US, Tags.BitsStored, 8);
+    ds.addOrUpdateElement(DicomVR.US, Tags.HighBit, 7);
+    ds.addOrUpdateElement(DicomVR.US, Tags.SamplesPerPixel, 1);
+    ds.addOrUpdateElement(DicomVR.US, Tags.PixelRepresentation, 0);
+    ds.addOrUpdateElement(DicomVR.CS, Tags.PhotometricInterpretation, "MONOCHROME2");
+    ds.addOrUpdateElement(DicomVR.OW, Tags.PixelData, new Uint16Array([0x0100, 0x0000]));
+
+    ds.addOrUpdateElement(DicomVR.US, tag(0x0010), 1);
+    ds.addOrUpdateElement(DicomVR.US, tag(0x0011), 2);
+    ds.addOrUpdateElement(DicomVR.SS, tag(0x0050), 1, 1);
+    ds.addOrUpdateElement(DicomVR.CS, tag(0x0040), "G");
+    ds.addOrUpdateElement(DicomVR.US, tag(0x0102), 8);
+
+    const overlay = new DicomOverlayData(ds, GROUP);
+    expect([...overlay.getMask()]).toEqual([1, 0]);
   });
 
   it("getOverlayDataS32 throws for invalid packed data length", () => {

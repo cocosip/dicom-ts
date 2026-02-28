@@ -1,48 +1,50 @@
 import { DicomDataset } from "../dataset/DicomDataset.js";
+import { cloneDataset } from "../dataset/DicomDatasetExtensions.js";
 import { DicomOverlayData } from "./DicomOverlayData.js";
 import { DicomTag } from "../core/DicomTag.js";
+import * as Tags from "../core/DicomTag.generated.js";
 import { DicomVR } from "../core/DicomVR.js";
+import { DicomTransferSyntax } from "../core/DicomTransferSyntax.js";
 import { DicomOtherWord } from "../dataset/DicomElement.js";
 import { DicomOtherByte } from "../dataset/DicomElement.js";
-import { MemoryByteBuffer } from "../io/buffer/MemoryByteBuffer.js";
-import { EvenLengthBuffer } from "../io/buffer/EvenLengthBuffer.js";
-import { DicomPixelData } from "./DicomPixelData.js";
+import { DicomTranscoder as CodecDicomTranscoder } from "./codec/DicomTranscoder.js";
 
 export class DicomTranscoder {
   static extractOverlays(dataset: DicomDataset): DicomDataset {
     if (!DicomOverlayData.hasEmbeddedOverlays(dataset)) return dataset;
 
-    // clone dataset shallowly by copying items
-    const output = new DicomDataset(dataset.internalTransferSyntax);
-    for (const item of dataset) output.addOrUpdate(item);
+    const output = cloneDataset(dataset);
+    let input = output;
 
-    DicomTranscoder.processOverlays(dataset, output);
+    if (input.internalTransferSyntax.isEncapsulated) {
+      input = cloneDataset(output);
+      const transcoder = new CodecDicomTranscoder(
+        input.internalTransferSyntax,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      );
+      input = transcoder.transcode(input);
+    }
+
+    DicomTranscoder.processOverlays(input, output);
     return output;
   }
 
   private static processOverlays(input: DicomDataset, output: DicomDataset): void {
     const source = input.internalTransferSyntax.isEncapsulated ? output : input;
     const overlays = DicomOverlayData.fromDataset(source);
-    const pixelData = DicomPixelData.create(source);
 
     for (const overlay of overlays) {
       const dataTag = new DicomTag(overlay.group, 0x3000);
-      if (source.contains(dataTag)) continue;
+      if (output.contains(dataTag)) continue;
 
-      const bitsAlloc = pixelData.bitsAllocated;
+      const bitsAlloc = output.getSingleValueOrDefault<number>(Tags.BitsAllocated, 0);
       output.addOrUpdateElement(DicomVR.US, new DicomTag(overlay.group, 0x0100), bitsAlloc);
 
-      // Sanity check: do not extract overlay if within used pixel range.
-      if (overlay.bitPosition <= pixelData.highBit && overlay.bitPosition > pixelData.highBit - pixelData.bitsStored) {
-        continue;
-      }
-
       const buffer = overlay.data;
-      const even = EvenLengthBuffer.create(buffer);
-      if (bitsAlloc > 8) {
-        output.addOrUpdate(new DicomOtherWord(dataTag, even));
+      if (output.internalTransferSyntax.isExplicitVR) {
+        output.addOrUpdate(new DicomOtherByte(dataTag, buffer));
       } else {
-        output.addOrUpdate(new DicomOtherByte(dataTag, even));
+        output.addOrUpdate(new DicomOtherWord(dataTag, buffer));
       }
     }
   }

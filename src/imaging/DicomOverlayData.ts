@@ -348,14 +348,13 @@ function extractEmbeddedMask(overlay: DicomOverlayData, dataset: DicomDataset): 
     }
   } else {
     const view = new DataView(frameData.buffer, frameData.byteOffset, frameData.byteLength);
-    const little = dataset.internalTransferSyntax.swapPixelData
-      ? false
-      : dataset.internalTransferSyntax.endian === 0;
     for (let y = 0; y < oh; y++) {
       let n = (y + oy) * pixels.columns + ox;
       let i = y * ow;
       for (let x = 0; x < ow; x++) {
-        const value = view.getUint16(n * 2, little);
+        // Pixel OW buffers are normalized to little-endian on read/write path,
+        // which matches fo-dicom's ByteConverter.ToArray<ushort>(...) behavior.
+        const value = view.getUint16(n * 2, true);
         if ((value & mask) !== 0) out[i] = 1;
         n++;
         i++;

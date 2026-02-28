@@ -62,3 +62,10 @@ export {
 } from "./math/Geometry3D.js";
 export type { BoundingBox3D, FrameGeometryLike } from "./math/GeometryHelper.js";
 export { GeometryHelper } from "./math/GeometryHelper.js";
+
+export { ImageData } from "./reconstruction/ImageData.js";
+export type { IntervalD } from "./reconstruction/VolumeData.js";
+export { VolumeData } from "./reconstruction/VolumeData.js";
+export { Slice } from "./reconstruction/Slice.js";
+export { Stack, StackType } from "./reconstruction/Stack.js";
+export { DicomGenerator } from "./reconstruction/DicomGenerator.js";
