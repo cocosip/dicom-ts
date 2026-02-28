@@ -13,6 +13,7 @@ export { DicomOverlayDataFactory } from "./DicomOverlayDataFactory.js";
 export type { IImage } from "./IImage.js";
 export { RawImage } from "./RawImage.js";
 export { RawImageManager } from "./RawImageManager.js";
+export { DicomIconImage } from "./DicomIconImage.js";
 
 export type { ILUT } from "./lut/ILUT.js";
 export { ModalityRescaleLUT } from "./lut/ModalityRescaleLUT.js";
@@ -42,3 +43,22 @@ export { DicomTranscoder } from "./codec/DicomTranscoder.js";
 export { DicomRleCodec } from "./codec/DicomRleCodec.js";
 export { DicomJpegLosslessDecoder } from "./codec/DicomJpegLosslessDecoder.js";
 export { DicomTranscoder as DicomImagingTranscoder } from "./DicomTranscoder.js";
+
+export { Point2 } from "./math/Point2.js";
+export { Point2D } from "./math/Point2D.js";
+export { RectF } from "./math/RectF.js";
+export { Histogram } from "./math/Histogram.js";
+export { Matrix } from "./math/Matrix.js";
+export {
+  GEOMETRY_EPSILON,
+  isNearlyZero,
+  Vector3D,
+  Point3D,
+  Line3D,
+  Segment3D,
+  Plane3D,
+  Slice3D,
+  Orientation3D,
+} from "./math/Geometry3D.js";
+export type { BoundingBox3D, FrameGeometryLike } from "./math/GeometryHelper.js";
+export { GeometryHelper } from "./math/GeometryHelper.js";

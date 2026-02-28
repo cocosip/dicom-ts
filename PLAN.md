@@ -577,17 +577,17 @@
 - [x] `RawImage` / `RawImageManager` — Uint8Array 原始像素输出（Node.js 用）
 
 ### 10.8 数学工具
-- [ ] `Geometry3D` / `GeometryHelper` — 3D 几何运算
-- [ ] `Histogram` — 像素直方图
-- [ ] `Matrix` — 矩阵运算
-- [ ] `Point2`, `Point2D`, `RectF` — 几何基础类型
+- [x] `Geometry3D` / `GeometryHelper` — 3D 几何运算
+- [x] `Histogram` — 像素直方图
+- [x] `Matrix` — 矩阵运算
+- [x] `Point2`, `Point2D`, `RectF` — 几何基础类型
 
 ### 10.9 3D 重建
 - [ ] `DicomGenerator` — 生成合成 DICOM 数据
 - [ ] `ImageData`, `Slice`, `Stack`, `VolumeData` — 体积数据结构
 
 ### 10.10 叠加层与图标图像
-- [ ] `DicomIconImage` — DICOM 图标图像处理
+- [x] `DicomIconImage` — DICOM 图标图像处理
 
 ### 10.11 测试
 - [ ] 渲染管线测试（参考 `Tests/Imaging/`）

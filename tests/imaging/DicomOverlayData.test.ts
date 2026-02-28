@@ -5,6 +5,8 @@ import { DicomTag } from "../../src/core/DicomTag.js";
 import { DicomVR } from "../../src/core/DicomVR.js";
 import { DicomOverlayDataFactory } from "../../src/imaging/DicomOverlayDataFactory.js";
 import { DicomOverlayData, DicomOverlayType } from "../../src/imaging/DicomOverlayData.js";
+import { RawImage } from "../../src/imaging/RawImage.js";
+import { Color32 } from "../../src/imaging/Color32.js";
 import * as Tags from "../../src/core/DicomTag.generated.js";
 
 const GROUP = 0x6000;
@@ -238,5 +240,31 @@ describe("DicomOverlayData", () => {
     expect([...overlay.getMask(0)]).toEqual([0, 0, 0, 0]); // before origin
     expect([...overlay.getMask(1)]).toEqual([1, 0, 0, 0]); // frame 2 -> overlay frame 0
     expect([...overlay.getMask(2)]).toEqual([0, 1, 0, 0]); // frame 3 -> overlay frame 1
+  });
+
+  it("getOverlayDataS32 throws for invalid packed data length", () => {
+    const ds = new DicomDataset();
+    ds.addOrUpdateElement(DicomVR.US, tag(0x0010), 4);
+    ds.addOrUpdateElement(DicomVR.US, tag(0x0011), 4);
+    ds.addOrUpdateElement(DicomVR.CS, tag(0x0040), "G");
+    ds.addOrUpdate(new DicomOtherByte(tag(0x3000), new Uint8Array([0x01]))); // 8 bits < 16 pixels
+
+    const overlay = new DicomOverlayData(ds, GROUP);
+    expect(() => overlay.getOverlayDataS32(0, 1)).toThrow("Invalid overlay length");
+  });
+
+  it("factory fromBitmap writes overlay data via overlay.Data", () => {
+    const ds = new DicomDataset();
+    const image = new RawImage(2, 1, new Uint8Array([
+      255, 0, 0, 255, // match
+      0, 0, 0, 255,
+    ]));
+
+    const overlay = DicomOverlayDataFactory.fromBitmap(ds, image, new Color32(255, 0, 0, 255));
+    expect(overlay.group).toBe(0x6000);
+    expect(overlay.rows).toBe(1);
+    expect(overlay.columns).toBe(2);
+    expect([...overlay.getMask()]).toEqual([1, 0]);
+    expect(ds.contains(new DicomTag(0x6000, 0x3000))).toBe(true);
   });
 });

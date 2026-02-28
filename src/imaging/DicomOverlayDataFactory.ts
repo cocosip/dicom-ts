@@ -3,10 +3,8 @@ import type { IImage } from "./IImage.js";
 import { Color32 } from "./Color32.js";
 import { DicomOverlayData, DicomOverlayType } from "./DicomOverlayData.js";
 import { DicomTag } from "../core/DicomTag.js";
-import { DicomVR } from "../core/DicomVR.js";
 import { MemoryByteBuffer } from "../io/buffer/MemoryByteBuffer.js";
 import { EvenLengthBuffer } from "../io/buffer/EvenLengthBuffer.js";
-import { DicomOtherWord } from "../dataset/DicomElement.js";
 
 export class DicomOverlayDataFactory {
   static fromDataset(dataset: DicomDataset): DicomOverlayData[] {
@@ -50,8 +48,7 @@ export class DicomOverlayDataFactory {
     }
 
     const packed = packBits(maskBits);
-    const buffer = EvenLengthBuffer.create(new MemoryByteBuffer(packed));
-    dataset.addOrUpdate(new DicomOtherWord(new DicomTag(group, 0x3000), buffer));
+    overlay.data = EvenLengthBuffer.create(new MemoryByteBuffer(packed));
     return overlay;
   }
 }

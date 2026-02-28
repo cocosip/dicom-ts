@@ -3,7 +3,6 @@ import { DicomElement, DicomOtherWord } from "../dataset/DicomElement.js";
 import { DicomTag } from "../core/DicomTag.js";
 import { DicomVR } from "../core/DicomVR.js";
 import { MemoryByteBuffer } from "../io/buffer/MemoryByteBuffer.js";
-import { EvenLengthBuffer } from "../io/buffer/EvenLengthBuffer.js";
 import type { IByteBuffer } from "../io/buffer/IByteBuffer.js";
 import { Color32 } from "./Color32.js";
 import { RawImage } from "./RawImage.js";
@@ -209,12 +208,20 @@ export class DicomOverlayData {
   }
 
   getOverlayDataS32(bg: number, fg: number): number[] {
-    const mask = this.getMask();
-    const out = new Array<number>(mask.length);
-    for (let i = 0; i < mask.length; i++) {
-      out[i] = mask[i] ? fg : bg;
+    const overlay = new Array<number>(this.rows * this.columns);
+    const bytes = this.data.data;
+    const bitLength = bytes.length * 8;
+    if (bitLength < overlay.length) {
+      throw new Error(`Invalid overlay length: ${bitLength}`);
     }
-    return out;
+
+    for (let i = 0; i < overlay.length; i++) {
+      const byteIndex = i >> 3;
+      const bitIndex = i & 7;
+      const bit = ((bytes[byteIndex] ?? 0) >> bitIndex) & 1;
+      overlay[i] = bit ? fg : bg;
+    }
+    return overlay;
   }
 
   // -------------------------------------------------------------------------
@@ -301,8 +308,7 @@ export class DicomOverlayData {
       throw new Error("Attempted to extract embedded overlay from compressed pixel data. Decompress pixel data before attempting this operation.");
     }
 
-    const buffer = extractEmbeddedOverlayBuffer(this, this.dataset);
-    return EvenLengthBuffer.create(buffer);
+    return extractEmbeddedOverlayBuffer(this, this.dataset);
   }
 }
 
