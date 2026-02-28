@@ -616,29 +616,29 @@
   - [ ] `PDataTF` — 数据传输
 
 ### 11.2 DicomAssociation
-- [ ] `DicomAssociation` — 关联上下文
+- [x] `DicomAssociation` — 关联上下文
   - 表示上下文列表（`DicomPresentationContext[]`）
   - 扩展协商（`DicomExtendedNegotiation`）
   - 用户身份协商（`DicomUserIdentityNegotiation`）
   - CallingAE / CalledAE
-- [ ] `DicomPresentationContext` — 摘要上下文（SOP 类 + 传输语法）
-- [ ] `DicomPresentationContextCollection`
-- [ ] `DicomExtendedNegotiation` / `DicomExtendedNegotiationCollection`
-- [ ] `DicomUserIdentityNegotiation`
+- [x] `DicomPresentationContext` — 摘要上下文（SOP 类 + 传输语法）
+- [x] `DicomPresentationContextCollection`
+- [x] `DicomExtendedNegotiation` / `DicomExtendedNegotiationCollection`
+- [x] `DicomUserIdentityNegotiation`
 
 ### 11.3 DicomMessage / DIMSE 消息
-- [ ] `DicomMessage` — Command + Dataset 组合
-- [ ] `DicomRequest extends DicomMessage` — 请求基类
-- [ ] `DicomResponse extends DicomMessage` — 响应基类
-- [ ] `DicomPriorityRequest` — 带优先级请求
-- [ ] `DicomCommandField` 枚举
+- [x] `DicomMessage` — Command + Dataset 组合
+- [x] `DicomRequest extends DicomMessage` — 请求基类
+- [x] `DicomResponse extends DicomMessage` — 响应基类
+- [x] `DicomPriorityRequest` — 带优先级请求
+- [x] `DicomCommandField` 枚举
 
 ### 11.4 服务类请求/响应
-- [ ] **C-ECHO**：`DicomCEchoRequest`, `DicomCEchoResponse`
-- [ ] **C-STORE**：`DicomCStoreRequest`, `DicomCStoreResponse`
-- [ ] **C-FIND**：`DicomCFindRequest`, `DicomCFindResponse`
-- [ ] **C-MOVE**：`DicomCMoveRequest`, `DicomCMoveResponse`
-- [ ] **C-GET**：`DicomCGetRequest`, `DicomCGetResponse`
+- [x] **C-ECHO**：`DicomCEchoRequest`, `DicomCEchoResponse`
+- [x] **C-STORE**：`DicomCStoreRequest`, `DicomCStoreResponse`
+- [x] **C-FIND**：`DicomCFindRequest`, `DicomCFindResponse`
+- [x] **C-MOVE**：`DicomCMoveRequest`, `DicomCMoveResponse`
+- [x] **C-GET**：`DicomCGetRequest`, `DicomCGetResponse`
 - [ ] **N-CREATE**：`DicomNCreateRequest`, `DicomNCreateResponse`
 - [ ] **N-SET**：`DicomNSetRequest`, `DicomNSetResponse`
 - [ ] **N-GET**：`DicomNGetRequest`, `DicomNGetResponse`

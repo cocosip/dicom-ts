@@ -12,6 +12,7 @@ export * from "./dataset/index.js";
 export * from "./media/index.js";
 export * from "./serialization/index.js";
 export * from "./imaging/index.js";
+export * from "./network/index.js";
 export { DicomFile } from "./DicomFile.js";
 export { DicomFileMetaInformation } from "./DicomFileMetaInformation.js";
 export { DicomFileFormat } from "./DicomFileFormat.js";
