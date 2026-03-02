@@ -10,3 +10,6 @@ Each tool lives in its own directory and can run independently.
 - `dicom-info`: print basic DICOM metadata and common tag values
   - docs: `tools/dicom-info/README.md`
   - entry: `tools/dicom-info/index.mjs`
+- `dicom-dump`: dump all DICOM tags with optional depth/value/compact controls
+  - docs: `tools/dicom-dump/README.md`
+  - entry: `tools/dicom-dump/index.mjs`

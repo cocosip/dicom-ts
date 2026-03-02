@@ -25,7 +25,9 @@
     "tool:dicom-to-json": "node tools/dicom-to-json/index.mjs",
     "tool:dicom-to-json:help": "node tools/dicom-to-json/index.mjs --help",
     "tool:dicom-info": "node tools/dicom-info/index.mjs",
-    "tool:dicom-info:help": "node tools/dicom-info/index.mjs --help"
+    "tool:dicom-info:help": "node tools/dicom-info/index.mjs --help",
+    "tool:dicom-dump": "node tools/dicom-dump/index.mjs",
+    "tool:dicom-dump:help": "node tools/dicom-dump/index.mjs --help"
   },
   "keywords": [
     "dicom",
