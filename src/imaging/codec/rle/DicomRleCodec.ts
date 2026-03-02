@@ -1,8 +1,8 @@
-import { DicomTransferSyntax } from "../../core/DicomTransferSyntax.js";
-import { MemoryByteBuffer } from "../../io/buffer/MemoryByteBuffer.js";
-import type { IByteBuffer } from "../../io/buffer/IByteBuffer.js";
-import type { IDicomCodec } from "./IDicomCodec.js";
-import type { DicomPixelData } from "../DicomPixelData.js";
+import { DicomTransferSyntax } from "../../../core/DicomTransferSyntax.js";
+import { MemoryByteBuffer } from "../../../io/buffer/MemoryByteBuffer.js";
+import type { IByteBuffer } from "../../../io/buffer/IByteBuffer.js";
+import type { IDicomCodec } from "../IDicomCodec.js";
+import type { DicomPixelData } from "../../DicomPixelData.js";
 
 /**
  * DICOM RLE Lossless codec (decode only).

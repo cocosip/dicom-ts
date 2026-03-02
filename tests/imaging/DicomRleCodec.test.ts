@@ -4,7 +4,7 @@ import { DicomOtherByte } from "../../src/dataset/DicomElement.js";
 import { DicomVR } from "../../src/core/DicomVR.js";
 import * as Tags from "../../src/core/DicomTag.generated.js";
 import { DicomPixelData } from "../../src/imaging/DicomPixelData.js";
-import { DicomRleCodec } from "../../src/imaging/codec/DicomRleCodec.js";
+import { DicomRleCodec } from "../../src/imaging/codec/rle/DicomRleCodec.js";
 
 function makeRleFrame(segment: Uint8Array): Uint8Array {
   const headerSize = 64;

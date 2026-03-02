@@ -38,8 +38,14 @@ Current state in `dicom-ts`:
   - `IDicomCodec`, `IDicomTranscoder`, `TranscoderManager`
   - `DicomTranscoder` pipeline
   - `DicomRleCodec` base implementation
+  - Codec family split layout initialized:
+    - `src/imaging/codec/rle/`
+    - `src/imaging/codec/jpeg/`
+    - `src/imaging/codec/jpeg-ls/`
+    - `src/imaging/codec/jpeg2000/`
+    - `src/imaging/codec/common/`
 - Missing or incomplete:
-  - `DicomJpegLosslessDecoder` is still not implemented
+  - JPEG Process 14 core decode chain is implemented (`codec/jpeg/common/JpegProcess14Common.ts`), conformance matrix still in progress
   - `DicomTransferSyntax` does not fully expose `4.92` / `4.93` constants
   - No unified codec capability metadata (decode-only vs encode+decode)
   - No full acceptance matrix for all required transfer syntaxes
@@ -51,6 +57,28 @@ Current state in `dicom-ts`:
 - Built-in vs plugin strategy:
   - Built-in (in-tree): JPEG Lossless Process 14 family (`4.57`, `4.70`) and RLE
   - Plugin-first: JPEG Baseline/Extended, JPEG-LS, JPEG 2000 family
+- Source layout strategy:
+  - By family directory:
+    - `codec/rle/`
+    - `codec/jpeg/`
+    - `codec/jpeg-ls/`
+    - `codec/jpeg2000/`
+    - `codec/common/`
+  - JPEG transfer-syntax split (one transfer syntax => one codec entrypoint):
+    - baseline (`4.50`)
+    - extended (`4.51`)
+    - lossless (`4.57`)
+    - lossless14sv1 (`4.70`)
+  - Current TS layout:
+    - `codec/jpeg/baseline/DicomJpegProcess1Codec.ts`
+    - `codec/jpeg/extended/DicomJpegProcess2_4Codec.ts`
+    - `codec/jpeg/lossless/DicomJpegProcess14Codec.ts`
+    - `codec/jpeg/lossless14sv1/DicomJpegProcess14SV1Codec.ts`
+    - `codec/jpeg/common/JpegProcess14Common.ts`
+    - `codec/jpeg/common/JpegBaselineExtendedCommon.ts`
+  - Reference for codec family split style:
+    - `source-code/go-dicom-codec/jpeg/`
+  - Each family keeps its own adapter/codec/decoder/encoder files and `index.ts`
 - Do not import native binaries from `source-code/fo-dicom.Codecs/Native/` into core runtime
 
 ## 5) Work Breakdown Structure (WBS)
@@ -66,22 +94,25 @@ Current state in `dicom-ts`:
   - [ ] Include syntax UID, frame index, and bit depth in errors
 
 ### B. JPEG Lossless family (`4.57`, `4.70`) - built-in
-- [ ] B1. Port Process 14 decode chain from `JpegLossless/`
-  - [ ] Huffman table parsing
-  - [ ] Frame/scan header parsing
-  - [ ] Predictor pipeline (all Process 14 predictors)
-- [ ] B2. SV1 behavior support
-  - [ ] Enforce predictor 1 for `4.70`
+- [x] B1. Port Process 14 decode chain from `JpegLossless/`
+  - [x] Huffman table parsing
+  - [x] Frame/scan header parsing
+  - [x] Predictor pipeline (all Process 14 predictors)
+- [x] B2. SV1 behavior support
+  - [x] Enforce predictor 1 for `4.70`
 - [ ] B3. Pixel integration
-  - [ ] Validate 8/12/16-bit cases and multi-frame handling
+  - [x] Validate 8-bit RGB fixture path with `DicomTranscoder`
+  - [ ] Validate 8/12/16-bit full matrix and multi-frame handling
 - [ ] B4. Conformance tests
-  - [ ] Pixel-level compare with known-good decode outputs
+  - [x] Added fo-dicom-compatible output hash check for `PM5644-960x540_JPEG-Lossless_RGB.dcm`
+  - [ ] Expand to more fixtures (grayscale 12/16-bit, multi-frame)
 
 ### C. JPEG Baseline/Extended (`4.50`, `4.51`) - plugin path
-- [ ] C1. Define official adapter contract
-  - [ ] I/O buffer shape, color space expectations, 12-bit notes
-- [ ] C2. Provide one reference adapter example (no bundled binary)
-- [ ] C3. Add integration tests for registered adapter behavior
+- [x] C1. Define official adapter contract
+  - [x] I/O buffer shape, color space expectations, 12-bit notes
+- [x] C2. Provide one reference adapter example (no bundled binary)
+  - [x] Implemented via callback adapter examples in `tests/imaging/DicomJpegBaselineExtendedCodec.test.ts`
+- [x] C3. Add integration tests for registered adapter behavior
 
 ### D. JPEG-LS (`4.80`, `4.81`) - plugin path
 - [ ] D1. Define parameter model (near-lossless controls, sign/precision)
@@ -103,7 +134,7 @@ Test layers:
 
 Minimum acceptance criteria:
 - [ ] Each required UID can be decoded through standard codec routing
-- [ ] `4.57` and `4.70` pass pixel-level validation against reference outputs
+- [ ] `4.57` and `4.70` pass pixel-level validation against reference outputs (full fixture matrix)
 - [ ] Plugin families complete "register -> decode -> transcode pipeline" validation
 - [ ] Error messages are actionable and include syntax UID and frame index
 
