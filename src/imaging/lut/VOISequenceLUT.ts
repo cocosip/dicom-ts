@@ -1,57 +1,127 @@
 import { DicomDataset } from "../../dataset/DicomDataset.js";
+import { DicomSignedShort, DicomUnsignedShort, DicomOtherWord } from "../../dataset/DicomElement.js";
 import * as Tags from "../../core/DicomTag.generated.js";
-import { ILUT } from "./ILUT.js";
-import { DicomSequence } from "../../dataset/DicomSequence.js";
+import type { ILUT } from "./ILUT.js";
 
 /**
- * VOI LUT defined via VOI LUT Sequence.
+ * VOI Sequence LUT — implements ILUT via VOILUTSequence item.
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/LUT/VOISequenceLUT.cs
  */
 export class VOISequenceLUT implements ILUT {
-  readonly numberOfEntries: number;
-  readonly firstValue: number;
-  readonly bitsPerEntry: number;
-  readonly data: Uint16Array;
+  private readonly _item: DicomDataset;
+  private _nrOfEntries: number = 0;
+  private _firstInputValue: number = 0;
+  private _nrOfBitsPerEntry: number = 16;
+  private _lutData: Int32Array = new Int32Array(0);
 
-  constructor(numberOfEntries: number, firstValue: number, bitsPerEntry: number, data: Uint16Array) {
-    this.numberOfEntries = numberOfEntries;
-    this.firstValue = firstValue;
-    this.bitsPerEntry = bitsPerEntry;
-    this.data = data;
+  constructor(voiLutSequenceItem: DicomDataset) {
+    this._item = voiLutSequenceItem;
+    this.recalculate();
   }
 
-  map(value: number): number {
-    if (this.numberOfEntries <= 0 || this.data.length === 0) return value;
-    const idx = Math.round(value) - this.firstValue;
-    if (idx <= 0) return this.data[0] ?? value;
-    if (idx >= this.numberOfEntries) return this.data[this.numberOfEntries - 1] ?? value;
-    return this.data[idx] ?? value;
+  /** Always recalculate. */
+  get isValid(): boolean {
+    return false;
   }
 
-  static fromDataset(dataset: DicomDataset, index: number = 0): VOISequenceLUT | null {
-    const item = getSequenceItem(dataset, Tags.VOILUTSequence, index);
-    if (!item) return null;
-    return buildFromItem(item);
+  get numberOfBitsPerEntry(): number {
+    return this._nrOfBitsPerEntry;
+  }
+
+  get numberOfEntries(): number {
+    return this._nrOfEntries;
+  }
+
+  get minimumOutputValue(): number {
+    return this._lutData[0] ?? 0;
+  }
+
+  get maximumOutputValue(): number {
+    return this._lutData[this._nrOfEntries - 1] ?? 0;
+  }
+
+  apply(value: number): number {
+    if (value < this._firstInputValue) return this._lutData[0] ?? 0;
+    if (value > this._firstInputValue + this._nrOfEntries - 1)
+      return this._lutData[this._nrOfEntries - 1] ?? 0;
+    return this._lutData[(value - this._firstInputValue) | 0] ?? 0;
+  }
+
+  recalculate(): void {
+    this._getLutDescriptor();
+
+    const lutDataElement = this._item.getDicomItem<DicomOtherWord | DicomUnsignedShort | DicomSignedShort>(Tags.LUTData);
+    if (!lutDataElement) return;
+    const vr = lutDataElement.valueRepresentation?.code ?? "";
+
+    if (vr === "OW" || vr === "US") {
+      const raw = getRawUInt16(lutDataElement as DicomOtherWord | DicomUnsignedShort);
+      this._lutData = new Int32Array(raw.length);
+      for (let i = 0; i < raw.length; i++) this._lutData[i] = raw[i]!;
+    } else if (vr === "SS") {
+      const raw = getRawInt16(lutDataElement as DicomSignedShort);
+      this._lutData = new Int32Array(raw.length);
+      for (let i = 0; i < raw.length; i++) this._lutData[i] = raw[i]!;
+    }
+  }
+
+  private _getLutDescriptor(): void {
+    const el = this._item.getDicomItem<DicomSignedShort | DicomUnsignedShort>(Tags.LUTDescriptor);
+    if (!el) return;
+    const vr = el.valueRepresentation?.code ?? "";
+
+    if (vr === "SS") {
+      const ss = el as DicomSignedShort;
+      this._nrOfEntries = Math.abs(getInt16At(ss, 0));
+      this._firstInputValue = getInt16At(ss, 1);
+      this._nrOfBitsPerEntry = getInt16At(ss, 2);
+    } else {
+      const us = el as DicomUnsignedShort;
+      this._nrOfEntries = getUInt16At(us, 0);
+      this._firstInputValue = getUInt16At(us, 1);
+      this._nrOfBitsPerEntry = getUInt16At(us, 2);
+    }
+
+    // DICOM C.11.2.1.1: 0 means 2^16 = 65536
+    if (this._nrOfEntries === 0) this._nrOfEntries = 65536;
   }
 }
 
-function getSequenceItem(dataset: DicomDataset, tag: import("../../core/DicomTag.js").DicomTag, index: number): DicomDataset | null {
-  const seq = dataset.tryGetSequence(tag);
-  if (!seq || !(seq instanceof DicomSequence) || seq.items.length === 0) return null;
-  const idx = Math.max(0, Math.min(index, seq.items.length - 1));
-  return seq.items[idx] ?? null;
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getInt16At(el: DicomSignedShort, index: number): number {
+  const bytes = el.buffer?.data;
+  if (!bytes) return 0;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return view.getInt16(index * 2, true);
 }
 
-function buildFromItem(item: DicomDataset): VOISequenceLUT | null {
-  const desc = item.tryGetValues<number>(Tags.LUTDescriptor);
-  if (!desc || desc.length < 3) return null;
-  let entries = desc[0] ?? 0;
-  if (entries === 0) entries = 65536;
-  const first = desc[1] ?? 0;
-  const bits = desc[2] ?? 16;
+function getUInt16At(el: DicomUnsignedShort, index: number): number {
+  const bytes = el.buffer?.data;
+  if (!bytes) return 0;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return view.getUint16(index * 2, true);
+}
 
-  const values = item.tryGetValues<number>(Tags.LUTData) ?? [];
-  if (values.length === 0) return null;
-  const data = new Uint16Array(Math.min(values.length, entries));
-  for (let i = 0; i < data.length; i++) data[i] = values[i] ?? 0;
-  return new VOISequenceLUT(entries, first, bits, data);
+function getRawUInt16(el: DicomOtherWord | DicomUnsignedShort): Uint16Array {
+  const bytes = el.buffer?.data;
+  if (!bytes) return new Uint16Array(0);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const count = Math.floor(bytes.byteLength / 2);
+  const out = new Uint16Array(count);
+  for (let i = 0; i < count; i++) out[i] = view.getUint16(i * 2, true);
+  return out;
+}
+
+function getRawInt16(el: DicomSignedShort): Int16Array {
+  const bytes = el.buffer?.data;
+  if (!bytes) return new Int16Array(0);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const count = Math.floor(bytes.byteLength / 2);
+  const out = new Int16Array(count);
+  for (let i = 0; i < count; i++) out[i] = view.getInt16(i * 2, true);
+  return out;
 }

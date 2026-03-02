@@ -1,84 +1,64 @@
-import { DicomDataset } from "../dataset/DicomDataset.js";
-import { DicomOtherWord } from "../dataset/DicomElement.js";
-import * as Tags from "../core/DicomTag.generated.js";
 import { Color32 } from "./Color32.js";
+import { readFile, writeFile } from "node:fs/promises";
 
 /**
- * Palette color lookup table (RGB).
+ * Convenience class for managing color look-up tables with 256 color items.
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/ColorTable.cs
  */
 export class ColorTable {
-  readonly red: Uint16Array;
-  readonly green: Uint16Array;
-  readonly blue: Uint16Array;
-  readonly bitsPerEntry: number;
-  readonly firstIndex: number;
+  /** Look-up table representing MONOCHROME1 grayscale scheme (inverted: white→black). */
+  static readonly Monochrome1: Color32[] = initGrayscaleLut(true);
 
-  constructor(
-    red: Uint16Array,
-    green: Uint16Array,
-    blue: Uint16Array,
-    bitsPerEntry: number,
-    firstIndex: number = 0
-  ) {
-    this.red = red;
-    this.green = green;
-    this.blue = blue;
-    this.bitsPerEntry = bitsPerEntry;
-    this.firstIndex = firstIndex;
+  /** Look-up table representing MONOCHROME2 grayscale scheme (normal: black→white). */
+  static readonly Monochrome2: Color32[] = initGrayscaleLut(false);
+
+  /** Returns the reverse of an existing color table. */
+  static reverse(lut: Color32[]): Color32[] {
+    const clone = [...lut];
+    clone.reverse();
+    return clone;
   }
 
-  get length(): number {
-    return Math.min(this.red.length, this.green.length, this.blue.length);
+  /**
+   * Load color look-up table from file.
+   * File must be exactly 256*3 bytes in planar RGB format (R plane, G plane, B plane).
+   */
+  static async loadLut(path: string): Promise<Color32[] | null> {
+    try {
+      const data = await readFile(path);
+      if (data.length !== 256 * 3) return null;
+      const lut: Color32[] = new Array(256);
+      for (let i = 0; i < 256; i++) {
+        lut[i] = new Color32(data[i]!, data[i + 256]!, data[i + 512]!, 255);
+      }
+      return lut;
+    } catch {
+      return null;
+    }
   }
 
-  getColor(index: number): Color32 {
-    const idx = index - this.firstIndex;
-    if (idx < 0 || idx >= this.length) return new Color32(0, 0, 0, 255);
-    const r = scaleTo8(this.red[idx] ?? 0, this.bitsPerEntry);
-    const g = scaleTo8(this.green[idx] ?? 0, this.bitsPerEntry);
-    const b = scaleTo8(this.blue[idx] ?? 0, this.bitsPerEntry);
-    return new Color32(r, g, b, 255);
-  }
-
-  static fromDataset(dataset: DicomDataset): ColorTable | null {
-    const desc = tryGetDescriptor(dataset, Tags.RedPaletteColorLookupTableDescriptor);
-    const redData = tryGetLutData(dataset, Tags.RedPaletteColorLookupTableData);
-    const greenData = tryGetLutData(dataset, Tags.GreenPaletteColorLookupTableData);
-    const blueData = tryGetLutData(dataset, Tags.BluePaletteColorLookupTableData);
-    if (!desc || !redData || !greenData || !blueData) return null;
-
-    const [entries, firstIndex, bitsPerEntry] = desc;
-    const expected = entries === 0 ? 65536 : entries;
-    const r = redData.slice(0, expected);
-    const g = greenData.slice(0, expected);
-    const b = blueData.slice(0, expected);
-    return new ColorTable(r, g, b, bitsPerEntry, firstIndex);
+  /**
+   * Save color look-up table to file.
+   * Written as planar RGB (R plane, G plane, B plane), 256*3 bytes.
+   */
+  static async saveLut(path: string, lut: Color32[]): Promise<void> {
+    if (lut.length !== 256) return;
+    const data = new Uint8Array(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      data[i] = lut[i]!.r;
+      data[i + 256] = lut[i]!.g;
+      data[i + 512] = lut[i]!.b;
+    }
+    await writeFile(path, data);
   }
 }
 
-function tryGetDescriptor(dataset: DicomDataset, tag: import("../core/DicomTag.js").DicomTag): [number, number, number] | null {
-  const values = dataset.tryGetValues<number>(tag);
-  if (!values || values.length < 3) return null;
-  return [values[0] ?? 0, values[1] ?? 0, values[2] ?? 8];
-}
-
-function tryGetLutData(
-  dataset: DicomDataset,
-  tag: import("../core/DicomTag.js").DicomTag
-): Uint16Array | null {
-  const item = dataset.getDicomItem<DicomOtherWord>(tag);
-  if (!item) return null;
-  const bytes = item.buffer.data;
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const count = Math.floor(bytes.byteLength / 2);
-  const out = new Uint16Array(count);
-  for (let i = 0; i < count; i++) {
-    out[i] = view.getUint16(i * 2, true);
+function initGrayscaleLut(reverse: boolean): Color32[] {
+  const lut = new Array<Color32>(256);
+  for (let i = 0; i < 256; i++) {
+    const b = reverse ? (255 - i) : i;
+    lut[i] = new Color32(b, b, b, 255);
   }
-  return out;
-}
-
-function scaleTo8(value: number, bits: number): number {
-  if (bits <= 8) return (value << (8 - bits)) & 0xFF;
-  return (value >> (bits - 8)) & 0xFF;
+  return lut;
 }

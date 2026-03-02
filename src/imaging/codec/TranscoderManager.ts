@@ -2,6 +2,8 @@ import { DicomTransferSyntax } from "../../core/DicomTransferSyntax.js";
 import type { IDicomCodec } from "./IDicomCodec.js";
 import type { ITranscoderManager } from "./ITranscoderManager.js";
 import { DicomRleCodec } from "./rle/index.js";
+import { DicomJpegProcess14Codec } from "./jpeg/lossless/DicomJpegProcess14Codec.js";
+import { DicomJpegProcess14SV1Codec } from "./jpeg/lossless14sv1/DicomJpegProcess14SV1Codec.js";
 
 function syntaxUid(transferSyntax: DicomTransferSyntax | string): string {
   return typeof transferSyntax === "string" ? transferSyntax : transferSyntax.uid.uid;
@@ -102,5 +104,7 @@ export class DefaultTranscoderManager extends TranscoderManager {
 
   override loadCodecs(_path: string | null = null, _search: string | null = null): void {
     this.register(new DicomRleCodec());
+    this.register(new DicomJpegProcess14Codec());
+    this.register(new DicomJpegProcess14SV1Codec());
   }
 }

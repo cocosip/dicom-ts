@@ -1,15 +1,13 @@
 import * as Tags from "../../core/DicomTag.generated.js";
 import { DicomDataset } from "../../dataset/DicomDataset.js";
 import { cloneDataset } from "../../dataset/DicomDatasetExtensions.js";
-import { DicomOverlayData } from "../DicomOverlayData.js";
+import type { ILUT } from "../lut/ILUT.js";
+import { IntervalD } from "../math/Interval.js";
 import { GeometryHelper } from "../math/GeometryHelper.js";
 import { Point3D, Vector3D } from "../math/Geometry3D.js";
+import { GrayscaleRenderOptions } from "../GrayscaleRenderOptions.js";
+import { GenericGrayscalePipeline } from "../render/GenericGrayscalePipeline.js";
 import { ImageData } from "./ImageData.js";
-
-export interface IntervalD {
-  min: number;
-  max: number;
-}
 
 export class VolumeData {
   readonly slices: ImageData[];
@@ -20,6 +18,7 @@ export class VolumeData {
   private readonly sortOrders: number[];
   private readonly slicesNormal: Vector3D;
   private commonDatasetCache: DicomDataset | null = null;
+  private _lut: ILUT | null = null;
 
   constructor(dataset: DicomDataset);
   constructor(slices: Iterable<ImageData>);
@@ -55,8 +54,8 @@ export class VolumeData {
       distances.push((this.sortOrders[i] ?? 0) - (this.sortOrders[i - 1] ?? 0));
     }
     this.sliceSpaces = distances.length > 0
-      ? { min: Math.min(...distances), max: Math.max(...distances) }
-      : { min: 0, max: 0 };
+      ? new IntervalD(Math.min(...distances), Math.max(...distances))
+      : new IntervalD(0, 0);
   }
 
   get pixelSpacingInSource(): number {
@@ -68,6 +67,15 @@ export class VolumeData {
       this.commonDatasetCache = this.buildCommonData();
     }
     return this.commonDatasetCache;
+  }
+
+  get lut(): ILUT {
+    if (!this._lut) {
+      const options = GrayscaleRenderOptions.fromDataset(this.slices[0]!.dataset, 0);
+      const pipeline = new GenericGrayscalePipeline(options);
+      this._lut = pipeline.lut;
+    }
+    return this._lut;
   }
 
   getCut(
@@ -141,7 +149,6 @@ export class VolumeData {
     common.validateItems = false;
     for (const item of first) {
       if (item.tag.equals(Tags.PixelData)) continue;
-      if (DicomOverlayData.isOverlaySequence(item)) continue;
       const presentInAll = datasets.every((d) => {
         const other = d.getDicomItem(item.tag);
         return !!other && other.toString() === item.toString();

@@ -16,3 +16,9 @@ export {
 } from "./Geometry3D.js";
 export type { BoundingBox3D, FrameGeometryLike } from "./GeometryHelper.js";
 export { GeometryHelper } from "./GeometryHelper.js";
+export { BitList } from "./BitList.js";
+export { isOdd, isEven } from "./Extensions.js";
+export { IntervalD } from "./Interval.js";
+export { MovingAverage, MovingAverageF, MovingAverageD } from "./MovingAverage.js";
+export { BilinearInterpolation } from "./BilinearInterpolation.js";
+export { NearestNeighborInterpolation } from "./NearestNeighborInterpolation.js";

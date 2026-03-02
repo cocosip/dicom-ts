@@ -1,14 +1,26 @@
-import { ILUT } from "./ILUT.js";
+import type { ILUT } from "./ILUT.js";
 
+/**
+ * Invert LUT — inverts grayscale values over [minValue, maxValue].
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/LUT/InvertLUT.cs
+ */
 export class InvertLUT implements ILUT {
-  map(value: number): number {
-    const v = clamp8(value);
-    return 255 - v;
-  }
-}
+  readonly minimumOutputValue: number;
+  readonly maximumOutputValue: number;
 
-function clamp8(v: number): number {
-  if (v <= 0) return 0;
-  if (v >= 255) return 255;
-  return v & 0xFF;
+  constructor(minValue: number, maxValue: number) {
+    this.minimumOutputValue = minValue;
+    this.maximumOutputValue = maxValue;
+  }
+
+  get isValid(): boolean {
+    return true;
+  }
+
+  apply(value: number): number {
+    return this.maximumOutputValue - value;
+  }
+
+  recalculate(): void {}
 }

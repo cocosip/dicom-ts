@@ -5,8 +5,7 @@ import { DicomVR } from "../../src/core/DicomVR.js";
 import * as Tags from "../../src/core/DicomTag.generated.js";
 import { DicomPixelData } from "../../src/imaging/DicomPixelData.js";
 import { PixelDataConverter } from "../../src/imaging/PixelDataConverter.js";
-import { ColorSpace } from "../../src/imaging/ColorSpace.js";
-import { ColorTable } from "../../src/imaging/ColorTable.js";
+import { PaletteColorLUT } from "../../src/imaging/lut/PaletteColorLUT.js";
 
 function makeDataset(options: {
   rows: number;
@@ -33,7 +32,7 @@ function makeDataset(options: {
   return ds;
 }
 
-function makePaletteTable(): ColorTable {
+function makePaletteTable(): PaletteColorLUT {
   const ds = new DicomDataset();
   ds.addOrUpdateElement(DicomVR.US, Tags.RedPaletteColorLookupTableDescriptor, 2, 0, 8);
   ds.addOrUpdateElement(DicomVR.US, Tags.GreenPaletteColorLookupTableDescriptor, 2, 0, 8);
@@ -43,7 +42,7 @@ function makePaletteTable(): ColorTable {
   ds.addOrUpdate(new DicomOtherWord(Tags.GreenPaletteColorLookupTableData, new Uint16Array([0, 0])));
   ds.addOrUpdate(new DicomOtherWord(Tags.BluePaletteColorLookupTableData, new Uint16Array([0, 0])));
 
-  return ColorTable.fromDataset(ds)!;
+  return PaletteColorLUT.fromDataset(ds)!;
 }
 
 describe("PixelDataConverter", () => {
@@ -112,8 +111,8 @@ describe("PixelDataConverter", () => {
     });
     const pixelData = DicomPixelData.create(ds);
     const rgba = PixelDataConverter.convertYbrFull(pixelData, 0);
-    const expected = ColorSpace.ybrFullToRgb(0, 128, 128);
-    expect([...rgba]).toEqual([expected.r, expected.g, expected.b, 255]);
+    // Y=0, Cb=128, Cr=128 (neutral chrominance) → black (0,0,0)
+    expect([...rgba]).toEqual([0, 0, 0, 255]);
   });
 
   it("converts YBR_FULL_422", () => {

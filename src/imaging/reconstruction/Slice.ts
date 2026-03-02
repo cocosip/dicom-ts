@@ -1,5 +1,6 @@
+import { IntervalD } from "../math/Interval.js";
 import { Point3D, Vector3D } from "../math/Geometry3D.js";
-import type { IntervalD, VolumeData } from "./VolumeData.js";
+import { VolumeData } from "./VolumeData.js";
 
 /**
  * Represents a reconstructed slice through a volume.
@@ -12,6 +13,7 @@ export class Slice {
   readonly columns: number;
   readonly spacing: number;
 
+  private readonly _volume: VolumeData;
   private readonly output: number[];
 
   constructor(
@@ -23,6 +25,7 @@ export class Slice {
     columns: number,
     spacing: number,
   ) {
+    this._volume = volume;
     this.topLeft = topLeft.clone();
     this.rowDirection = rowDirection.clone();
     this.columnDirection = columnDirection.clone();
@@ -40,10 +43,11 @@ export class Slice {
   }
 
   renderIntoByteArray(data: Uint8Array, stride: number): void {
+    const lut = this._volume.lut;
     for (let x = 0; x < this.columns; x++) {
       for (let y = 0; y < this.rows; y++) {
-        const value = this.output[x + y * this.columns] ?? 0;
-        data[x + y * stride] = clampByte(value);
+        const pixel = this.output[x + y * this.columns] ?? 0;
+        data[x + y * stride] = lut.apply(pixel) & 0xff;
       }
     }
   }
@@ -76,8 +80,8 @@ export class Slice {
       if (v < min) min = v;
       if (v > max) max = v;
     }
-    if (!Number.isFinite(min) || !Number.isFinite(max)) return { min: 0, max: 0 };
-    return { min, max };
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return new IntervalD(0, 0);
+    return new IntervalD(min, max);
   }
 }
 

@@ -1,29 +1,41 @@
-import { DicomDataset } from "../../dataset/DicomDataset.js";
-import * as Tags from "../../core/DicomTag.generated.js";
-import { ILUT } from "./ILUT.js";
+import type { IModalityLUT } from "./IModalityLUT.js";
+import type { GrayscaleRenderOptions } from "../GrayscaleRenderOptions.js";
 
 /**
- * Modality rescale LUT (Rescale Slope/Intercept).
+ * Modality Rescale LUT — applies RescaleSlope / RescaleIntercept.
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/LUT/ModalityRescaleLUT.cs
  */
-export class ModalityRescaleLUT implements ILUT {
-  readonly slope: number;
-  readonly intercept: number;
+export class ModalityRescaleLUT implements IModalityLUT {
+  private readonly _options: GrayscaleRenderOptions;
 
-  constructor(slope: number = 1, intercept: number = 0) {
-    this.slope = slope;
-    this.intercept = intercept;
+  constructor(options: GrayscaleRenderOptions) {
+    this._options = options;
   }
 
-  map(value: number): number {
-    return value * this.slope + this.intercept;
+  get rescaleSlope(): number {
+    return this._options.rescaleSlope;
   }
 
-  static fromDataset(dataset: DicomDataset): ModalityRescaleLUT {
-    const slope = parseFloat(dataset.tryGetValue<string>(Tags.RescaleSlope) ?? "1");
-    const intercept = parseFloat(dataset.tryGetValue<string>(Tags.RescaleIntercept) ?? "0");
-    return new ModalityRescaleLUT(
-      Number.isFinite(slope) ? slope : 1,
-      Number.isFinite(intercept) ? intercept : 0
-    );
+  get rescaleIntercept(): number {
+    return this._options.rescaleIntercept;
   }
+
+  get isValid(): boolean {
+    return true;
+  }
+
+  get minimumOutputValue(): number {
+    return this.apply(this._options.bitDepth.minimumValue);
+  }
+
+  get maximumOutputValue(): number {
+    return this.apply(this._options.bitDepth.maximumValue);
+  }
+
+  apply(value: number): number {
+    return value * this.rescaleSlope + this.rescaleIntercept;
+  }
+
+  recalculate(): void {}
 }

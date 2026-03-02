@@ -48,6 +48,8 @@ export class DicomGenerator {
       dataset.addOrUpdateValue(Tags.PixelSpacing, slice.spacing, slice.spacing);
       dataset.addOrUpdateValue(Tags.SliceThickness, stackToStore.sliceDistance);
 
+      dataset.remove(Tags.PatientPosition);
+
       if (!dataset.contains(Tags.BitsStored)) {
         const interval = slice.getMinMaxValue();
         const bitsStored = Math.max(1, Math.ceil(Math.log2(Math.max(1, interval.max))));
@@ -55,7 +57,7 @@ export class DicomGenerator {
         dataset.addOrUpdateValue(Tags.HighBit, bitsStored - 1);
       }
 
-      const pixelData = DicomPixelData.create(dataset);
+      const pixelData = DicomPixelData.create(dataset, true);
       const bytesPerPixel = pixelData.bitsAllocated > 8 ? 2 : 1;
       const frame = slice.renderRawData(bytesPerPixel);
       pixelData.addFrame(new MemoryByteBuffer(frame));

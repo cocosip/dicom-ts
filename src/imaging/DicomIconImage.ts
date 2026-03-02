@@ -4,15 +4,11 @@ import { cloneDataset } from "../dataset/DicomDatasetExtensions.js";
 import * as Tags from "../core/DicomTag.generated.js";
 import { DicomPixelData } from "./DicomPixelData.js";
 import { PhotometricInterpretation } from "./PhotometricInterpretation.js";
-import { ColorTable } from "./ColorTable.js";
+import { PaletteColorLUT } from "./lut/PaletteColorLUT.js";
 import { ImageGraphic } from "./render/ImageGraphic.js";
 import { PaletteColorPipeline } from "./render/PaletteColorPipeline.js";
 import { GenericGrayscalePipeline } from "./render/GenericGrayscalePipeline.js";
-import { ModalityRescaleLUT } from "./lut/ModalityRescaleLUT.js";
-import { ModalitySequenceLUT } from "./lut/ModalitySequenceLUT.js";
-import { VOILUT } from "./lut/VOILUT.js";
-import { CompositeLUT } from "./lut/CompositeLUT.js";
-import { OutputLUT } from "./lut/OutputLUT.js";
+import { GrayscaleRenderOptions } from "./GrayscaleRenderOptions.js";
 import type { IImage } from "./IImage.js";
 
 /**
@@ -48,26 +44,21 @@ export class DicomIconImage {
 
   renderImage(): IImage {
     const pi = this.pixelData.photometricInterpretation ?? PhotometricInterpretation.MONOCHROME2;
-    const graphic = new ImageGraphic(
-      this.pixelData,
-      pi === PhotometricInterpretation.PALETTE_COLOR ? ColorTable.fromDataset(this.dataset) : null,
-    );
 
     if (pi === PhotometricInterpretation.PALETTE_COLOR) {
-      const palette = ColorTable.fromDataset(this.dataset);
-      if (!palette) throw new Error("Palette color LUT not found for icon image");
-      return graphic.render(new PaletteColorPipeline(palette), 0);
+      const pipeline = new PaletteColorPipeline(this.pixelData);
+      const lut = pipeline.lut;
+      const palette = lut instanceof PaletteColorLUT ? lut : null;
+      const graphic = new ImageGraphic(this.pixelData, 0, palette);
+      return graphic.renderImage(null);
     }
 
-    const modality = ModalitySequenceLUT.fromDataset(this.dataset)
-      ?? ModalityRescaleLUT.fromDataset(this.dataset);
-    const min = modality.map(this.pixelData.bitDepth.minValue);
-    const max = modality.map(this.pixelData.bitDepth.maxValue);
-    const center = (min + max) / 2;
-    const width = Math.max(1, max - min);
     const invert = pi === PhotometricInterpretation.MONOCHROME1;
-    const lut = new CompositeLUT(modality, new VOILUT(center, width, invert), new OutputLUT());
-    return graphic.render(new GenericGrayscalePipeline(lut), 0);
+    const options = GrayscaleRenderOptions.fromDataset(this.dataset, 0);
+    options.invert = invert;
+    const pipeline = new GenericGrayscalePipeline(options);
+    const graphic = new ImageGraphic(this.pixelData, 0);
+    return graphic.renderImage(pipeline.lut);
   }
 
   static tryCreate(dataset: DicomDataset): DicomIconImage | null {

@@ -87,7 +87,7 @@ export class DicomTranscoder implements IDicomTranscoder {
 
     const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
     const tmp = this.makeOutputDataset(dataset, DicomTransferSyntax.ExplicitVRLittleEndian);
-    const newPixelData = DicomPixelData.create(tmp);
+    const newPixelData = DicomPixelData.create(tmp, true);
     codec.decode(oldPixelData, newPixelData, this.inputCodecParams);
     return DicomPixelData.create(tmp).getFrame(frame);
   }
@@ -164,7 +164,7 @@ export class DicomTranscoder implements IDicomTranscoder {
 
     const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
     const output = this.makeOutputDataset(dataset, target);
-    const newPixelData = DicomPixelData.create(output);
+    const newPixelData = DicomPixelData.create(output, true);
 
     codec.decode(oldPixelData, newPixelData, this.inputCodecParams);
 
@@ -177,7 +177,7 @@ export class DicomTranscoder implements IDicomTranscoder {
 
     const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
     const output = this.makeOutputDataset(dataset, target);
-    const newPixelData = DicomPixelData.create(output);
+    const newPixelData = DicomPixelData.create(output, true);
 
     codec.encode(oldPixelData, newPixelData, this.outputCodecParams);
 

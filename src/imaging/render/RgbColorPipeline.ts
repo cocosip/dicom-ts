@@ -1,12 +1,15 @@
 import type { IPipeline } from "./IPipeline.js";
-import type { IImage } from "../IImage.js";
-import { RawImage } from "../RawImage.js";
-import { PixelDataConverter } from "../PixelDataConverter.js";
-import { ImageGraphic } from "./ImageGraphic.js";
+import type { ILUT } from "../lut/ILUT.js";
 
+/**
+ * RGB color pipeline — no LUT required; pixel data is rendered directly.
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/Render/RgbColorPipeline.cs
+ */
 export class RgbColorPipeline implements IPipeline {
-  render(graphic: ImageGraphic, frame: number): IImage {
-    const pixels = PixelDataConverter.toRgba(graphic.pixelData, frame, { palette: graphic.palette });
-    return new RawImage(graphic.pixelData.columns, graphic.pixelData.rows, pixels, 4);
+  readonly lut: ILUT | null = null;
+
+  clearCache(): void {
+    // nothing to clear
   }
 }

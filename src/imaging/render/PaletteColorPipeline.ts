@@ -1,19 +1,29 @@
 import type { IPipeline } from "./IPipeline.js";
-import type { IImage } from "../IImage.js";
-import { RawImage } from "../RawImage.js";
-import { PixelDataConverter } from "../PixelDataConverter.js";
-import { ColorTable } from "../ColorTable.js";
-import { ImageGraphic } from "./ImageGraphic.js";
+import type { ILUT } from "../lut/ILUT.js";
+import { DicomPixelData } from "../DicomPixelData.js";
+import { PaletteColorLUT } from "../lut/PaletteColorLUT.js";
 
+/**
+ * Palette color pipeline — lazily extracts the PaletteColorLUT from the pixel data.
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/Render/PaletteColorPipeline.cs
+ */
 export class PaletteColorPipeline implements IPipeline {
-  readonly palette: ColorTable;
+  private readonly _pixelData: DicomPixelData;
+  private _cachedLUT: ILUT | null = null;
 
-  constructor(palette: ColorTable) {
-    this.palette = palette;
+  constructor(pixelData: DicomPixelData) {
+    this._pixelData = pixelData;
   }
 
-  render(graphic: ImageGraphic, frame: number): IImage {
-    const pixels = PixelDataConverter.convertPalette(graphic.pixelData, frame, this.palette);
-    return new RawImage(graphic.pixelData.columns, graphic.pixelData.rows, pixels, 4);
+  get lut(): ILUT | null {
+    if (this._cachedLUT == null) {
+      this._cachedLUT = PaletteColorLUT.fromDataset(this._pixelData.dataset) ?? null;
+    }
+    return this._cachedLUT;
+  }
+
+  clearCache(): void {
+    this._cachedLUT = null;
   }
 }

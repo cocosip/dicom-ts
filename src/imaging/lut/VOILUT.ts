@@ -1,55 +1,140 @@
-import { DicomDataset } from "../../dataset/DicomDataset.js";
-import * as Tags from "../../core/DicomTag.generated.js";
-import { ILUT } from "./ILUT.js";
+import type { ILUT } from "./ILUT.js";
+import type { GrayscaleRenderOptions } from "../GrayscaleRenderOptions.js";
 
 /**
- * VOI LUT (window center/width).
+ * Abstract VOI LUT base class.
+ * Concrete subclasses: VOILinearLUT, VOILinearExactLUT, VOISigmoidLUT.
+ * Use the static Create() factory to instantiate the correct type.
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/LUT/VOILUT.cs
  */
-export class VOILUT implements ILUT {
-  readonly windowCenter: number;
-  readonly windowWidth: number;
-  readonly invert: boolean;
+export abstract class VOILUT implements ILUT {
+  protected _options: GrayscaleRenderOptions;
 
-  constructor(windowCenter: number, windowWidth: number, invert: boolean = false) {
-    this.windowCenter = windowCenter;
-    this.windowWidth = windowWidth;
-    this.invert = invert;
+  protected windowCenter: number = 0;
+  protected windowWidth: number = 0;
+  protected windowCenterMin05: number = 0;
+  protected windowWidthMin1: number = 0;
+  protected windowWidthDiv2: number = 0;
+  protected windowStart: number = 0;
+  protected windowEnd: number = 0;
+
+  protected constructor(options: GrayscaleRenderOptions) {
+    this._options = options;
+    this.recalculate();
   }
 
-  map(value: number): number {
-    const wc = this.windowCenter;
-    const ww = this.windowWidth;
-    let out = 0;
-    if (ww <= 1) {
-      out = value <= (wc - 0.5) ? 0 : 255;
-    } else {
-      const low = wc - 0.5 - (ww - 1) / 2;
-      const high = wc - 0.5 + (ww - 1) / 2;
-      if (value <= low) out = 0;
-      else if (value > high) out = 255;
-      else out = ((value - (wc - 0.5)) / (ww - 1)) * 255;
+  get minimumOutputValue(): number {
+    return 0;
+  }
+
+  get maximumOutputValue(): number {
+    return 255;
+  }
+
+  get outputRange(): number {
+    return 255;
+  }
+
+  /** Always recalculate — options may change. */
+  get isValid(): boolean {
+    return false;
+  }
+
+  abstract apply(value: number): number;
+
+  recalculate(): void {
+    if (
+      this._options.windowWidth !== this.windowWidth ||
+      this._options.windowCenter !== this.windowCenter
+    ) {
+      this.windowWidth = this._options.windowWidth;
+      this.windowCenter = this._options.windowCenter;
+      this.windowCenterMin05 = this.windowCenter - 0.5;
+      this.windowWidthMin1 = this.windowWidth - 1;
+      this.windowWidthDiv2 = this.windowWidthMin1 / 2;
+      this.windowStart = (this.windowCenterMin05 - this.windowWidthDiv2) | 0;
+      this.windowEnd = (this.windowCenterMin05 + this.windowWidthDiv2) | 0;
     }
-    out = clamp8(out);
-    return this.invert ? 255 - out : out;
   }
 
-  static fromDataset(dataset: DicomDataset, index: number = 0, invert: boolean = false): VOILUT | null {
-    const centers = parseMultiNumeric(dataset.tryGetValue<string>(Tags.WindowCenter));
-    const widths = parseMultiNumeric(dataset.tryGetValue<string>(Tags.WindowWidth));
-    const wc = centers[index] ?? centers[0];
-    const ww = widths[index] ?? widths[0];
-    if (wc === undefined || ww === undefined) return null;
-    return new VOILUT(wc, ww, invert);
+  /**
+   * Factory: create the correct VOILUT subclass based on VOILUTFunction in options.
+   */
+  static create(options: GrayscaleRenderOptions): VOILUT {
+    switch ((options.voiLutFunction ?? "").toUpperCase()) {
+      case "SIGMOID":
+        return new VOISigmoidLUT(options);
+      case "LINEAR_EXACT":
+        return new VOILinearExactLUT(options);
+      default:
+        return new VOILinearLUT(options);
+    }
   }
 }
 
-function parseMultiNumeric(raw?: string): number[] {
-  if (!raw) return [];
-  return raw.split("\\").map((v) => parseFloat(v.trim())).filter((v) => Number.isFinite(v));
+// ---------------------------------------------------------------------------
+// VOILinearLUT — standard LINEAR windowing (DICOM C.11.2.1.2.1)
+// ---------------------------------------------------------------------------
+
+export class VOILinearLUT extends VOILUT {
+  constructor(options: GrayscaleRenderOptions) {
+    super(options);
+  }
+
+  apply(value: number): number {
+    if (this.windowWidth === 1) {
+      return value < this.windowCenterMin05
+        ? this.minimumOutputValue
+        : this.maximumOutputValue;
+    }
+    return Math.min(
+      this.maximumOutputValue,
+      Math.max(
+        this.minimumOutputValue,
+        ((value - this.windowCenterMin05) / this.windowWidthMin1 + 0.5) * this.outputRange +
+          this.minimumOutputValue
+      )
+    );
+  }
 }
 
-function clamp8(v: number): number {
-  if (v <= 0) return 0;
-  if (v >= 255) return 255;
-  return v & 0xFF;
+// ---------------------------------------------------------------------------
+// VOILinearExactLUT — LINEAR_EXACT windowing (DICOM C.11.2.1.3.2)
+// ---------------------------------------------------------------------------
+
+export class VOILinearExactLUT extends VOILUT {
+  constructor(options: GrayscaleRenderOptions) {
+    super(options);
+  }
+
+  apply(value: number): number {
+    if (this.windowWidth === 1) {
+      return value < this.windowCenterMin05
+        ? this.minimumOutputValue
+        : this.maximumOutputValue;
+    }
+    return Math.min(
+      this.maximumOutputValue,
+      Math.max(
+        this.minimumOutputValue,
+        ((value - this.windowCenter) / this.windowWidth + 0.5) * this.outputRange +
+          this.minimumOutputValue
+      )
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// VOISigmoidLUT — SIGMOID windowing
+// ---------------------------------------------------------------------------
+
+export class VOISigmoidLUT extends VOILUT {
+  constructor(options: GrayscaleRenderOptions) {
+    super(options);
+  }
+
+  apply(value: number): number {
+    return 255.0 / (1.0 + Math.exp(-4.0 * ((value - this.windowCenter) / this.windowWidth)));
+  }
 }

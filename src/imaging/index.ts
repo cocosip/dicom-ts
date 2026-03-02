@@ -11,6 +11,7 @@ export { PixelDataConverter } from "./PixelDataConverter.js";
 export { DicomOverlayData, DicomOverlayType } from "./DicomOverlayData.js";
 export { DicomOverlayDataFactory } from "./DicomOverlayDataFactory.js";
 export type { IImage } from "./IImage.js";
+export type { IImageManager } from "./IImageManager.js";
 export { RawImage } from "./RawImage.js";
 export { RawImageManager } from "./RawImageManager.js";
 export { DicomIconImage } from "./DicomIconImage.js";
@@ -29,12 +30,23 @@ export { PaletteColorLUT } from "./lut/PaletteColorLUT.js";
 
 export type { IGraphic } from "./render/IGraphic.js";
 export type { IPipeline } from "./render/IPipeline.js";
+export type { IPixelData, PixelDataRange } from "./render/IPixelData.js";
 export { ImageGraphic } from "./render/ImageGraphic.js";
 export { OverlayGraphic } from "./render/OverlayGraphic.js";
 export { CompositeGraphic } from "./render/CompositeGraphic.js";
 export { GenericGrayscalePipeline } from "./render/GenericGrayscalePipeline.js";
 export { PaletteColorPipeline } from "./render/PaletteColorPipeline.js";
 export { RgbColorPipeline } from "./render/RgbColorPipeline.js";
+export {
+  GrayscalePixelDataU8,
+  SingleBitPixelData,
+  GrayscalePixelDataS16,
+  GrayscalePixelDataU16,
+  GrayscalePixelDataS32,
+  GrayscalePixelDataU32,
+  ColorPixelData24,
+  PixelDataFactory,
+} from "./render/PixelData.js";
 
 export type { IDicomCodec } from "./codec/IDicomCodec.js";
 export type { IDicomTranscoder } from "./codec/IDicomTranscoder.js";
@@ -63,7 +75,7 @@ export type { BoundingBox3D, FrameGeometryLike } from "./math/GeometryHelper.js"
 export { GeometryHelper } from "./math/GeometryHelper.js";
 
 export { ImageData } from "./reconstruction/ImageData.js";
-export type { IntervalD } from "./reconstruction/VolumeData.js";
+export { IntervalD } from "./math/Interval.js";
 export { VolumeData } from "./reconstruction/VolumeData.js";
 export { Slice } from "./reconstruction/Slice.js";
 export { Stack, StackType } from "./reconstruction/Stack.js";

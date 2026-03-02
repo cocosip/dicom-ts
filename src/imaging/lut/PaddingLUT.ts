@@ -1,15 +1,41 @@
-import { ILUT } from "./ILUT.js";
+import type { ILUT } from "./ILUT.js";
 
+/**
+ * Padding LUT — remaps pixel padding value to minValue.
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/LUT/PaddingLUT.cs
+ */
 export class PaddingLUT implements ILUT {
-  readonly paddingValue: number;
-  readonly replacement: number;
+  private readonly _paddingValue: number;
+  private readonly _minValue: number;
+  private readonly _maxValue: number;
 
-  constructor(paddingValue: number, replacement: number = 0) {
-    this.paddingValue = paddingValue;
-    this.replacement = replacement;
+  constructor(minValue: number, maxValue: number, paddingValue: number) {
+    this._paddingValue = paddingValue;
+    this._minValue = minValue;
+    this._maxValue = maxValue;
   }
 
-  map(value: number): number {
-    return value === this.paddingValue ? this.replacement : value;
+  get pixelPaddingValue(): number {
+    return this._paddingValue;
   }
+
+  get minimumOutputValue(): number {
+    return this._minValue;
+  }
+
+  get maximumOutputValue(): number {
+    return this._maxValue;
+  }
+
+  get isValid(): boolean {
+    return true;
+  }
+
+  apply(value: number): number {
+    if (value === this._paddingValue) return this._minValue;
+    return value;
+  }
+
+  recalculate(): void {}
 }
