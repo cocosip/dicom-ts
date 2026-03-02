@@ -38,31 +38,10 @@ export { RgbColorPipeline } from "./render/RgbColorPipeline.js";
 
 export type { IDicomCodec } from "./codec/IDicomCodec.js";
 export type { IDicomTranscoder } from "./codec/IDicomTranscoder.js";
-export { TranscoderManager } from "./codec/TranscoderManager.js";
+export type { ITranscoderManager } from "./codec/ITranscoderManager.js";
+export { TranscoderManager, DefaultTranscoderManager } from "./codec/TranscoderManager.js";
 export { DicomTranscoder } from "./codec/DicomTranscoder.js";
 export { DicomRleCodec } from "./codec/rle/index.js";
-export type {
-  DicomJpegSampleFactor,
-  DicomJpegCodecParameters,
-  DicomJpegBaselineParameters,
-  DicomJpegExtendedParameters,
-  DicomJpegFrameContext,
-  IDicomJpegBaselineAdapter,
-  IDicomJpegExtendedAdapter,
-} from "./codec/jpeg/index.js";
-export {
-  DicomJpegProcess1Codec,
-  DicomJpegProcess2_4Codec,
-} from "./codec/jpeg/index.js";
-export {
-  DicomJpegProcess14Codec,
-  DicomJpegProcess14SV1Codec,
-  JpegBaselineCodec,
-  JpegExtendedCodec,
-  JpegLosslessCodec,
-  JpegLossless14SV1Codec,
-} from "./codec/jpeg/index.js";
-export { DicomTranscoder as DicomImagingTranscoder } from "./DicomTranscoder.js";
 
 export { Point2 } from "./math/Point2.js";
 export { Point2D } from "./math/Point2D.js";

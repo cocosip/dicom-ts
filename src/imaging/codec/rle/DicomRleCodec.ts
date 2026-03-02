@@ -2,15 +2,33 @@ import { DicomTransferSyntax } from "../../../core/DicomTransferSyntax.js";
 import { MemoryByteBuffer } from "../../../io/buffer/MemoryByteBuffer.js";
 import type { IByteBuffer } from "../../../io/buffer/IByteBuffer.js";
 import type { IDicomCodec } from "../IDicomCodec.js";
+import type { DicomCodecParams } from "../DicomCodecParams.js";
 import type { DicomPixelData } from "../../DicomPixelData.js";
 
 /**
  * DICOM RLE Lossless codec (decode only).
+ *
+ * Reference: fo-dicom/FO-DICOM.Core/Imaging/Codec/DicomRleCodec.cs
  */
 export class DicomRleCodec implements IDicomCodec {
+  readonly name = DicomTransferSyntax.RLELossless.uid.name;
   readonly transferSyntax: DicomTransferSyntax = DicomTransferSyntax.RLELossless;
 
-  decode(pixelData: DicomPixelData, frame: number): IByteBuffer {
+  getDefaultParameters(): DicomCodecParams | null {
+    return null;
+  }
+
+  encode(_oldPixelData: DicomPixelData, _newPixelData: DicomPixelData, _parameters: DicomCodecParams | null): void {
+    throw new Error("RLE Lossless encoding is not implemented");
+  }
+
+  decode(oldPixelData: DicomPixelData, newPixelData: DicomPixelData, _parameters: DicomCodecParams | null): void {
+    for (let i = 0; i < oldPixelData.numberOfFrames; i++) {
+      newPixelData.addFrame(this.decodeFrame(oldPixelData, i));
+    }
+  }
+
+  private decodeFrame(pixelData: DicomPixelData, frame: number): IByteBuffer {
     const data = pixelData.getFrame(frame).data;
     if (data.length < 64) throw new Error("Invalid RLE frame: header too small");
     const view = new DataView(data.buffer, data.byteOffset, data.byteLength);

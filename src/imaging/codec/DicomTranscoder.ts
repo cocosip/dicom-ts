@@ -1,32 +1,116 @@
+import { DicomFile } from "../../DicomFile.js";
+import { DicomFileMetaInformation } from "../../DicomFileMetaInformation.js";
 import { DicomTransferSyntax } from "../../core/DicomTransferSyntax.js";
 import { DicomDataset } from "../../dataset/DicomDataset.js";
 import { cloneDataset } from "../../dataset/DicomDatasetExtensions.js";
 import { DicomOtherByte, DicomOtherWord } from "../../dataset/DicomElement.js";
-import { DicomOtherByteFragment, DicomOtherWordFragment } from "../../dataset/DicomFragmentSequence.js";
 import { DicomTag } from "../../core/DicomTag.js";
 import * as Tags from "../../core/DicomTag.generated.js";
 import { DicomVR } from "../../core/DicomVR.js";
-import { CompositeByteBuffer } from "../../io/buffer/CompositeByteBuffer.js";
-import { MemoryByteBuffer } from "../../io/buffer/MemoryByteBuffer.js";
 import { DicomPixelData } from "../DicomPixelData.js";
 import { DicomOverlayData } from "../DicomOverlayData.js";
+import { MemoryByteBuffer } from "../../io/buffer/MemoryByteBuffer.js";
 import type { IByteBuffer } from "../../io/buffer/IByteBuffer.js";
 import type { IDicomTranscoder } from "./IDicomTranscoder.js";
+import type { DicomCodecParams } from "./DicomCodecParams.js";
 import { TranscoderManager } from "./TranscoderManager.js";
 
 export class DicomTranscoder implements IDicomTranscoder {
+  readonly inputSyntax: DicomTransferSyntax;
+  readonly inputCodecParams: DicomCodecParams | null;
+  readonly outputSyntax: DicomTransferSyntax;
+  readonly outputCodecParams: DicomCodecParams | null;
+
+  // Backward-compatible aliases.
   readonly sourceSyntax: DicomTransferSyntax;
   readonly targetSyntax: DicomTransferSyntax;
 
-  constructor(sourceSyntax: DicomTransferSyntax, targetSyntax: DicomTransferSyntax) {
-    this.sourceSyntax = sourceSyntax;
-    this.targetSyntax = targetSyntax;
+  constructor(
+    inputSyntax: DicomTransferSyntax,
+    outputSyntax: DicomTransferSyntax,
+    inputCodecParams: DicomCodecParams | null = null,
+    outputCodecParams: DicomCodecParams | null = null,
+  ) {
+    this.inputSyntax = inputSyntax;
+    this.outputSyntax = outputSyntax;
+    this.inputCodecParams = inputCodecParams;
+    this.outputCodecParams = outputCodecParams;
+
+    this.sourceSyntax = inputSyntax;
+    this.targetSyntax = outputSyntax;
   }
 
-  transcode(dataset: DicomDataset): DicomDataset {
+  static extractOverlays(dataset: DicomDataset): DicomDataset {
+    if (!DicomOverlayData.hasEmbeddedOverlays(dataset)) return dataset;
+
+    const output = cloneDataset(dataset);
+    let input = output;
+
+    if (input.internalTransferSyntax.isEncapsulated) {
+      input = cloneDataset(output);
+      const transcoder = new DicomTranscoder(
+        input.internalTransferSyntax,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      );
+      input = transcoder.transcode(input);
+    }
+
+    DicomTranscoder.processOverlays(input, output);
+    return output;
+  }
+
+  transcode(file: DicomFile): DicomFile;
+  transcode(dataset: DicomDataset): DicomDataset;
+  transcode(input: DicomFile | DicomDataset): DicomFile | DicomDataset {
+    if (input instanceof DicomFile) {
+      const output = new DicomFile();
+      output.fileMetaInfo = new DicomFileMetaInformation(input.fileMetaInfo);
+      output.fileMetaInfo.transferSyntaxUID = this.outputSyntax;
+      output.dataset = this.transcode(input.dataset);
+      output.dataset.internalTransferSyntax = this.outputSyntax;
+      output.format = input.format;
+      output.isPartial = input.isPartial;
+      return output;
+    }
+
+    return this.transcodeDataset(input);
+  }
+
+  decodeFrame(dataset: DicomDataset, frame: number): IByteBuffer {
+    const pixelData = DicomPixelData.create(dataset);
+    if (!dataset.internalTransferSyntax.isEncapsulated) {
+      return pixelData.getFrame(frame);
+    }
+
+    const sourceSyntax = this.inputSyntax ?? dataset.internalTransferSyntax;
+    const codec = TranscoderManager.getCodec(sourceSyntax);
+
+    const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
+    const tmp = this.makeOutputDataset(dataset, DicomTransferSyntax.ExplicitVRLittleEndian);
+    const newPixelData = DicomPixelData.create(tmp);
+    codec.decode(oldPixelData, newPixelData, this.inputCodecParams);
+    return DicomPixelData.create(tmp).getFrame(frame);
+  }
+
+  decodePixelData(dataset: DicomDataset, frame: number): DicomPixelData {
+    if (!dataset.internalTransferSyntax.isEncapsulated) {
+      return DicomPixelData.create(dataset);
+    }
+
+    const decodedFrame = this.decodeFrame(dataset, frame);
+
+    const output = cloneDataset(dataset);
+    output.internalTransferSyntax = DicomTransferSyntax.ExplicitVRLittleEndian;
+    output.remove(Tags.PixelData);
+    const sourcePixelData = DicomPixelData.create(dataset);
+    this.writeNativePixelData(output, sourcePixelData.bitsAllocated, [decodedFrame]);
+    return DicomPixelData.create(output);
+  }
+
+  private transcodeDataset(dataset: DicomDataset): DicomDataset {
     const src = dataset.internalTransferSyntax;
-    const source = this.sourceSyntax ?? src;
-    const target = this.targetSyntax;
+    const source = this.inputSyntax ?? src;
+    const target = this.outputSyntax;
 
     if (!dataset.contains(Tags.PixelData)) {
       const cloned = cloneDataset(dataset);
@@ -59,12 +143,15 @@ export class DicomTranscoder implements IDicomTranscoder {
     target: DicomTransferSyntax
   ): DicomDataset {
     const oldPixelData = DicomPixelData.create(dataset);
-    const frames = this.collectFrames(oldPixelData);
+    const frames: IByteBuffer[] = [];
+    for (let i = 0; i < oldPixelData.numberOfFrames; i++) {
+      frames.push(oldPixelData.getFrame(i));
+    }
 
     const output = cloneDataset(dataset);
     output.internalTransferSyntax = target;
     this.writeNativePixelData(output, oldPixelData.bitsAllocated, frames);
-    this.processOverlays(dataset, output);
+    DicomTranscoder.processOverlays(dataset, output);
     return output;
   }
 
@@ -74,54 +161,46 @@ export class DicomTranscoder implements IDicomTranscoder {
     target: DicomTransferSyntax
   ): DicomDataset {
     const codec = TranscoderManager.getCodec(source);
-    if (!codec) throw new Error(`No codec registered for ${source.uid.uid}`);
 
-    const sourceDataset = cloneDataset(dataset);
-    const pixelData = DicomPixelData.create(sourceDataset);
-    const frames: IByteBuffer[] = [];
-    for (let i = 0; i < pixelData.numberOfFrames; i++) {
-      frames.push(codec.decode(pixelData, i));
-    }
+    const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
+    const output = this.makeOutputDataset(dataset, target);
+    const newPixelData = DicomPixelData.create(output);
 
-    const output = cloneDataset(dataset);
-    output.internalTransferSyntax = target;
-    this.writeNativePixelData(output, pixelData.bitsAllocated, frames);
-    this.processOverlays(dataset, output);
+    codec.decode(oldPixelData, newPixelData, this.inputCodecParams);
+
+    DicomTranscoder.processOverlays(dataset, output);
     return output;
   }
 
   private compress(dataset: DicomDataset, target: DicomTransferSyntax): DicomDataset {
     const codec = TranscoderManager.getCodec(target);
-    if (!codec || !codec.encode) {
-      throw new Error(`No encoder registered for ${target.uid.uid}`);
-    }
 
-    const sourceDataset = cloneDataset(dataset);
-    const pixelData = DicomPixelData.create(sourceDataset);
-    const frames: IByteBuffer[] = [];
-    for (let i = 0; i < pixelData.numberOfFrames; i++) {
-      const raw = pixelData.getFrame(i);
-      frames.push(codec.encode(pixelData, i, raw));
-    }
+    const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
+    const output = this.makeOutputDataset(dataset, target);
+    const newPixelData = DicomPixelData.create(output);
 
-    const output = cloneDataset(dataset);
-    output.internalTransferSyntax = target;
-    this.writeEncapsulatedPixelData(output, pixelData.bitsAllocated, frames);
-    this.processOverlays(dataset, output);
+    codec.encode(oldPixelData, newPixelData, this.outputCodecParams);
+
+    DicomTranscoder.processOverlays(dataset, output);
     return output;
   }
 
-  private collectFrames(pixelData: DicomPixelData): IByteBuffer[] {
-    const frames: IByteBuffer[] = [];
-    for (let i = 0; i < pixelData.numberOfFrames; i++) {
-      frames.push(pixelData.getFrame(i));
-    }
-    return frames;
+  /** Clone dataset, set new transfer syntax, and remove pixel data so codec writes fresh. */
+  private makeOutputDataset(dataset: DicomDataset, target: DicomTransferSyntax): DicomDataset {
+    const output = cloneDataset(dataset);
+    output.internalTransferSyntax = target;
+    output.remove(Tags.PixelData);
+    return output;
   }
 
   private writeNativePixelData(dataset: DicomDataset, bitsAllocated: number, frames: IByteBuffer[]): void {
-    const merged = new CompositeByteBuffer(frames);
-    const buffer = new MemoryByteBuffer(merged.data);
+    const merged = new Uint8Array(frames.reduce((n, f) => n + f.size, 0));
+    let offset = 0;
+    for (const f of frames) {
+      merged.set(f.data, offset);
+      offset += f.size;
+    }
+    const buffer = new MemoryByteBuffer(merged);
     const pixelData = bitsAllocated > 8
       ? new DicomOtherWord(Tags.PixelData, buffer)
       : new DicomOtherByte(Tags.PixelData, buffer);
@@ -129,19 +208,7 @@ export class DicomTranscoder implements IDicomTranscoder {
     dataset.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, String(Math.max(1, frames.length)));
   }
 
-  private writeEncapsulatedPixelData(dataset: DicomDataset, bitsAllocated: number, frames: IByteBuffer[]): void {
-    const sequence = bitsAllocated > 8
-      ? new DicomOtherWordFragment(Tags.PixelData)
-      : new DicomOtherByteFragment(Tags.PixelData);
-    sequence.addRaw(new MemoryByteBuffer(new Uint8Array(0)));
-    for (const frame of frames) {
-      sequence.addRaw(frame);
-    }
-    dataset.addOrUpdate(sequence);
-    dataset.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, String(Math.max(1, frames.length)));
-  }
-
-  private processOverlays(input: DicomDataset, output: DicomDataset): void {
+  private static processOverlays(input: DicomDataset, output: DicomDataset): void {
     const overlays = DicomOverlayData.fromDataset(input.internalTransferSyntax.isEncapsulated ? output : input);
 
     for (const overlay of overlays) {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DicomFile } from "../../src/DicomFile.js";
 import { DicomDataset } from "../../src/dataset/DicomDataset.js";
 import { DicomElement, DicomOtherByte, DicomOtherWord } from "../../src/dataset/DicomElement.js";
 import { DicomOtherByteFragment } from "../../src/dataset/DicomFragmentSequence.js";
@@ -95,6 +96,89 @@ describe("DicomImagingTranscoder", () => {
       const item = out.getDicomItem<DicomElement>(overlayTag(group, 0x3000));
       expect(item?.valueRepresentation).toBe(DicomVR.OB);
       expect([...out.getDicomItem<DicomElement>(overlayTag(group, 0x3000))!.buffer.data]).toEqual([1]);
+    } finally {
+      TranscoderManager.unregister(DicomTransferSyntax.JPEGProcess1);
+    }
+  });
+
+  it("transcodes DicomFile and updates file meta transfer syntax", () => {
+    const ds = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
+    ds.addOrUpdateElement(DicomVR.LO, Tags.PatientName, "TranscodeFile");
+    const file = new DicomFile(ds);
+
+    const transcoder = new DicomImagingTranscoder(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      DicomTransferSyntax.ImplicitVRLittleEndian,
+    );
+    const out = transcoder.transcode(file);
+
+    expect(out).toBeInstanceOf(DicomFile);
+    expect(out).not.toBe(file);
+    expect(out.dataset.internalTransferSyntax).toBe(DicomTransferSyntax.ImplicitVRLittleEndian);
+    expect(out.fileMetaInfo.transferSyntaxUID).toBe(DicomTransferSyntax.ImplicitVRLittleEndian);
+  });
+
+  it("decodes a compressed frame buffer", () => {
+    const ds = new DicomDataset(DicomTransferSyntax.JPEGProcess1);
+    ds.addOrUpdateElement(DicomVR.US, Tags.Rows, 1);
+    ds.addOrUpdateElement(DicomVR.US, Tags.Columns, 1);
+    ds.addOrUpdateElement(DicomVR.US, Tags.BitsAllocated, 8);
+    ds.addOrUpdateElement(DicomVR.US, Tags.BitsStored, 8);
+    ds.addOrUpdateElement(DicomVR.US, Tags.HighBit, 7);
+    ds.addOrUpdateElement(DicomVR.US, Tags.SamplesPerPixel, 1);
+    ds.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, "1");
+    const seq = new DicomOtherByteFragment(Tags.PixelData);
+    seq.addRaw(new MemoryByteBuffer(new Uint8Array(0)));
+    seq.addRaw(new MemoryByteBuffer(new Uint8Array([0xff])));
+    ds.addOrUpdate(seq);
+
+    const codec: IDicomCodec = {
+      transferSyntax: DicomTransferSyntax.JPEGProcess1,
+      decode: () => new MemoryByteBuffer(new Uint8Array([7])),
+    };
+    TranscoderManager.register(codec);
+    try {
+      const transcoder = new DicomImagingTranscoder(
+        DicomTransferSyntax.JPEGProcess1,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      );
+      const frame = transcoder.decodeFrame(ds, 0);
+      expect([...frame.data]).toEqual([7]);
+    } finally {
+      TranscoderManager.unregister(DicomTransferSyntax.JPEGProcess1);
+    }
+  });
+
+  it("decodes compressed pixel data into a single native frame", () => {
+    const ds = new DicomDataset(DicomTransferSyntax.JPEGProcess1);
+    ds.addOrUpdateElement(DicomVR.US, Tags.Rows, 1);
+    ds.addOrUpdateElement(DicomVR.US, Tags.Columns, 1);
+    ds.addOrUpdateElement(DicomVR.US, Tags.BitsAllocated, 8);
+    ds.addOrUpdateElement(DicomVR.US, Tags.BitsStored, 8);
+    ds.addOrUpdateElement(DicomVR.US, Tags.HighBit, 7);
+    ds.addOrUpdateElement(DicomVR.US, Tags.SamplesPerPixel, 1);
+    ds.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, "2");
+    const seq = new DicomOtherByteFragment(Tags.PixelData);
+    seq.addRaw(new MemoryByteBuffer(new Uint8Array(0)));
+    seq.addRaw(new MemoryByteBuffer(new Uint8Array([0xaa])));
+    seq.addRaw(new MemoryByteBuffer(new Uint8Array([0xbb])));
+    ds.addOrUpdate(seq);
+
+    const codec: IDicomCodec = {
+      transferSyntax: DicomTransferSyntax.JPEGProcess1,
+      decode: (_pixelData, frame) => new MemoryByteBuffer(new Uint8Array([frame + 1])),
+    };
+    TranscoderManager.register(codec);
+    try {
+      const transcoder = new DicomImagingTranscoder(
+        DicomTransferSyntax.JPEGProcess1,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      );
+      const decoded = transcoder.decodePixelData(ds, 1);
+      expect(decoded.isEncapsulated).toBe(false);
+      expect(decoded.numberOfFrames).toBe(1);
+      expect([...decoded.getFrame(0).data]).toEqual([2]);
+      expect(ds.internalTransferSyntax).toBe(DicomTransferSyntax.JPEGProcess1);
     } finally {
       TranscoderManager.unregister(DicomTransferSyntax.JPEGProcess1);
     }

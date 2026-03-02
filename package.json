@@ -31,7 +31,9 @@
     "tool:dicom-cstore-scu": "node tools/dicom-cstore-scu/index.mjs",
     "tool:dicom-cstore-scu:help": "node tools/dicom-cstore-scu/index.mjs --help",
     "tool:dicom-cstore-scp": "node tools/dicom-cstore-scp/index.mjs",
-    "tool:dicom-cstore-scp:help": "node tools/dicom-cstore-scp/index.mjs --help"
+    "tool:dicom-cstore-scp:help": "node tools/dicom-cstore-scp/index.mjs --help",
+    "tool:dicom-transcode": "node tools/dicom-transcode/index.mjs",
+    "tool:dicom-transcode:help": "node tools/dicom-transcode/index.mjs --help"
   },
   "keywords": [
     "dicom",

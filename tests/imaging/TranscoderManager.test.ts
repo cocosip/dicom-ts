@@ -18,6 +18,7 @@ describe("TranscoderManager", () => {
     TranscoderManager.register(codec);
     expect(TranscoderManager.getCodec(DicomTransferSyntax.RLELossless)).toBe(codec);
     TranscoderManager.unregister(DicomTransferSyntax.RLELossless);
-    expect(TranscoderManager.getCodec(DicomTransferSyntax.RLELossless)).toBeNull();
+    expect(TranscoderManager.hasCodec(DicomTransferSyntax.RLELossless)).toBe(false);
+    expect(() => TranscoderManager.getCodec(DicomTransferSyntax.RLELossless)).toThrowError();
   });
 });
