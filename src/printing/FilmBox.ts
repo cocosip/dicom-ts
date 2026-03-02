@@ -1,3 +1,4 @@
+
 import * as DicomTags from "../core/DicomTag.generated.js";
 import * as DicomUIDs from "../core/DicomUID.generated.js";
 import { DicomUID } from "../core/DicomUID.js";
@@ -7,7 +8,7 @@ import { DicomSequence } from "../dataset/DicomSequence.js";
 import { DicomUniqueIdentifier } from "../dataset/DicomElement.js";
 import type { FilmSession } from "./FilmSession.js";
 import { ImageBox } from "./ImageBox.js";
-import type { PresentationLut } from "./PresentationLut.js";
+import { PresentationLut } from "./PresentationLut.js";
 
 /**
  * Basic film box.

@@ -1,3 +1,4 @@
+
 import { DicomDataset } from "../dataset/DicomDataset.js";
 import { DicomPixelData } from "./DicomPixelData.js";
 import { ImageGraphic } from "./render/ImageGraphic.js";
@@ -14,6 +15,7 @@ import type { IImage } from "./IImage.js";
 import { DicomOverlayDataFactory } from "./DicomOverlayDataFactory.js";
 import { DicomOverlayType } from "./DicomOverlayData.js";
 import { Color32 } from "./Color32.js";
+import { CacheType } from "./CacheType.js";
 
 /**
  * High-level DICOM image rendering API.
@@ -23,6 +25,7 @@ import { Color32 } from "./Color32.js";
 export class DicomImage {
   readonly dataset: DicomDataset;
   readonly pixelData: DicomPixelData;
+  private readonly _cacheType: CacheType;
 
   private _currentFrame: number = 0;
   private _scale: number = 1;
@@ -45,10 +48,14 @@ export class DicomImage {
    */
   autoApplyLUTToAllFrames: boolean = true;
 
-  constructor(dataset: DicomDataset) {
+  constructor(dataset: DicomDataset, cacheType: CacheType = CacheType.All) {
     this.dataset = dataset;
+    this._cacheType = cacheType;
     this.pixelData = DicomPixelData.create(dataset);
-    this.pixelData.enableFrameCache();
+    
+    if ((this._cacheType & CacheType.PixelData) !== 0) {
+      this.pixelData.enableFrameCache();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -196,8 +203,10 @@ export class DicomImage {
   renderImage(frame: number = 0): IImage {
     this._currentFrame = frame;
 
-    const cached = this._renderCache.get(frame);
-    if (cached) return cached;
+    if ((this._cacheType & CacheType.Display) !== 0) {
+      const cached = this._renderCache.get(frame);
+      if (cached) return cached;
+    }
 
     const pipeline = this._getOrCreatePipeline(frame);
 
@@ -239,7 +248,10 @@ export class DicomImage {
 
     const image = graphic.renderImage(palette != null ? null : (pipeline.lut as ILUT | null));
     pipeline.clearCache();
-    this._renderCache.set(frame, image);
+    
+    if ((this._cacheType & CacheType.Display) !== 0) {
+      this._renderCache.set(frame, image);
+    }
     return image;
   }
 
@@ -263,10 +275,16 @@ export class DicomImage {
   }
 
   private _getOrCreatePipeline(frame: number): IPipeline {
-    const cached = this._pipelineCache.get(frame);
-    if (cached) return cached;
+    if ((this._cacheType & CacheType.LookupTables) !== 0) {
+      const cached = this._pipelineCache.get(frame);
+      if (cached) return cached;
+    }
+    
     const pipeline = this._createPipeline(frame);
-    this._pipelineCache.set(frame, pipeline);
+    
+    if ((this._cacheType & CacheType.LookupTables) !== 0) {
+      this._pipelineCache.set(frame, pipeline);
+    }
     return pipeline;
   }
 

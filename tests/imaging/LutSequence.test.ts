@@ -19,9 +19,9 @@ describe("Sequence LUTs", () => {
     ds.addOrUpdate(new DicomSequence(Tags.ModalityLUTSequence, makeLutItem()));
 
     const lut = ModalitySequenceLUT.fromDataset(ds)!;
-    expect(lut.map(0)).toBe(0);
-    expect(lut.map(2)).toBe(20);
-    expect(lut.map(10)).toBe(30);
+    expect(lut.apply(0)).toBe(0);
+    expect(lut.apply(2)).toBe(20);
+    expect(lut.apply(10)).toBe(30);
   });
 
   it("VOISequenceLUT maps values", () => {
@@ -29,7 +29,7 @@ describe("Sequence LUTs", () => {
     ds.addOrUpdate(new DicomSequence(Tags.VOILUTSequence, makeLutItem()));
 
     const lut = VOISequenceLUT.fromDataset(ds)!;
-    expect(lut.map(1)).toBe(10);
-    expect(lut.map(3)).toBe(30);
+    expect(lut.apply(1)).toBe(10);
+    expect(lut.apply(3)).toBe(30);
   });
 });

@@ -1,249 +1,132 @@
-/**
- * DICOM XML converter (PS3.19 Native DICOM Model).
- */
-import { Buffer } from "node:buffer";
-import { DicomDictionary, UnknownTag } from "../core/DicomDictionary.js";
+
 import { DicomDataset } from "../dataset/DicomDataset.js";
-import { DicomSequence } from "../dataset/DicomSequence.js";
-import { DicomFragmentSequence } from "../dataset/DicomFragmentSequence.js";
+import { DicomItem } from "../dataset/DicomItem.js";
 import {
-  DicomElement,
-  DicomAttributeTag,
-  DicomMultiStringElement,
-  DicomStringElement,
-  DicomValueElement,
+    DicomElement,
+    DicomStringElement,
+    DicomMultiStringElement,
+    DicomValueElement,
+    DicomPersonName,
+    DicomAttributeTag
 } from "../dataset/DicomElement.js";
-import { BulkDataUriByteBuffer } from "../io/buffer/BulkDataUriByteBuffer.js";
-
-export interface DicomXmlConverterOptions {
-  /** Include DICOM keyword attribute when available. */
-  includeKeyword?: boolean;
-  /** Include private creator attribute when present. */
-  includePrivateCreator?: boolean;
-  /** Pretty-print output with indentation. */
-  formatIndented?: boolean;
-}
-
-const BINARY_VRS = new Set([
-  "OB", "OW", "OF", "OD", "OL", "OV", "UN",
-]);
+import { DicomSequence } from "../dataset/DicomSequence.js";
+import { DicomVR } from "../core/DicomVR.js";
+import { DicomTag } from "../core/DicomTag.js";
+import { Base64 } from "../core/Base64.js";
+import { DicomDictionary } from "../core/DicomDictionary.js";
 
 export class DicomXmlConverter {
-  private readonly includeKeyword: boolean;
-  private readonly includePrivateCreator: boolean;
-  private readonly formatIndented: boolean;
+    private _writeKeyword: boolean = true;
 
-  constructor(options: DicomXmlConverterOptions = {}) {
-    this.includeKeyword = options.includeKeyword ?? true;
-    this.includePrivateCreator = options.includePrivateCreator ?? true;
-    this.formatIndented = options.formatIndented ?? false;
-  }
-
-  toXml(dataset: DicomDataset): string {
-    const writer = new XmlWriter(this.formatIndented);
-    writer.line('<?xml version="1.0" encoding="utf-8"?>');
-    writer.open("NativeDicomModel");
-    writeDataset(writer, dataset, {
-      includeKeyword: this.includeKeyword,
-      includePrivateCreator: this.includePrivateCreator,
-    });
-    writer.close("NativeDicomModel");
-    return writer.toString();
-  }
-}
-
-export function convertDicomToXml(
-  dataset: DicomDataset,
-  options: DicomXmlConverterOptions = {}
-): string {
-  return new DicomXmlConverter(options).toXml(dataset);
-}
-
-type WriteOptions = {
-  includeKeyword: boolean;
-  includePrivateCreator: boolean;
-};
-
-function writeDataset(writer: XmlWriter, dataset: DicomDataset, options: WriteOptions): void {
-  for (const item of dataset) {
-    if (item.tag.element === 0x0000) continue;
-    if (item instanceof DicomFragmentSequence) {
-      writeFragmentSequence(writer, item, options);
-      continue;
+    constructor(writeKeyword: boolean = true) {
+        this._writeKeyword = writeKeyword;
     }
-    if (item instanceof DicomSequence) {
-      writeSequence(writer, item, options);
-      continue;
+
+    public write(dataset: DicomDataset): string {
+        // Native DICOM Model XML (PS3.19)
+        let xml = "<NativeDicomModel>";
+        for (const item of dataset) {
+            xml += this.convertItem(item);
+        }
+        xml += "</NativeDicomModel>";
+        return xml;
     }
-    if (item instanceof DicomElement) {
-      writeElement(writer, item, options);
+
+    private convertItem(item: DicomItem): string {
+        const tag = item.tag.toString("J").toUpperCase();
+        const entry = DicomDictionary.default.lookup(item.tag);
+        const keyword = entry.keyword || "";
+        const vr = item.valueRepresentation.code;
+        
+        let attrs = ` tag="${tag}" vr="${vr}"`;
+        if (this._writeKeyword && keyword) {
+            attrs += ` keyword="${keyword}"`;
+        }
+
+        let xml = `<DicomAttribute${attrs}>`;
+
+        if (item instanceof DicomSequence) {
+            for (let i = 0; i < item.items.length; i++) {
+                const ds = item.items[i];
+                if (!ds) continue;
+                xml += `<Item number="${i + 1}">`;
+                for (const child of ds) {
+                    xml += this.convertItem(child);
+                }
+                xml += "</Item>";
+            }
+        } else if (item instanceof DicomElement) {
+            if (item.count > 0) {
+                xml += this.convertElementValue(item);
+            }
+        }
+
+        xml += "</DicomAttribute>";
+        return xml;
     }
-  }
-}
 
-function writeSequence(writer: XmlWriter, seq: DicomSequence, options: WriteOptions): void {
-  writer.open(dicomAttributeTag(seq, options));
-  for (let i = 0; i < seq.items.length; i++) {
-    writer.open(`Item number="${i + 1}"`);
-    writeDataset(writer, seq.items[i]!, options);
-    writer.close("Item");
-  }
-  writer.close("DicomAttribute");
-}
+    private convertElementValue(element: DicomElement): string {
+        const vr = element.valueRepresentation;
+        let xml = "";
 
-function writeFragmentSequence(writer: XmlWriter, seq: DicomFragmentSequence, options: WriteOptions): void {
-  writer.open(dicomAttributeTag(seq, options));
-  for (let i = 0; i < seq.fragments.length; i++) {
-    writer.open(`Fragment number="${i + 1}"`);
-    const fragment = seq.fragments[i]!;
-    if (fragment instanceof BulkDataUriByteBuffer) {
-      writer.line(`<BulkDataURI>${escapeXml(fragment.bulkDataUri)}</BulkDataURI>`);
-    } else if (fragment.data.byteLength > 0) {
-      writer.line(`<InlineBinary>${Buffer.from(fragment.data).toString("base64")}</InlineBinary>`);
+        if (vr === DicomVR.OB || vr === DicomVR.OW || vr === DicomVR.OF || 
+            vr === DicomVR.OD || vr === DicomVR.OL || vr === DicomVR.OV || 
+            vr === DicomVR.UN) {
+            
+            // Binary data -> InlineBinary
+            // TODO: BulkDataURI support if needed
+            const base64 = Base64.encode(element.buffer.data);
+            xml += `<InlineBinary>${base64}</InlineBinary>`;
+        } else if (element instanceof DicomPersonName) {
+             for (let i = 0; i < element.count; i++) {
+                const val = element.values[i]; // raw string like "Smith^John"
+                xml += `<PersonName number="${i + 1}">`;
+                if (val) {
+                    const parts = val.split("=");
+                    if (parts[0]) xml += `<Alphabetic>${this.escapeXml(parts[0])}</Alphabetic>`;
+                    if (parts[1]) xml += `<Ideographic>${this.escapeXml(parts[1])}</Ideographic>`;
+                    if (parts[2]) xml += `<Phonetic>${this.escapeXml(parts[2])}</Phonetic>`;
+                }
+                xml += `</PersonName>`;
+            }
+        } else {
+             // Generic values extraction
+             let values: string[] = [];
+             if (element instanceof DicomMultiStringElement) {
+                 values = element.values;
+             } else if (element instanceof DicomStringElement) {
+                 values = [element.value];
+             } else if (element instanceof DicomValueElement) {
+                 // Convert numbers/bigints to string
+                 values = (element as DicomValueElement<number | bigint>).values.map(String);
+             } else if (element instanceof DicomAttributeTag) {
+                 values = element.tagValues.map(t => t.toString().toUpperCase().replace(",", ""));
+             }
+
+             for (let i = 0; i < values.length; i++) {
+                const strVal = values[i] || "";
+                xml += `<Value number="${i + 1}">${this.escapeXml(strVal)}</Value>`;
+            }
+        }
+
+        return xml;
     }
-    writer.close("Fragment");
-  }
-  writer.close("DicomAttribute");
-}
 
-function writeElement(writer: XmlWriter, item: DicomElement, options: WriteOptions): void {
-  writer.open(dicomAttributeTag(item, options));
-
-  const vrCode = item.valueRepresentation.code === "NONE"
-    ? "UN"
-    : item.valueRepresentation.code;
-
-  if (BINARY_VRS.has(vrCode)) {
-    const buffer = item.buffer;
-    if (buffer instanceof BulkDataUriByteBuffer) {
-      writer.line(`<BulkDataURI>${escapeXml(buffer.bulkDataUri)}</BulkDataURI>`);
-    } else {
-      writer.line(`<InlineBinary>${Buffer.from(buffer.data).toString("base64")}</InlineBinary>`);
+    private escapeXml(unsafe: string): string {
+        return unsafe.replace(/[<>&'"]/g, (c) => {
+            switch (c) {
+                case "<": return "&lt;";
+                case ">": return "&gt;";
+                case "&": return "&amp;";
+                case "'": return "&apos;";
+                case "\"": return "&quot;";
+                default: return c;
+            }
+        });
     }
-    writer.close("DicomAttribute");
-    return;
-  }
-
-  if (vrCode === "PN") {
-    const values = (item as DicomMultiStringElement).values;
-    for (let i = 0; i < values.length; i++) {
-      writePersonName(writer, values[i] ?? "", i + 1);
-    }
-    writer.close("DicomAttribute");
-    return;
-  }
-
-  const values = elementValues(item);
-  for (let i = 0; i < values.length; i++) {
-    writer.line(`<Value number="${i + 1}">${escapeXml(values[i]!)}</Value>`);
-  }
-  writer.close("DicomAttribute");
 }
 
-function writePersonName(writer: XmlWriter, value: string, number: number): void {
-  writer.open(`PersonName number="${number}"`);
-  writer.open("Alphabetic");
-
-  const [family, given, middle, prefix, suffix] = parseAlphabeticComponents(value);
-  if (family) writer.line(`<FamilyName>${escapeXml(family)}</FamilyName>`);
-  if (given) writer.line(`<GivenName>${escapeXml(given)}</GivenName>`);
-  if (middle) writer.line(`<MiddleName>${escapeXml(middle)}</MiddleName>`);
-  if (prefix) writer.line(`<NamePrefix>${escapeXml(prefix)}</NamePrefix>`);
-  if (suffix) writer.line(`<NameSuffix>${escapeXml(suffix)}</NameSuffix>`);
-
-  writer.close("Alphabetic");
-  writer.close("PersonName");
-}
-
-function elementValues(item: DicomElement): string[] {
-  if (item instanceof DicomAttributeTag) {
-    return item.tagValues.map((t) => t.toString("J"));
-  }
-  if (item instanceof DicomMultiStringElement) {
-    return item.values;
-  }
-  if (item instanceof DicomStringElement) {
-    return [item.value];
-  }
-  if (item instanceof DicomValueElement) {
-    return item.values.map((v) => (typeof v === "bigint" ? v.toString() : String(v)));
-  }
-  return [];
-}
-
-function dicomAttributeTag(
-  item: import("../dataset/DicomItem.js").DicomItem,
-  options: WriteOptions
-): string {
-  const tag = item.tag.toString("J");
-  const vr = item.valueRepresentation.code === "NONE" ? "UN" : item.valueRepresentation.code;
-  const parts = [`DicomAttribute tag="${tag}"`, `vr="${vr}"`];
-
-  if (options.includeKeyword) {
-    const entry = DicomDictionary.default.lookup(item.tag);
-    if (entry !== UnknownTag && entry.keyword) {
-      parts.push(`keyword="${escapeXml(entry.keyword)}"`);
-    }
-  }
-
-  if (options.includePrivateCreator && item.tag.isPrivate && item.tag.privateCreator) {
-    parts.push(`privateCreator="${escapeXml(item.tag.privateCreator.creator)}"`);
-  }
-
-  return `${parts.join(" ")}`;
-}
-
-function parseAlphabeticComponents(value: string): [string, string, string, string, string] {
-  const alphabetic = value.split("=")[0] ?? "";
-  const parts = alphabetic.split("^");
-  return [
-    parts[0] ?? "",
-    parts[1] ?? "",
-    parts[2] ?? "",
-    parts[3] ?? "",
-    parts[4] ?? "",
-  ];
-}
-
-function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-class XmlWriter {
-  private readonly indent: string;
-  private readonly formatIndented: boolean;
-  private depth = 0;
-  private readonly lines: string[] = [];
-
-  constructor(formatIndented: boolean) {
-    this.formatIndented = formatIndented;
-    this.indent = "  ";
-  }
-
-  open(tagLine: string): void {
-    this.line(`<${tagLine}>`);
-    this.depth += 1;
-  }
-
-  close(tagName: string): void {
-    this.depth = Math.max(0, this.depth - 1);
-    this.line(`</${tagName}>`);
-  }
-
-  line(text: string): void {
-    if (this.formatIndented) {
-      this.lines.push(`${this.indent.repeat(this.depth)}${text}`);
-    } else {
-      this.lines.push(text);
-    }
-  }
-
-  toString(): string {
-    return this.lines.join("\n");
-  }
+export function convertDicomToXml(dataset: DicomDataset, writeKeyword: boolean = true): string {
+  const converter = new DicomXmlConverter(writeKeyword);
+  return converter.write(dataset);
 }

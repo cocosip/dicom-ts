@@ -1,51 +1,33 @@
-/**
- * Convenience helpers for DICOM JSON conversion.
- */
-import type { DicomDataset } from "../dataset/DicomDataset.js";
-import {
-  DicomJsonConverter,
-  type DicomJsonConverterOptions,
-  type DicomJsonObject,
-  datasetToObject,
-  objectToDataset,
-} from "./DicomJsonConverter.js";
 
-export interface DicomJsonSerializeOptions extends DicomJsonConverterOptions {
-  formatIndented?: boolean;
+export enum NumberSerializationMode {
+  /**
+   * Serialize DICOM numbers (IS, DS, SV, UV) as JSON numbers.
+   */
+  PreferJsonNumber = 0,
+  /**
+   * Serialize DICOM numbers (IS, DS, SV, UV) as JSON strings.
+   */
+  PreferJsonString = 1,
 }
 
-export function convertDicomToJson(
-  dataset: DicomDataset,
-  options: DicomJsonSerializeOptions = {}
-): string {
-  const conv = new DicomJsonConverter(options);
-  return conv.toJson(dataset, options.formatIndented ?? false);
-}
+export class DicomJsonOptions {
+  /**
+   * Gets or sets whether DICOM tags are written as keywords (e.g. "PatientName") or tags (e.g. "00100010").
+   */
+  public writeTagsAsKeywords: boolean = false;
 
-export function convertDicomToJsonArray(
-  datasets: Iterable<DicomDataset>,
-  options: DicomJsonSerializeOptions = {}
-): string {
-  const writeTagsAsKeywords = options.writeTagsAsKeywords ?? false;
-  const obj = Array.from(datasets, (ds) => datasetToObject(ds, writeTagsAsKeywords));
-  return JSON.stringify(obj, null, options.formatIndented ? 2 : undefined);
-}
+  /**
+   * Gets or sets how numbers (IS, DS, SV, UV) are serialized.
+   */
+  public numberSerializationMode: NumberSerializationMode = NumberSerializationMode.PreferJsonNumber;
 
-export function convertJsonToDicom(
-  json: string,
-  options: DicomJsonConverterOptions = {}
-): DicomDataset {
-  const conv = new DicomJsonConverter(options);
-  return conv.fromJson(json);
-}
+  /**
+   * Gets or sets whether to format the JSON output.
+   */
+  public format: boolean = false;
 
-export function convertJsonToDicomArray(
-  json: string,
-  options: DicomJsonConverterOptions = {}
-): DicomDataset[] {
-  const parsed = JSON.parse(json) as unknown;
-  if (!Array.isArray(parsed)) {
-    throw new Error("JSON root must be an array of DICOM datasets");
-  }
-  return parsed.map((obj) => objectToDataset(obj as DicomJsonObject, options));
+  /**
+   * Gets or sets whether to auto-validate the DICOM dataset before serialization.
+   */
+  public autoValidate: boolean = true;
 }

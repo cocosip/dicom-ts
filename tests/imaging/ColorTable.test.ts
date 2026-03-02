@@ -5,6 +5,7 @@ import { DicomOtherWord } from "../../src/dataset/DicomElement.js";
 import * as Tags from "../../src/core/DicomTag.generated.js";
 import { ColorTable } from "../../src/imaging/ColorTable.js";
 import { PaletteColorLUT } from "../../src/imaging/lut/PaletteColorLUT.js";
+import { Color32 } from "../../src/imaging/Color32.js";
 
 function makePaletteDataset(): DicomDataset {
   const ds = new DicomDataset();
@@ -47,11 +48,16 @@ describe("ColorTable", () => {
     const lut = PaletteColorLUT.fromDataset(ds)!;
     expect(lut.colorMap.length).toBe(2);
 
-    const black = lut.map(0);
-    expect([black.r, black.g, black.b]).toEqual([0, 0, 0]);
+    // Color32.value is packed ARGB.
+    // Index 0 -> Red=0x0000 -> 0. Green=0x0000 -> 0. Blue=0x0000 -> 0. Alpha=255.
+    // Expected Black (0,0,0,255) -> 0xFF000000
+    const blackValue = lut.apply(0);
+    expect(blackValue >>> 0).toBe(0xFF000000);
 
-    const red = lut.map(1);
-    expect([red.r, red.g, red.b]).toEqual([255, 0, 0]);
+    // Index 1 -> Red=0xFFFF -> 255. Green=0x0000 -> 0. Blue=0x0000 -> 0. Alpha=255.
+    // Expected Red (255,0,0,255) -> 0xFFFF0000
+    const redValue = lut.apply(1);
+    expect(redValue >>> 0).toBe(0xFFFF0000);
   });
 
   it("respects first index offset", () => {
@@ -61,11 +67,28 @@ describe("ColorTable", () => {
     ds.addOrUpdateElement(DicomVR.US, Tags.BluePaletteColorLookupTableDescriptor, 2, 1, 16);
 
     const lut = PaletteColorLUT.fromDataset(ds)!;
-    const outOfRange = lut.map(0);
-    expect([outOfRange.r, outOfRange.g, outOfRange.b]).toEqual([0, 0, 0]);
-    const stillBlack = lut.map(1);
-    expect([stillBlack.r, stillBlack.g, stillBlack.b]).toEqual([0, 0, 0]);
-    const red = lut.map(2);
-    expect([red.r, red.g, red.b]).toEqual([255, 0, 0]);
+    
+    // Index 0 -> below first entry (1). Should map to first entry? 
+    // PaletteColorLUT.apply implementation:
+    // const idx = value - this._first;
+    // return (idx > 0 ? this.colorMap[idx | 0] : this.colorMap[0])?.value ?? 0;
+    
+    // If value=0, first=1 => idx = -1.
+    // idx > 0 is false. Returns colorMap[0].
+    // colorMap[0] is Black (from makePaletteDataset).
+    const outOfRangeValue = lut.apply(0);
+    expect(outOfRangeValue >>> 0).toBe(0xFF000000); // Black
+
+    // Index 1 -> value=1, first=1 => idx = 0.
+    // idx > 0 is false. Returns colorMap[0].
+    // colorMap[0] is Black.
+    const stillBlackValue = lut.apply(1);
+    expect(stillBlackValue >>> 0).toBe(0xFF000000); // Black
+
+    // Index 2 -> value=2, first=1 => idx = 1.
+    // idx > 0 is true. Returns colorMap[1].
+    // colorMap[1] is Red.
+    const redValue = lut.apply(2);
+    expect(redValue >>> 0).toBe(0xFFFF0000); // Red
   });
 });

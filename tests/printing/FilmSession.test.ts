@@ -15,9 +15,9 @@ describe("Printing FilmSession", () => {
   it("creates, finds and deletes presentation LUT", () => {
     const session = new FilmSession(DicomUIDs.BasicFilmSession);
     const lut = session.createPresentationLut();
-    expect(session.findPresentationLut(lut.sopInstanceUid)?.sopInstanceUid.uid).toBe(lut.sopInstanceUid.uid);
-    expect(session.deletePresentationLut(lut.sopInstanceUid)).toBe(true);
-    expect(session.findPresentationLut(lut.sopInstanceUid)).toBeNull();
+    expect(session.findPresentationLut(lut.sopInstanceUID)?.sopInstanceUID.uid).toBe(lut.sopInstanceUID.uid);
+    expect(session.deletePresentationLut(lut.sopInstanceUID)).toBe(true);
+    expect(session.findPresentationLut(lut.sopInstanceUID)).toBeNull();
   });
 
   it("finds image box across film boxes", () => {

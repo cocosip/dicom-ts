@@ -5,7 +5,7 @@ import { DicomElement, DicomOtherByte, DicomOtherWord } from "../../src/dataset/
 import { DicomOtherByteFragment } from "../../src/dataset/DicomFragmentSequence.js";
 import { DicomVR } from "../../src/core/DicomVR.js";
 import * as Tags from "../../src/core/DicomTag.generated.js";
-import { DicomImagingTranscoder } from "../../src/imaging/index.js";
+import { DicomTranscoder } from "../../src/imaging/index.js";
 import { DicomTag } from "../../src/core/DicomTag.js";
 import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import { TranscoderManager } from "../../src/imaging/codec/TranscoderManager.js";
@@ -16,7 +16,7 @@ function overlayTag(group: number, element: number) {
   return new DicomTag(group, element);
 }
 
-describe("DicomImagingTranscoder", () => {
+describe("DicomTranscoder", () => {
   it("extracts embedded overlays and writes OB for explicit VR", () => {
     const ds = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
     ds.addOrUpdateElement(DicomVR.US, Tags.Rows, 2);
@@ -35,7 +35,7 @@ describe("DicomImagingTranscoder", () => {
     ds.addOrUpdateElement(DicomVR.US, overlayTag(group, 0x0102), 8);
     ds.addOrUpdateElement(DicomVR.US, overlayTag(group, 0x0100), 1);
 
-    const out = DicomImagingTranscoder.extractOverlays(ds);
+    const out = DicomTranscoder.extractOverlays(ds);
     expect(out).not.toBe(ds);
     const item = out.getDicomItem<DicomElement>(overlayTag(group, 0x3000));
     expect(item?.valueRepresentation).toBe(DicomVR.OB);
@@ -59,7 +59,7 @@ describe("DicomImagingTranscoder", () => {
     ds.addOrUpdateElement(DicomVR.CS, overlayTag(group, 0x0040), "G");
     ds.addOrUpdateElement(DicomVR.US, overlayTag(group, 0x0102), 8);
 
-    const out = DicomImagingTranscoder.extractOverlays(ds);
+    const out = DicomTranscoder.extractOverlays(ds);
     const item = out.getDicomItem<DicomElement>(overlayTag(group, 0x3000));
     expect(item?.valueRepresentation).toBe(DicomVR.OW);
   });
@@ -86,12 +86,18 @@ describe("DicomImagingTranscoder", () => {
     ds.addOrUpdateElement(DicomVR.US, overlayTag(group, 0x0102), 8);
 
     const codec: IDicomCodec = {
+      name: "MockJPEG",
       transferSyntax: DicomTransferSyntax.JPEGProcess1,
-      decode: () => new MemoryByteBuffer(new Uint8Array([0x00, 0x01, 0x00, 0x00])),
+      getDefaultParameters: () => null,
+      encode: () => { throw new Error("Not impl"); },
+      decode: (_old, newPixelData) => {
+        // Mock decoding: produce 1 frame of 1x2x2 bytes (4 bytes)
+        newPixelData.addFrame(new MemoryByteBuffer(new Uint8Array([0x00, 0x01, 0x00, 0x00])));
+      }
     };
     TranscoderManager.register(codec);
     try {
-      const out = DicomImagingTranscoder.extractOverlays(ds);
+      const out = DicomTranscoder.extractOverlays(ds);
       expect(out.internalTransferSyntax).toBe(DicomTransferSyntax.JPEGProcess1);
       const item = out.getDicomItem<DicomElement>(overlayTag(group, 0x3000));
       expect(item?.valueRepresentation).toBe(DicomVR.OB);
@@ -106,7 +112,7 @@ describe("DicomImagingTranscoder", () => {
     ds.addOrUpdateElement(DicomVR.LO, Tags.PatientName, "TranscodeFile");
     const file = new DicomFile(ds);
 
-    const transcoder = new DicomImagingTranscoder(
+    const transcoder = new DicomTranscoder(
       DicomTransferSyntax.ExplicitVRLittleEndian,
       DicomTransferSyntax.ImplicitVRLittleEndian,
     );
@@ -133,12 +139,17 @@ describe("DicomImagingTranscoder", () => {
     ds.addOrUpdate(seq);
 
     const codec: IDicomCodec = {
+      name: "MockJPEG",
       transferSyntax: DicomTransferSyntax.JPEGProcess1,
-      decode: () => new MemoryByteBuffer(new Uint8Array([7])),
+      getDefaultParameters: () => null,
+      encode: () => { throw new Error("Not impl"); },
+      decode: (_old, newPixelData) => {
+        newPixelData.addFrame(new MemoryByteBuffer(new Uint8Array([7])));
+      }
     };
     TranscoderManager.register(codec);
     try {
-      const transcoder = new DicomImagingTranscoder(
+      const transcoder = new DicomTranscoder(
         DicomTransferSyntax.JPEGProcess1,
         DicomTransferSyntax.ExplicitVRLittleEndian,
       );
@@ -165,19 +176,53 @@ describe("DicomImagingTranscoder", () => {
     ds.addOrUpdate(seq);
 
     const codec: IDicomCodec = {
+      name: "MockJPEG",
       transferSyntax: DicomTransferSyntax.JPEGProcess1,
-      decode: (_pixelData, frame) => new MemoryByteBuffer(new Uint8Array([frame + 1])),
+      getDefaultParameters: () => null,
+      encode: () => { throw new Error("Not impl"); },
+      decode: (oldPixelData, newPixelData) => {
+        // decode all frames
+        for(let i=0; i<oldPixelData.numberOfFrames; i++) {
+           newPixelData.addFrame(new MemoryByteBuffer(new Uint8Array([i + 1])));
+        }
+      }
     };
     TranscoderManager.register(codec);
     try {
-      const transcoder = new DicomImagingTranscoder(
+      const transcoder = new DicomTranscoder(
         DicomTransferSyntax.JPEGProcess1,
         DicomTransferSyntax.ExplicitVRLittleEndian,
       );
+      // decodePixelData with frame index only decodes that specific frame if supported, 
+      // but here our mock codec decodes everything or we need to check how Transcoder calls it.
+      // DicomTranscoder.decodeFrame calls codec.decode(oldPixelData, newPixelData).
+      // If codec.decode processes all frames, then newPixelData will have all frames.
+      // But DicomTranscoder.decodeFrame returns newPixelData.getFrame(frame).
+      // Wait, DicomTranscoder.decodeFrame logic:
+      // const tmp = this.makeOutputDataset...
+      // const newPixelData = DicomPixelData.create(tmp, true);
+      // codec.decode(oldPixelData, newPixelData, ...);
+      // return DicomPixelData.create(tmp).getFrame(frame);
+      
+      // If our mock codec adds frames sequentially, and we ask for frame 1,
+      // we need to make sure frame 1 is present in the output.
+      
       const decoded = transcoder.decodePixelData(ds, 1);
+      // decodePixelData returns a DicomPixelData wrapping a dataset that contains ONLY the requested frame (as per implementation usually? No).
+      // Let's look at decodePixelData implementation again.
+      // const decodedFrame = this.decodeFrame(dataset, frame);
+      // const output = cloneDataset...
+      // this.writeNativePixelData(output, ..., [decodedFrame]);
+      // return DicomPixelData.create(output);
+      
+      // So decodePixelData returns a DicomPixelData with ONLY 1 frame (the decoded one).
+      // So expect(decoded.numberOfFrames).toBe(1);
+      // And getFrame(0) of this new dataset should be the data.
+      
       expect(decoded.isEncapsulated).toBe(false);
       expect(decoded.numberOfFrames).toBe(1);
       expect([...decoded.getFrame(0).data]).toEqual([2]);
+      // The original dataset should be untouched
       expect(ds.internalTransferSyntax).toBe(DicomTransferSyntax.JPEGProcess1);
     } finally {
       TranscoderManager.unregister(DicomTransferSyntax.JPEGProcess1);

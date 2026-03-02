@@ -38,10 +38,10 @@ describe("Printing FilmBox", () => {
     box.referencedPresentationLutSequence = new DicomSequence(
       DicomTags.ReferencedPresentationLUTSequence,
       new DicomDataset().add(
-        new DicomUniqueIdentifier(DicomTags.ReferencedSOPInstanceUID, lut.sopInstanceUid),
+        new DicomUniqueIdentifier(DicomTags.ReferencedSOPInstanceUID, lut.sopInstanceUID),
       ),
     );
-    expect(box.presentationLut?.sopInstanceUid.uid).toBe(lut.sopInstanceUid.uid);
+    expect(box.presentationLut?.sopInstanceUID.uid).toBe(lut.sopInstanceUID.uid);
   });
 
   it("clone copies image boxes", () => {

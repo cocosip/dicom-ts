@@ -1,3 +1,4 @@
+
 import * as DicomTags from "../core/DicomTag.generated.js";
 import * as DicomUIDs from "../core/DicomUID.generated.js";
 import { DicomUID } from "../core/DicomUID.js";
@@ -12,7 +13,7 @@ import { DicomUniqueIdentifier, DicomUnsignedShort } from "../dataset/DicomEleme
 export class PresentationLut extends DicomDataset {
   static readonly SopClassUid: DicomUID = DicomUIDs.PresentationLUT;
 
-  readonly sopInstanceUid: DicomUID;
+  readonly sopInstanceUID: DicomUID;
 
   constructor();
   constructor(sopInstance: DicomUID | null);
@@ -28,9 +29,9 @@ export class PresentationLut extends DicomDataset {
       this.createLutSequence();
     }
 
-    this.sopInstanceUid = sopInstance ?? DicomUID.generate();
+    this.sopInstanceUID = sopInstance ?? DicomUID.generate();
     this.addOrUpdate(new DicomUniqueIdentifier(DicomTags.SOPClassUID, PresentationLut.SopClassUid));
-    this.addOrUpdate(new DicomUniqueIdentifier(DicomTags.SOPInstanceUID, this.sopInstanceUid));
+    this.addOrUpdate(new DicomUniqueIdentifier(DicomTags.SOPInstanceUID, this.sopInstanceUID));
   }
 
   get lutSequence(): DicomDataset {

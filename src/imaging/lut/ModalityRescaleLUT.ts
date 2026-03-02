@@ -1,5 +1,6 @@
+import { DicomDataset } from "../../dataset/DicomDataset.js";
+import { GrayscaleRenderOptions } from "../GrayscaleRenderOptions.js";
 import type { IModalityLUT } from "./IModalityLUT.js";
-import type { GrayscaleRenderOptions } from "../GrayscaleRenderOptions.js";
 
 /**
  * Modality Rescale LUT — applies RescaleSlope / RescaleIntercept.
@@ -35,6 +36,11 @@ export class ModalityRescaleLUT implements IModalityLUT {
 
   apply(value: number): number {
     return value * this.rescaleSlope + this.rescaleIntercept;
+  }
+
+  static fromDataset(dataset: DicomDataset): ModalityRescaleLUT {
+    const options = GrayscaleRenderOptions.fromDataset(dataset);
+    return new ModalityRescaleLUT(options);
   }
 
   recalculate(): void {}

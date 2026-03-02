@@ -41,8 +41,11 @@ export class PrecalculatedLUT implements ILUT {
   }
 
   recalculate(): void {
-    if (this.isValid) return;
-
+    // Force recalculate if needed, but here we assume if we call this, we want to update.
+    // If isValid is true, it might mean the inner LUT parameters haven't changed, but we still need to populate our table initially.
+    // However, tracking "isPopulated" is better. Or just remove the early return if we want explicit recalculation.
+    // But ILUT interface says "Forces recalculation". So it should force it.
+    
     this._lut.recalculate();
 
     for (let i = this._minValue; i <= this._maxValue; i++) {

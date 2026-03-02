@@ -73,6 +73,6 @@ describe("DicomImage", () => {
     const image = new DicomImage(ds).renderImage(0) as RawImage;
     expect(image.pixels[0]).toBe(255); // R
     expect(image.pixels[1]).toBe(0);   // G
-    expect(image.pixels[2]).toBe(0);   // B
+    expect(image.pixels[2]).toBe(255); // B (Magenta default)
   });
 });

@@ -167,7 +167,9 @@ export class GrayscaleRenderOptions {
   // ---------------------------------------------------------------------------
   static createLinearOption(bits: BitDepth, minValue: number, maxValue: number): GrayscaleRenderOptions {
     const options = new GrayscaleRenderOptions(bits);
-    options.windowWidth = maxValue - minValue;
+    // window width should be the full range
+    options.windowWidth = Math.abs(maxValue - minValue);
+    // window center should be the middle
     options.windowCenter = (maxValue + minValue) / 2;
     return options;
   }

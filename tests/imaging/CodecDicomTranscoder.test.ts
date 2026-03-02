@@ -58,18 +58,23 @@ describe("codec/DicomTranscoder", () => {
     let decodeCalls = 0;
     let encodeCalls = 0;
     const sourceCodec: IDicomCodec = {
+      name: "MockJPEG",
       transferSyntax: DicomTransferSyntax.JPEGProcess1,
-      decode: () => {
+      getDefaultParameters: () => null,
+      encode: () => { throw new Error("Not impl"); },
+      decode: (_old, newPixelData) => {
         decodeCalls++;
-        return new MemoryByteBuffer(new Uint8Array([1, 2]));
+        newPixelData.addFrame(new MemoryByteBuffer(new Uint8Array([1, 2])));
       },
     };
     const targetCodec: IDicomCodec = {
+      name: "MockRLE",
       transferSyntax: DicomTransferSyntax.RLELossless,
-      decode: () => new MemoryByteBuffer(new Uint8Array(0)),
-      encode: () => {
+      getDefaultParameters: () => null,
+      decode: () => { throw new Error("Not impl"); },
+      encode: (_old, newPixelData) => {
         encodeCalls++;
-        return new MemoryByteBuffer(new Uint8Array([9, 8]));
+        newPixelData.addFrame(new MemoryByteBuffer(new Uint8Array([9, 8])));
       },
     };
     TranscoderManager.register(sourceCodec);
@@ -85,7 +90,16 @@ describe("codec/DicomTranscoder", () => {
       expect(out.internalTransferSyntax).toBe(DicomTransferSyntax.RLELossless);
       expect(decodeCalls).toBe(1);
       expect(encodeCalls).toBe(1);
-      expect([...DicomPixelData.create(out).getFrame(0).data]).toEqual([9, 8]);
+      
+      // out has RLE transfer syntax, so DicomPixelData.create(out) creates EncapsulatedPixelData.
+      // EncapsulatedPixelData gets frames from Fragments.
+      // Our mock encoder adds a frame to newPixelData.
+      // DicomTranscoder should write this frame to the output dataset.
+      // Let's check if DicomTranscoder writes fragments correctly for RLE.
+      
+      const pixelData = DicomPixelData.create(out);
+      expect(pixelData.numberOfFrames).toBe(1);
+      expect([...pixelData.getFrame(0).data]).toEqual([9, 8]);
     } finally {
       TranscoderManager.unregister(DicomTransferSyntax.JPEGProcess1);
       TranscoderManager.unregister(DicomTransferSyntax.RLELossless);

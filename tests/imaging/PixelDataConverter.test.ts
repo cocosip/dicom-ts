@@ -55,7 +55,17 @@ describe("PixelDataConverter", () => {
       data: new Uint8Array([0, 128, 255]),
     });
     const pixelData = DicomPixelData.create(ds);
-    const lut = { map: (v: number) => 255 - v };
+    const lut = {
+      get isValid() { return true; },
+      get minimumOutputValue() { return 0; },
+      get maximumOutputValue() { return 255; },
+      apply: (v: number) => {
+        const val = 255 - v;
+        // Return packed ARGB: A=255, R=val, G=val, B=val
+        // Note: 255 << 24 is -16777216, using >>> 0 to ensure unsigned 32-bit
+        return ((255 << 24) | (val << 16) | (val << 8) | val) >>> 0;
+      }
+    };
     const rgba = PixelDataConverter.convertMonochrome(pixelData, 0, lut);
     expect([...rgba]).toEqual([
       255, 255, 255, 255,

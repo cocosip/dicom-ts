@@ -44,11 +44,11 @@ describe("Printing PresentationLut", () => {
   it("keeps specified SOP instance UID", () => {
     const expected = DicomUID.generate();
     const lut = new PresentationLut(expected, new DicomDataset());
-    expect(lut.sopInstanceUid.uid).toBe(expected.uid);
+    expect(lut.sopInstanceUID.uid).toBe(expected.uid);
   });
 
   it("generates SOP instance UID when null is provided", () => {
     const lut = new PresentationLut(null, new DicomDataset());
-    expect(lut.sopInstanceUid.uid.length).toBeGreaterThan(0);
+    expect(lut.sopInstanceUID.uid.length).toBeGreaterThan(0);
   });
 });

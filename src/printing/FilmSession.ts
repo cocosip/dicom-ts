@@ -1,3 +1,4 @@
+
 import * as DicomTags from "../core/DicomTag.generated.js";
 import { DicomUID } from "../core/DicomUID.js";
 import { DicomTransferSyntax } from "../core/DicomTransferSyntax.js";
@@ -128,11 +129,11 @@ export class FilmSession extends DicomDataset {
   }
 
   findPresentationLut(sopInstance: DicomUID): PresentationLut | null {
-    return this.presentationLuts.find((lut) => lut.sopInstanceUid.uid === sopInstance.uid) ?? null;
+    return this.presentationLuts.find((lut) => lut.sopInstanceUID.uid === sopInstance.uid) ?? null;
   }
 
   deletePresentationLut(sopInstance: DicomUID): boolean {
-    const index = this.presentationLuts.findIndex((lut) => lut.sopInstanceUid.uid === sopInstance.uid);
+    const index = this.presentationLuts.findIndex((lut) => lut.sopInstanceUID.uid === sopInstance.uid);
     if (index < 0) return false;
     this.presentationLuts.splice(index, 1);
     return true;

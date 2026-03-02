@@ -1,3 +1,4 @@
+
 import type { IPipeline } from "./IPipeline.js";
 import type { ILUT } from "../lut/ILUT.js";
 import type { IModalityLUT } from "../lut/IModalityLUT.js";
@@ -21,7 +22,7 @@ export class GenericGrayscalePipeline implements IPipeline {
   private readonly _options: GrayscaleRenderOptions;
   private readonly _modalityLut: IModalityLUT | null;
   private readonly _voiSequenceLut: VOISequenceLUT | null;
-  private _lut: CompositeLUT | null = null;
+  private _lut: ILUT | null = null;
 
   constructor(options: GrayscaleRenderOptions) {
     this._options = options;
@@ -114,16 +115,16 @@ export class GenericGrayscalePipeline implements IPipeline {
         composite.add(new InvertLUT(outputLut.minimumOutputValue, outputLut.maximumOutputValue));
       }
 
-      this._lut = composite;
+      const precalc = new PrecalculatedLUT(
+        composite,
+        this._options.bitDepth.minimumValue,
+        this._options.bitDepth.maximumValue
+      );
+      precalc.recalculate();
+      this._lut = precalc;
     }
 
-    const precalc = new PrecalculatedLUT(
-      this._lut,
-      this._options.bitDepth.minimumValue,
-      this._options.bitDepth.maximumValue
-    );
-    precalc.recalculate();
-    return precalc;
+    return this._lut;
   }
 
   clearCache(): void {

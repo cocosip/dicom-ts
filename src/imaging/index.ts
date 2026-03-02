@@ -1,3 +1,4 @@
+
 export { DicomPixelData } from "./DicomPixelData.js";
 export { DicomImage } from "./DicomImage.js";
 export { PhotometricInterpretation, parsePhotometricInterpretation, isMonochrome } from "./PhotometricInterpretation.js";
@@ -15,6 +16,14 @@ export type { IImageManager } from "./IImageManager.js";
 export { RawImage } from "./RawImage.js";
 export { RawImageManager } from "./RawImageManager.js";
 export { DicomIconImage } from "./DicomIconImage.js";
+
+export { CacheType } from "./CacheType.js";
+export { DicomImagingException } from "./DicomImagingException.js";
+export { FrameGeometry, FrameGeometryType, FrameOrientation, ImageLocalizer } from "./FrameGeometry.js";
+export { ImageBase } from "./ImageBase.js";
+export { ImageDisposableBase, Disposable } from "./ImageDisposableBase.js";
+export { ImageManager } from "./ImageManager.js";
+export { SpatialTransform } from "./SpatialTransform.js";
 
 export type { ILUT } from "./lut/ILUT.js";
 export { ModalityRescaleLUT } from "./lut/ModalityRescaleLUT.js";

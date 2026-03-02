@@ -1,4 +1,5 @@
 import { DicomDataset } from "../../dataset/DicomDataset.js";
+import { DicomSequence } from "../../dataset/DicomSequence.js";
 import { DicomSignedShort, DicomUnsignedShort, DicomOtherWord } from "../../dataset/DicomElement.js";
 import * as Tags from "../../core/DicomTag.generated.js";
 import type { ILUT } from "./ILUT.js";
@@ -46,6 +47,13 @@ export class VOISequenceLUT implements ILUT {
     if (value > this._firstInputValue + this._nrOfEntries - 1)
       return this._lutData[this._nrOfEntries - 1] ?? 0;
     return this._lutData[(value - this._firstInputValue) | 0] ?? 0;
+  }
+
+  static fromDataset(dataset: DicomDataset): VOISequenceLUT | null {
+    const sequence = dataset.tryGetSequence(Tags.VOILUTSequence);
+    if (!sequence || sequence.items.length === 0) return null;
+
+    return new VOISequenceLUT(sequence.items[0]!);
   }
 
   recalculate(): void {

@@ -1,310 +1,342 @@
-/**
- * DICOM JSON converter (PS3.18 Annex F).
- */
-import { Buffer } from "node:buffer";
-import { DicomTag } from "../core/DicomTag.js";
-import { DicomVR } from "../core/DicomVR.js";
-import { DicomDictionary, UnknownTag } from "../core/DicomDictionary.js";
+
+import { DicomJsonOptions, NumberSerializationMode } from "./DicomJson.js";
 import { DicomDataset } from "../dataset/DicomDataset.js";
-import { DicomSequence } from "../dataset/DicomSequence.js";
-import { DicomFragmentSequence } from "../dataset/DicomFragmentSequence.js";
+import { DicomItem } from "../dataset/DicomItem.js";
 import {
   DicomElement,
-  DicomAttributeTag,
-  DicomMultiStringElement,
   DicomStringElement,
+  DicomMultiStringElement,
   DicomValueElement,
-  createElement,
+  DicomAttributeTag,
+  DicomPersonName,
+  DicomOtherByte,
+  DicomApplicationEntity,
+  DicomAgeString,
+  DicomCodeString,
+  DicomDate,
+  DicomDecimalString,
+  DicomDateTime,
+  DicomFloatingPointDouble,
+  DicomFloatingPointSingle,
+  DicomIntegerString,
+  DicomLongString,
+  DicomLongText,
+  DicomOtherDouble,
+  DicomOtherFloat,
+  DicomOtherLong,
+  DicomOtherVeryLong,
+  DicomOtherWord,
+  DicomShortString,
+  DicomSignedLong,
+  DicomSignedShort,
+  DicomShortText,
+  DicomSignedVeryLong,
+  DicomTime,
+  DicomUnlimitedCharacters,
+  DicomUniqueIdentifier,
+  DicomUnsignedLong,
+  DicomUnknown,
+  DicomUniversalResource,
+  DicomUnsignedShort,
+  DicomUnlimitedText,
+  DicomUnsignedVeryLong,
+  createElement
 } from "../dataset/DicomElement.js";
+import { DicomTag } from "../core/DicomTag.js";
+import { DicomVR } from "../core/DicomVR.js";
+import { DicomSequence } from "../dataset/DicomSequence.js";
+import { DicomFragmentSequence } from "../dataset/DicomFragmentSequence.js";
+import { DicomDictionary } from "../core/DicomDictionary.js";
+import { DicomUID } from "../core/DicomUID.js";
+import { DicomDateRange } from "../dataset/DicomDateRange.js";
 import { BulkDataUriByteBuffer } from "../io/buffer/BulkDataUriByteBuffer.js";
+import { IByteBuffer } from "../io/buffer/IByteBuffer.js";
+import { EmptyBuffer } from "../io/buffer/EmptyBuffer.js";
 import { MemoryByteBuffer } from "../io/buffer/MemoryByteBuffer.js";
-
-export interface DicomJsonConverterOptions {
-  /** Write JSON keys as DICOM keywords instead of 8-hex tag strings. */
-  writeTagsAsKeywords?: boolean;
-  /** Validate elements as they are added to datasets. */
-  autoValidate?: boolean;
-}
-
-export type DicomJsonElement = {
-  vr: string;
-  Value?: unknown[];
-  InlineBinary?: string;
-  BulkDataURI?: string;
-  [key: string]: unknown;
-};
-
-export type DicomJsonObject = Record<string, DicomJsonElement>;
-
-const INLINE_BINARY_VRS = new Set([
-  "OB", "OW", "OF", "OD", "OL", "OV", "UN",
-]);
+import { Base64 } from "../core/Base64.js";
 
 export class DicomJsonConverter {
-  readonly writeTagsAsKeywords: boolean;
-  readonly autoValidate: boolean;
+  private _options: DicomJsonOptions;
 
-  constructor(options: DicomJsonConverterOptions = {}) {
-    this.writeTagsAsKeywords = options.writeTagsAsKeywords ?? false;
-    this.autoValidate = options.autoValidate ?? true;
+  constructor(options?: DicomJsonOptions) {
+    this._options = options || new DicomJsonOptions();
   }
 
-  toJsonObject(dataset: DicomDataset): DicomJsonObject {
-    return datasetToObject(dataset, this.writeTagsAsKeywords);
+  public write(dataset: DicomDataset): string {
+    const obj = this.convertDatasetToModel(dataset);
+    return JSON.stringify(obj, null, this._options.format ? 2 : undefined);
   }
 
-  toJson(dataset: DicomDataset, formatIndented = false): string {
-    return JSON.stringify(
-      this.toJsonObject(dataset),
-      null,
-      formatIndented ? 2 : undefined
-    );
-  }
-
-  fromJsonObject(obj: DicomJsonObject): DicomDataset {
-    return objectToDataset(obj, { autoValidate: this.autoValidate });
-  }
-
-  fromJson(json: string): DicomDataset {
-    const parsed = JSON.parse(json) as unknown;
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("JSON root must be a DICOM dataset object");
+  public convertDatasetToModel(dataset: DicomDataset): any {
+    const obj: any = {};
+    for (const item of dataset) {
+      const key = this.getKey(item.tag);
+      obj[key] = this.convertItemToModel(item);
     }
-    return this.fromJsonObject(parsed as DicomJsonObject);
-  }
-}
-
-export function datasetToObject(
-  dataset: DicomDataset,
-  writeTagsAsKeywords = false
-): DicomJsonObject {
-  const out: DicomJsonObject = {};
-  for (const item of dataset) {
-    if (item.tag.element === 0x0000) continue;
-    const key = tagKey(item.tag, writeTagsAsKeywords);
-    out[key] = itemToJson(item, writeTagsAsKeywords);
-  }
-  return out;
-}
-
-export function objectToDataset(
-  obj: DicomJsonObject,
-  options: { autoValidate?: boolean } = {}
-): DicomDataset {
-  const dataset = new DicomDataset();
-  dataset.validateItems = options.autoValidate ?? true;
-
-  const entries = Object.entries(obj).map(([key, value]) => ({
-    key,
-    value,
-    tag: parseTagKey(key),
-  }));
-
-  entries.sort((a, b) => a.tag.toUint32() - b.tag.toUint32());
-
-  for (const entry of entries) {
-    addJsonElement(dataset, entry.tag, entry.value);
+    return obj;
   }
 
-  return dataset;
-}
-
-function tagKey(tag: DicomTag, writeTagsAsKeywords: boolean): string {
-  if (!writeTagsAsKeywords) return tag.toString("J");
-  const entry = DicomDictionary.default.lookup(tag);
-  if (entry !== UnknownTag && entry.keyword) return entry.keyword;
-  return tag.toString("J");
-}
-
-function itemToJson(item: import("../dataset/DicomItem.js").DicomItem, writeTagsAsKeywords: boolean): DicomJsonElement {
-  if (item instanceof DicomFragmentSequence) {
-    throw new Error("Serializing fragmented data is not supported.");
-  }
-
-  if (item instanceof DicomSequence) {
-    const seqItems = item.items.map((ds) => datasetToObject(ds, writeTagsAsKeywords));
-    return seqItems.length > 0
-      ? { vr: "SQ", Value: seqItems }
-      : { vr: "SQ" };
-  }
-
-  if (!(item instanceof DicomElement)) {
-    return { vr: item.valueRepresentation.code };
-  }
-
-  const vrCode = item.valueRepresentation.code === "NONE"
-    ? "UN"
-    : item.valueRepresentation.code;
-
-  if (INLINE_BINARY_VRS.has(vrCode)) {
-    const buffer = item.buffer;
-    if (buffer instanceof BulkDataUriByteBuffer) {
-      return { vr: vrCode, BulkDataURI: buffer.bulkDataUri };
-    }
-    const bytes = buffer.data;
-    return { vr: vrCode, InlineBinary: Buffer.from(bytes).toString("base64") };
-  }
-
-  if (vrCode === "PN") {
-    const values = (item as DicomMultiStringElement).values;
-    const jsonValues = values.map((v) => pnToJson(v));
-    return jsonValues.length > 0
-      ? { vr: vrCode, Value: jsonValues }
-      : { vr: vrCode };
-  }
-
-  const values = extractValues(item);
-  return values.length > 0
-    ? { vr: vrCode, Value: values }
-    : { vr: vrCode };
-}
-
-function extractValues(item: DicomElement): unknown[] {
-  if (item instanceof DicomAttributeTag) {
-    return item.tagValues.map((t) => t.toString("J"));
-  }
-  if (item instanceof DicomMultiStringElement) {
-    return item.values.map((v) => (v === "" ? null : v));
-  }
-  if (item instanceof DicomStringElement) {
-    const v = item.value;
-    return [v === "" ? null : v];
-  }
-  if (item instanceof DicomValueElement) {
-    return item.values.map((v) => (typeof v === "bigint" ? v.toString() : v));
-  }
-  return [];
-}
-
-function pnToJson(value: string): Record<string, string> | null {
-  if (value.length === 0) return null;
-  const parts = value.split("=");
-  const out: Record<string, string> = {};
-  if (parts[0]) out.Alphabetic = parts[0];
-  if (parts[1]) out.Ideographic = parts[1];
-  if (parts[2]) out.Phonetic = parts[2];
-  return out;
-}
-
-function addJsonElement(dataset: DicomDataset, tag: DicomTag, element: unknown): void {
-  if (element === null || typeof element !== "object") return;
-  const obj = element as Record<string, unknown>;
-  const vrCode = typeof obj.vr === "string" ? obj.vr : undefined;
-  const vr = vrCode ? DicomVR.tryParse(vrCode) : null;
-  const resolvedVr = vr ?? DicomDictionary.default.lookup(tag).vr ?? DicomVR.UN;
-
-  const bulkUri = obj.BulkDataURI ?? obj.BulkDataUri ?? obj.BulkDataUrl;
-  if (typeof bulkUri === "string") {
-    const buffer = new BulkDataUriByteBuffer(bulkUri);
-    const item = createElement(resolvedVr, tag, buffer, dataset.fallbackEncodings);
-    dataset.addOrUpdate(item);
-    return;
-  }
-
-  if (obj.InlineBinary !== undefined) {
-    const bytes = Buffer.from(String(obj.InlineBinary), "base64");
-    const buffer = new MemoryByteBuffer(bytes);
-    const item = createElement(resolvedVr, tag, buffer, dataset.fallbackEncodings);
-    dataset.addOrUpdate(item);
-    return;
-  }
-
-  if (resolvedVr === DicomVR.SQ) {
-    const value = obj.Value;
-    const items = Array.isArray(value)
-      ? value
-          .filter((v) => v !== null && typeof v === "object" && !Array.isArray(v))
-          .map((v) => objectToDataset(v as DicomJsonObject, { autoValidate: dataset.validateItems }))
-      : [];
-    dataset.addOrUpdate(new DicomSequence(tag, ...items));
-    return;
-  }
-
-  const values = parseValues(resolvedVr, obj.Value);
-  dataset.addOrUpdateElement(resolvedVr, tag, ...values);
-}
-
-function parseValues(vr: DicomVR, valueField: unknown): unknown[] {
-  const values = normalizeValueArray(valueField);
-  if (values.length === 0) return [];
-
-  switch (vr.code) {
-    case "PN":
-      return values.map(parsePnValue);
-    case "AT":
-      return values.map(parseTagValue).filter((v): v is DicomTag => v !== null);
-    case "SV":
-    case "UV":
-      return values.map(parseBigIntValue);
-    default:
-      if (vr.isString) {
-        return values.map((v) => (v === null || v === undefined) ? "" : String(v));
+  private getKey(tag: DicomTag): string {
+    if (this._options.writeTagsAsKeywords) {
+      const entry = DicomDictionary.default.lookup(tag);
+      if (entry && entry.keyword) {
+        return entry.keyword;
       }
-      return values
-        .map(parseNumberValue)
-        .filter((v): v is number => v !== undefined);
+    }
+    return tag.toString("J").toUpperCase();
+  }
+
+  private convertItemToModel(item: DicomItem): any {
+    const model: any = {
+      vr: item.valueRepresentation.code,
+    };
+
+    if (item instanceof DicomSequence) {
+      const values = [];
+      for (const ds of item.items) {
+        values.push(this.convertDatasetToModel(ds));
+      }
+      if (values.length > 0) {
+        model.Value = values;
+      }
+    } else if (item instanceof DicomFragmentSequence) {
+      const data = [];
+      for (const fragment of item.fragments) {
+        data.push(Base64.encode(fragment.data));
+      }
+      model.DataFragment = data;
+    } else if (item instanceof DicomElement) {
+      if (item.count === 0) {
+        // Empty element
+      } else {
+        this.writeElementValue(model, item);
+      }
+    }
+
+    return model;
+  }
+
+  private writeElementValue(model: any, element: DicomElement): void {
+    const vr = element.valueRepresentation;
+    if (vr === DicomVR.OB || vr === DicomVR.OW || 
+        vr === DicomVR.OF || vr === DicomVR.OD || 
+        vr === DicomVR.OL || vr === DicomVR.OV || 
+        vr === DicomVR.UN) {
+      
+      const buffer = element.buffer;
+      if (buffer instanceof BulkDataUriByteBuffer) {
+        model.BulkDataURI = buffer.bulkDataUri;
+      } else if (buffer === EmptyBuffer) {
+        // No value
+      } else {
+        // InlineBinary
+        model.InlineBinary = Base64.encode(element.buffer.data);
+      }
+    } else if (element instanceof DicomPersonName) {
+      const values = [];
+      for (let i = 0; i < element.count; i++) {
+        // DicomPersonName does not expose generic getValue(i) but it extends DicomMultiStringElement which has values[]
+        // Actually DicomPersonName stores raw strings.
+        // We need to parse components if we want { Alphabetic, ... }
+        // The element.values returns strings "Smith^John"
+        const val = element.values[i];
+        if (typeof val === "string") {
+            values.push(this.parsePersonName(val));
+        }
+      }
+      model.Value = values;
+    } else if (element instanceof DicomAttributeTag) {
+        const values = [];
+        const tags = element.tagValues;
+        for (const t of tags) {
+             values.push(t.toString().toUpperCase().replace(",", ""));
+        }
+        model.Value = values;
+    } else {
+      // String or Number types
+      const values = [];
+      
+      // We need to extract values based on type
+      if (element instanceof DicomValueElement) {
+         // Number or BigInt
+         const nums = (element as DicomValueElement<number | bigint>).values;
+         for (const n of nums) {
+             if (this.isNumberVR(vr) && this._options.numberSerializationMode === NumberSerializationMode.PreferJsonNumber) {
+                 const numVal = Number(n);
+                 if (!isNaN(numVal)) values.push(numVal);
+                 else values.push(n.toString());
+             } else {
+                 values.push(n); // For JSON, number is number. BigInt might need serialization to string?
+                 // JSON.stringify doesn't handle BigInt.
+                 // So if it's BigInt, we MUST convert to string or number.
+             }
+         }
+      } else if (element instanceof DicomMultiStringElement) {
+          const strs = element.values;
+          for (const s of strs) {
+              if (this.isNumberVR(vr) && this._options.numberSerializationMode === NumberSerializationMode.PreferJsonNumber) {
+                   const num = Number(s);
+                   if (!isNaN(num)) values.push(num);
+                   else values.push(s);
+              } else {
+                   values.push(s);
+              }
+          }
+      } else if (element instanceof DicomStringElement) {
+          const s = element.value;
+          if (this.isNumberVR(vr) && this._options.numberSerializationMode === NumberSerializationMode.PreferJsonNumber) {
+               const num = Number(s);
+               if (!isNaN(num)) values.push(num);
+               else values.push(s);
+          } else {
+               values.push(s);
+          }
+      }
+
+      model.Value = values;
+    }
+  }
+
+  private isNumberVR(vr: DicomVR): boolean {
+      return vr === DicomVR.DS || vr === DicomVR.IS || vr === DicomVR.SV || vr === DicomVR.UV;
+  }
+
+  private parsePersonName(value: string): any {
+      const parts = value.split("=");
+      const obj: any = {};
+      if (parts[0]) obj.Alphabetic = parts[0];
+      if (parts[1]) obj.Ideographic = parts[1];
+      if (parts[2]) obj.Phonetic = parts[2];
+      return obj;
+  }
+
+  // Deserialization
+  public read(json: string): DicomDataset {
+      const obj = JSON.parse(json);
+      return this.convertModelToDataset(obj);
+  }
+
+  public convertModelToDataset(obj: any): DicomDataset {
+      const dataset = new DicomDataset();
+      for (const key of Object.keys(obj)) {
+          const tag = this.parseTag(key);
+          if (!tag) continue;
+          const val = obj[key];
+          const item = this.convertModelToItem(tag, val);
+          if (item) {
+              dataset.add(item);
+          }
+      }
+      return dataset;
+  }
+
+  private parseTag(key: string): DicomTag | undefined {
+      // key could be "00100010" or "PatientName"
+      if (/^[0-9A-Fa-f]{8}$/.test(key)) {
+          const group = parseInt(key.substring(0, 4), 16);
+          const element = parseInt(key.substring(4), 16);
+          return new DicomTag(group, element);
+      }
+      // Try keyword
+      const tag = DicomDictionary.default.lookupKeyword(key);
+      if (tag) return tag;
+      
+      return undefined;
+  }
+
+  private convertModelToItem(tag: DicomTag, model: any): DicomItem | null {
+      const vrCode = model.vr;
+      if (!vrCode) return null;
+      const vr = DicomVR.parse(vrCode);
+      
+      if (model.Value === undefined && model.BulkDataURI === undefined && model.InlineBinary === undefined && model.DataFragment === undefined) {
+          // Empty
+          return createElement(vr, tag, EmptyBuffer);
+      }
+
+      if (vr === DicomVR.SQ) {
+          const items: DicomDataset[] = [];
+          if (Array.isArray(model.Value)) {
+              for (const v of model.Value) {
+                  items.push(this.convertModelToDataset(v));
+              }
+          }
+          return new DicomSequence(tag, ...items);
+      }
+      
+      // Elements
+      if (model.BulkDataURI) {
+           return createElement(vr, tag, new BulkDataUriByteBuffer(model.BulkDataURI));
+      }
+      
+      if (model.InlineBinary) {
+          const buffer = new MemoryByteBuffer(Base64.decode(model.InlineBinary));
+          return createElement(vr, tag, buffer);
+      }
+
+      if (model.Value) {
+          return this.createItemFromValues(vr, tag, model.Value);
+      }
+
+      return null;
+  }
+
+  private createItemFromValues(vr: DicomVR, tag: DicomTag, values: any[]): DicomElement {
+      switch (vr) {
+        case DicomVR.AE: return new DicomApplicationEntity(tag, ...(values as string[]));
+        case DicomVR.AS: return new DicomAgeString(tag, ...(values as string[]));
+        case DicomVR.AT: {
+            const tags = values.map(v => this.parseTag(v)).filter((t): t is DicomTag => t !== undefined);
+            return new DicomAttributeTag(tag, ...tags);
+        }
+        case DicomVR.CS: return new DicomCodeString(tag, ...(values as string[]));
+        case DicomVR.DA: return new DicomDate(tag, ...(values as string[]));
+        case DicomVR.DS: return new DicomDecimalString(tag, ...(values as (string | number)[]));
+        case DicomVR.DT: return new DicomDateTime(tag, ...(values as string[]));
+        case DicomVR.FD: return new DicomFloatingPointDouble(tag, ...(values as number[]));
+        case DicomVR.FL: return new DicomFloatingPointSingle(tag, ...(values as number[]));
+        case DicomVR.IS: return new DicomIntegerString(tag, ...(values as (string | number)[]));
+        case DicomVR.LO: return new DicomLongString(tag, ...(values as string[]));
+        case DicomVR.LT: return new DicomLongText(tag, (values[0] as string) ?? "");
+        // Binary VRs with Value field (should not happen in standard JSON but handled)
+        case DicomVR.OB: return new DicomOtherByte(tag, (values[0] as Uint8Array | undefined) ?? new Uint8Array());
+        case DicomVR.OD: return new DicomOtherDouble(tag, (values[0] as Float64Array | undefined) ?? new Float64Array());
+        case DicomVR.OF: return new DicomOtherFloat(tag, (values[0] as Float32Array | undefined) ?? new Float32Array());
+        case DicomVR.OL: return new DicomOtherLong(tag, (values[0] as Uint32Array | undefined) ?? new Uint32Array());
+        case DicomVR.OV: return new DicomOtherVeryLong(tag, (values[0] as BigUint64Array | undefined) ?? new BigUint64Array());
+        case DicomVR.OW: return new DicomOtherWord(tag, (values[0] as Uint16Array | undefined) ?? new Uint16Array());
+        case DicomVR.PN: {
+            const strs = values.map((v: any) => {
+                if (typeof v === "string") return v;
+                return `${v.Alphabetic || ""}=${v.Ideographic || ""}=${v.Phonetic || ""}`.replace(/=+$/, "");
+            });
+            return new DicomPersonName(tag, ...strs);
+        }
+        case DicomVR.SH: return new DicomShortString(tag, ...(values as string[]));
+        case DicomVR.SL: return new DicomSignedLong(tag, ...(values as number[]));
+        case DicomVR.SS: return new DicomSignedShort(tag, ...(values as number[]));
+        case DicomVR.ST: return new DicomShortText(tag, (values[0] as string) ?? "");
+        case DicomVR.SV: return new DicomSignedVeryLong(tag, ...(values as bigint[]));
+        case DicomVR.TM: return new DicomTime(tag, ...(values as string[]));
+        case DicomVR.UC: return new DicomUnlimitedCharacters(tag, ...(values as string[]));
+        case DicomVR.UI: return new DicomUniqueIdentifier(tag, ...(values as string[]));
+        case DicomVR.UL: return new DicomUnsignedLong(tag, ...(values as number[]));
+        case DicomVR.UN: return new DicomUnknown(tag, (values[0] as Uint8Array | undefined) ?? new Uint8Array());
+        case DicomVR.UR: return new DicomUniversalResource(tag, (values[0] as string) ?? "");
+        case DicomVR.US: return new DicomUnsignedShort(tag, ...(values as number[]));
+        case DicomVR.UT: return new DicomUnlimitedText(tag, (values[0] as string) ?? "");
+        case DicomVR.UV: return new DicomUnsignedVeryLong(tag, ...(values as bigint[]));
+        default:         return new DicomUnknown(tag, new Uint8Array());
+      }
   }
 }
 
-function normalizeValueArray(valueField: unknown): unknown[] {
-  if (valueField === null || valueField === undefined) return [];
-  return Array.isArray(valueField) ? valueField : [valueField];
+export function convertDicomToJson(dataset: DicomDataset, options?: DicomJsonOptions): string {
+  const converter = new DicomJsonConverter(options);
+  return converter.write(dataset);
 }
 
-function parseNumberValue(v: unknown): number | undefined {
-  if (v === null || v === undefined || v === "") return undefined;
-  const n = typeof v === "number" ? v : Number(v);
-  return n;
-}
-
-function parseBigIntValue(v: unknown): bigint {
-  if (typeof v === "bigint") return v;
-  if (typeof v === "number") return BigInt(Math.trunc(v));
-  if (typeof v === "string") return BigInt(v.trim());
-  throw new Error(`Invalid bigint value: ${String(v)}`);
-}
-
-function parsePnValue(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "string") return v;
-  if (typeof v !== "object") return String(v);
-
-  const obj = v as Record<string, unknown>;
-  const alpha = stringField(obj, "Alphabetic");
-  const ideo = stringField(obj, "Ideographic");
-  const phon = stringField(obj, "Phonetic");
-  const groups = [alpha, ideo, phon];
-  while (groups.length > 0 && groups[groups.length - 1] === "") groups.pop();
-  return groups.join("=");
-}
-
-function stringField(obj: Record<string, unknown>, key: string): string {
-  const direct = obj[key];
-  if (typeof direct === "string") return direct;
-  const lower = obj[key.toLowerCase()];
-  if (typeof lower === "string") return lower;
-  return "";
-}
-
-function parseTagValue(v: unknown): DicomTag | null {
-  if (typeof v !== "string") return null;
-  const cleaned = v.replace(/[() ,]/g, "");
-  if (!/^[0-9a-fA-F]{8}$/.test(cleaned)) return null;
-  const group = parseInt(cleaned.slice(0, 4), 16);
-  const element = parseInt(cleaned.slice(4), 16);
-  return new DicomTag(group, element);
-}
-
-function parseTagKey(key: string): DicomTag {
-  const cleaned = key.replace(/[() ,]/g, "");
-  if (/^[0-9a-fA-F]{8}$/.test(cleaned)) {
-    const group = parseInt(cleaned.slice(0, 4), 16);
-    const element = parseInt(cleaned.slice(4), 16);
-    return new DicomTag(group, element);
-  }
-
-  const tag = DicomDictionary.default.lookupKeyword(key);
-  if (tag) return tag;
-
-  throw new Error(`Invalid DICOM tag key: ${key}`);
+export function convertJsonToDicom(json: string): DicomDataset {
+  const converter = new DicomJsonConverter();
+  return converter.read(json);
 }

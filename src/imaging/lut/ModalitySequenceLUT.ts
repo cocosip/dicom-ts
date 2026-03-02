@@ -1,4 +1,5 @@
 import { DicomDataset } from "../../dataset/DicomDataset.js";
+import { DicomSequence } from "../../dataset/DicomSequence.js";
 import { DicomSignedShort, DicomUnsignedShort, DicomOtherWord } from "../../dataset/DicomElement.js";
 import * as Tags from "../../core/DicomTag.generated.js";
 import type { IModalityLUT } from "./IModalityLUT.js";
@@ -40,6 +41,16 @@ export class ModalitySequenceLUT implements IModalityLUT {
     if (value > this._firstInputValue + this._nrOfEntries - 1)
       return this._lutData[this._nrOfEntries - 1] ?? 0;
     return this._lutData[(value - this._firstInputValue) | 0] ?? 0;
+  }
+
+  static fromDataset(dataset: DicomDataset): ModalitySequenceLUT | null {
+    const sequence = dataset.tryGetSequence(Tags.ModalityLUTSequence);
+    if (!sequence || sequence.items.length === 0) return null;
+
+    const pixelRepresentation = dataset.getSingleValueOrDefault<number>(Tags.PixelRepresentation, 0);
+    const signed = pixelRepresentation !== 0;
+
+    return new ModalitySequenceLUT(sequence.items[0]!, signed);
   }
 
   recalculate(): void {
