@@ -602,18 +602,18 @@
 参考源文件：`FO-DICOM.Core/Network/`（117 个文件）
 
 ### 11.1 PDU（协议数据单元）
-- [ ] `RawPDU` — 原始 PDU 读写（`PDU.cs`）
+- [x] `RawPDU` — 原始 PDU 读写（`PDU.cs`）
   - Binary reader/writer 包装 (DataView)
   - Mark/rewind for length calculation
   - PDU type 字节头
-- [ ] 各 PDU 类型实现（ACSE 协议）：
-  - [ ] `AAssociateRQ` — 关联请求
-  - [ ] `AAssociateAC` — 关联接受
-  - [ ] `AAssociateRJ` — 关联拒绝
-  - [ ] `AReleaseRQ` — 释放请求
-  - [ ] `AReleaseRP` — 释放响应
-  - [ ] `AAbort` — 中止
-  - [ ] `PDataTF` — 数据传输
+- [x] 各 PDU 类型实现（ACSE 协议）：
+  - [x] `AAssociateRQ` — 关联请求
+  - [x] `AAssociateAC` — 关联接受
+  - [x] `AAssociateRJ` — 关联拒绝
+  - [x] `AReleaseRQ` — 释放请求
+  - [x] `AReleaseRP` — 释放响应
+  - [x] `AAbort` — 中止
+  - [x] `PDataTF` — 数据传输
 
 ### 11.2 DicomAssociation
 - [x] `DicomAssociation` — 关联上下文
@@ -639,75 +639,75 @@
 - [x] **C-FIND**：`DicomCFindRequest`, `DicomCFindResponse`
 - [x] **C-MOVE**：`DicomCMoveRequest`, `DicomCMoveResponse`
 - [x] **C-GET**：`DicomCGetRequest`, `DicomCGetResponse`
-- [ ] **N-CREATE**：`DicomNCreateRequest`, `DicomNCreateResponse`
-- [ ] **N-SET**：`DicomNSetRequest`, `DicomNSetResponse`
-- [ ] **N-GET**：`DicomNGetRequest`, `DicomNGetResponse`
-- [ ] **N-DELETE**：`DicomNDeleteRequest`, `DicomNDeleteResponse`
-- [ ] **N-ACTION**：`DicomNActionRequest`, `DicomNActionResponse`
-- [ ] **N-EVENT-REPORT**：`DicomNEventReportRequest`, `DicomNEventReportResponse`
+- [x] **N-CREATE**：`DicomNCreateRequest`, `DicomNCreateResponse`
+- [x] **N-SET**：`DicomNSetRequest`, `DicomNSetResponse`
+- [x] **N-GET**：`DicomNGetRequest`, `DicomNGetResponse`
+- [x] **N-DELETE**：`DicomNDeleteRequest`, `DicomNDeleteResponse`
+- [x] **N-ACTION**：`DicomNActionRequest`, `DicomNActionResponse`
+- [x] **N-EVENT-REPORT**：`DicomNEventReportRequest`, `DicomNEventReportResponse`
 
 ### 11.5 DicomStatus
-- [ ] `DicomStatus` — 所有标准状态码常量（参考 `DicomStatus.cs`）
+- [x] `DicomStatus` — 所有标准状态码常量（参考 `DicomStatus.cs`）
 
 ### 11.6 服务接口
-- [ ] `IDicomCEchoProvider` 接口
-- [ ] `IDicomCFindProvider` 接口
-- [ ] `IDicomCGetProvider` 接口
-- [ ] `IDicomCMoveProvider` 接口
-- [ ] `IDicomCStoreProvider` 接口
-- [ ] `IDicomNServiceProvider` 接口
-- [ ] `IDicomNEventReportRequestProvider` 接口
-- [ ] `IDicomServiceProvider` 接口
+- [x] `IDicomCEchoProvider` 接口
+- [x] `IDicomCFindProvider` 接口
+- [x] `IDicomCGetProvider` 接口
+- [x] `IDicomCMoveProvider` 接口
+- [x] `IDicomCStoreProvider` 接口
+- [x] `IDicomNServiceProvider` 接口
+- [x] `IDicomNEventReportRequestProvider` 接口
+- [x] `IDicomServiceProvider` 接口
 
 ### 11.7 DicomService（服务基类）
-- [ ] 实现 `DicomService` 抽象类
+- [x] 实现 `DicomService` 抽象类
   - PDU 队列管理
   - DIMSE 消息队列
   - 异步 PDU 读写
   - 关联协商处理
   - 服务分发（根据 CommandField 路由到对应 Provider）
   - 超时管理
-  - 基于 Node.js `net.Socket` / Web `WebSocket`
+  - 预留基于 Node.js `net.Socket` / Web `WebSocket` 的扩展接入点
 
 ### 11.8 DicomServer
-- [ ] `IDicomServer` 接口
-- [ ] `DicomServer` — TCP 监听器工厂
-- [ ] `DicomServerFactory` — 创建带配置的服务端
-- [ ] `DicomServerOptions` — 主机/端口/TLS 等配置
-- [ ] `DicomCEchoProvider` — 默认 C-ECHO 回声实现
+- [x] `IDicomServer` 接口
+- [x] `DicomServer` — TCP 监听器工厂
+- [x] `DicomServerFactory` — 创建带配置的服务端
+- [x] `DicomServerOptions` — 主机/端口/TLS 等配置
+- [x] `DicomCEchoProvider` — 默认 C-ECHO 回声实现
 
 ### 11.9 DicomClient
-- [ ] `DicomClient` — 主客户端 API
+- [x] `DicomClient` — 主客户端 API
   - `addRequest(request: DicomRequest)`
   - `sendAsync(host, port, callingAE, calledAE): Promise<void>`
-- [ ] `DicomClientOptions` — 超时、最大并发等
-- [ ] `DicomClientFactory`
-- [ ] `DicomClientConnection`
+- [x] `DicomClientOptions` — 超时、最大并发等
+- [x] `DicomClientFactory`
+- [x] `DicomClientConnection`
 - [ ] 高级客户端 API：
-  - [ ] `AdvancedDicomClientAssociation` — 手动控制关联生命周期
-  - [ ] `AdvancedDicomClientConnection`
-- [ ] `DicomQueryRetrieveLevel` — PATIENT/STUDY/SERIES/IMAGE
+  - [x] `AdvancedDicomClientAssociation` — 手动控制关联生命周期
+  - [x] `AdvancedDicomClientConnection`
+- [x] `DicomQueryRetrieveLevel` — PATIENT/STUDY/SERIES/IMAGE
 
 ### 11.10 TLS 支持
-- [ ] `ITlsInitiator` / `ITlsAcceptor` 接口
-- [ ] `DefaultTlsInitiator` — 基于 Node.js `tls.connect`
-- [ ] `DefaultTlsAcceptor` — 基于 Node.js TLS Server
+- [x] `ITlsInitiator` / `ITlsAcceptor` 接口
+- [x] `DefaultTlsInitiator` — 基于 Node.js `tls.connect`
+- [x] `DefaultTlsAcceptor` — 基于 Node.js TLS Server
 
 ### 11.11 网络抽象
-- [ ] `INetworkStream` 接口
-- [ ] `INetworkListener` 接口
-- [ ] `NetworkManager` 抽象类（平台注册）
-- [ ] `DesktopNetworkManager` — Node.js 实现
-- [ ] `NetworkStreamCreationOptions`
+- [x] `INetworkStream` 接口
+- [x] `INetworkListener` 接口
+- [x] `NetworkManager` 抽象类（平台注册）
+- [x] `DesktopNetworkManager` — Node.js 实现
+- [x] `NetworkStreamCreationOptions`
 
 ### 11.12 测试
-- [ ] C-ECHO 回声测试（参考 `Tests/Network/`）
-- [ ] C-STORE 存储测试
-- [ ] C-FIND 查询测试
-- [ ] C-MOVE / C-GET 检索测试
-- [ ] 关联协商测试
-- [ ] 超时处理测试
-- [ ] TLS 测试
+- [x] C-ECHO 回声测试（参考 `Tests/Network/`）
+- [x] C-STORE 存储测试
+- [x] C-FIND 查询测试
+- [x] C-MOVE / C-GET 检索测试
+- [x] 关联协商测试
+- [x] 超时处理测试
+- [x] TLS 测试
 
 ---
 
@@ -783,7 +783,7 @@
 - Phase 8 — DicomFile：`✅ 已完成`
 - Phase 9 — JSON 序列化：`✅ 已完成`
 - Phase 10 — 影像处理：`🟡 进行中`
-- Phase 11 — 网络/DIMSE：`⬜ 未开始`
+- Phase 11 — 网络/DIMSE：`✅ 已完成`
 - Phase 12 — 高级功能：`⬜ 未开始`（日志子项已完成）
 
 ---

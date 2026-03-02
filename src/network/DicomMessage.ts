@@ -25,7 +25,9 @@ export class DicomMessage {
   constructor(command?: DicomDataset) {
     this.command = command ?? new DicomDataset();
     this.datasetValue = null;
-    this.dataset = null;
+    if (!command) {
+      this.dataset = null;
+    }
   }
 
   get type(): DicomCommandField {
