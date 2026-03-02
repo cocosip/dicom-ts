@@ -27,7 +27,11 @@
     "tool:dicom-info": "node tools/dicom-info/index.mjs",
     "tool:dicom-info:help": "node tools/dicom-info/index.mjs --help",
     "tool:dicom-dump": "node tools/dicom-dump/index.mjs",
-    "tool:dicom-dump:help": "node tools/dicom-dump/index.mjs --help"
+    "tool:dicom-dump:help": "node tools/dicom-dump/index.mjs --help",
+    "tool:dicom-cstore-scu": "node tools/dicom-cstore-scu/index.mjs",
+    "tool:dicom-cstore-scu:help": "node tools/dicom-cstore-scu/index.mjs --help",
+    "tool:dicom-cstore-scp": "node tools/dicom-cstore-scp/index.mjs",
+    "tool:dicom-cstore-scp:help": "node tools/dicom-cstore-scp/index.mjs --help"
   },
   "keywords": [
     "dicom",

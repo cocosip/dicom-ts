@@ -557,10 +557,15 @@
 - [x] `IDicomTranscoder` 接口
 - [x] `TranscoderManager` — 编解码器注册/查找（工厂模式）
 - [x] `DicomRleCodec` — RLE 无损压缩（**纯 TypeScript 实现**，参考 `DicomRleCodec.cs`）
-- [ ] `DicomJpegLosslessDecoder` — JPEG 无损 Process 14（**纯 TypeScript 移植**，参考 `JpegLossless/` 子目录）
-- [ ] JPEG 有损（Process 1/2）— 仅定义接口，**不内置**；用户通过 `TranscoderManager.register()` 注册
-- [ ] JPEG2000 / HTJ2K — 仅定义接口，**不内置**；用户按需注册（可对接 WASM 库）
 - [x] `DicomTranscoder` — 在传输语法间转换（使用已注册的编解码器）
+- [ ] 编码族实施计划（新版）执行中：见 `PLAN-CODEC-10.5.md`
+  - 目标覆盖语法：
+    - JPEG：`4.50`、`4.51`、`4.57`、`4.70`
+    - JPEG-LS：`4.80`、`4.81`
+    - JPEG2000：`4.90`、`4.91`、`4.92`、`4.93`
+  - 说明：
+    - `4.57/4.70`（JPEG Lossless Process 14 family）优先纯 TS 实现
+    - 其余编码族按插件化能力落地（可由官方示例适配器驱动）
 
 ### 10.6 叠加层
 - [x] `DicomOverlayData` — 从 Dataset 提取叠加层位图

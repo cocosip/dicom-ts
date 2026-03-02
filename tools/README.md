@@ -13,3 +13,9 @@ Each tool lives in its own directory and can run independently.
 - `dicom-dump`: dump all DICOM tags with optional depth/value/compact controls
   - docs: `tools/dicom-dump/README.md`
   - entry: `tools/dicom-dump/index.mjs`
+- `dicom-cstore-scu`: send DICOM files (from file or directory paths) as C-STORE requests
+  - docs: `tools/dicom-cstore-scu/README.md`
+  - entry: `tools/dicom-cstore-scu/index.mjs`
+- `dicom-cstore-scp`: run a C-STORE SCP and save received files
+  - docs: `tools/dicom-cstore-scp/README.md`
+  - entry: `tools/dicom-cstore-scp/index.mjs`

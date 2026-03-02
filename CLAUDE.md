@@ -10,12 +10,16 @@ Implement the DICOM standard as a TypeScript library. The `source-code/fo-dicom/
 
 ```
 dicom-ts/
-├── source-code/fo-dicom/     # Reference C# implementation (READ-ONLY reference)
-│   ├── FO-DICOM.Core/        # Core DICOM classes to port
-│   ├── Platform/             # Platform-specific rendering (ImageSharp, SkiaSharp, etc.)
-│   ├── Serialization/        # JSON serialization
-│   └── Tests/                # C# tests (reference for test cases)
-└── src/                      # TypeScript source (to be built)
+|- source-code/fo-dicom/         # Reference C# implementation (READ-ONLY)
+|  |- FO-DICOM.Core/            # Core DICOM classes to port
+|  |- Platform/                 # Platform-specific rendering
+|  |- Serialization/            # JSON serialization
+|  `- Tests/                    # C# tests as reference cases
+|- source-code/fo-dicom.Codecs/  # Codec-focused companion repo (READ-ONLY)
+|  |- Codec/                    # C# codec manager + transfer syntax bindings
+|  |- Native/                   # Native wrappers + third-party codec libs
+|  `- Tests/                    # Acceptance fixtures for compressed syntaxes
+`- src/                         # TypeScript source
 ```
 
 ## TypeScript Project Setup
@@ -40,6 +44,26 @@ No TypeScript project exists yet. When initializing:
 - RLE Lossless → pure TypeScript implementation
 - JPEG Lossless Process 14 → pure TypeScript port of fo-dicom's `JpegLossless/` directory
 - JPEG Lossy / JPEG2000 / HTJ2K → define `IDicomCodec` plugin interface only; users register their own codec via `TranscoderManager.register()` — no built-in implementation
+
+Additional codec references:
+- `source-code/fo-dicom/FO-DICOM.Core/Imaging/Codec/`: pure C# baseline behavior
+- `source-code/fo-dicom.Codecs/Codec/`: transfer syntax coverage + codec registration patterns
+- `source-code/fo-dicom.Codecs/Native/`: native interoperability behavior reference only (do not introduce native runtime dependency in `dicom-ts`)
+
+Required codec transfer syntax coverage for Phase 10.5:
+- JPEG Family
+  - `1.2.840.10008.1.2.4.50` JPEG Baseline (Process 1), lossy 8-bit
+  - `1.2.840.10008.1.2.4.51` JPEG Extended (Process 2 & 4), lossy 8/12-bit
+  - `1.2.840.10008.1.2.4.57` JPEG Lossless (Process 14), all predictors
+  - `1.2.840.10008.1.2.4.70` JPEG Lossless SV1 (Process 14, predictor 1)
+- JPEG-LS Family
+  - `1.2.840.10008.1.2.4.80` JPEG-LS Lossless
+  - `1.2.840.10008.1.2.4.81` JPEG-LS Near-Lossless
+- JPEG 2000 Family
+  - `1.2.840.10008.1.2.4.90` JPEG 2000 Lossless
+  - `1.2.840.10008.1.2.4.91` JPEG 2000 (lossy/lossless)
+  - `1.2.840.10008.1.2.4.92` JPEG 2000 Multi-component Lossless
+  - `1.2.840.10008.1.2.4.93` JPEG 2000 Multi-component
 
 **Logger strategy:** define `IDicomLogger` interface; built-in console/null implementations only — no winston/pino.
 
@@ -88,6 +112,16 @@ Base class: [FO-DICOM.Core/Network/DicomService.cs](source-code/fo-dicom/FO-DICO
 ### Serialization
 
 JSON DICOM serialization: [Serialization/FO-DICOM.Json/](source-code/fo-dicom/Serialization/FO-DICOM.Json/)
+
+### Codec References (for Phase 10.5)
+
+- `source-code/fo-dicom/FO-DICOM.Core/Imaging/Codec/`
+  - Pure C# codec and transcoder abstractions; primary porting source for JPEG Lossless Process 14.
+- `source-code/fo-dicom.Codecs/Codec/`
+  - Production plugin implementations for JPEG/JPEG-LS/JPEG2000/HTJ2K and codec registration.
+- `source-code/fo-dicom.Codecs/Native/`
+  - Native bridges and bundled codec dependencies (`libijg*`, `CharLS`, `OpenJPEG`, `OpenJPH`).
+  - Use as compatibility reference, not as a direct dependency target for this TypeScript project.
 
 ## Key DICOM Concepts to Implement (in order of priority)
 
