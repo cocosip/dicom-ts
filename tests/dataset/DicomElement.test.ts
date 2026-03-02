@@ -9,7 +9,6 @@ import {
   DicomAttributeTag,
   DicomCodeString,
   DicomDate,
-  DicomDateRange,
   DicomDecimalString,
   DicomDateTime,
   DicomFloatingPointDouble,
@@ -39,6 +38,7 @@ import {
   DicomUnlimitedText,
   DicomUnsignedVeryLong,
 } from "../../src/dataset/DicomElement.js";
+import { DicomDateRange } from "../../src/dataset/DicomDateRange.js";
 
 const privateTag = new DicomTag(0x7777, 0x0010);
 

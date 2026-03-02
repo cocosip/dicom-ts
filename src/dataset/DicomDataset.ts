@@ -27,7 +27,6 @@ import {
   DicomAttributeTag,
   DicomCodeString,
   DicomDate,
-  DicomDateRange,
   DicomDecimalString,
   DicomDateTime,
   DicomFloatingPointDouble,
@@ -57,6 +56,7 @@ import {
   DicomUnlimitedText,
   DicomUnsignedVeryLong,
 } from "./DicomElement.js";
+import { DicomDateRange } from "./DicomDateRange.js";
 import { DicomSequence } from "./DicomSequence.js";
 import { DicomFragmentSequence } from "./DicomFragmentSequence.js";
 

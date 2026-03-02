@@ -1,15 +1,28 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import {
+  clearValidationWarnings,
+  DicomValidationLevel,
   validateAE, validateAS, validateCS, validateDA, validateDS,
   validateDT, validateIS, validateLO, validateLT, validatePN,
   validateSH, validateST, validateTM, validateUI,
   DicomValidationException,
+  getValidationLevel,
+  getValidationWarnings,
+  setPerformValidation,
+  setValidationLevel,
+  setValidationWarningHandler,
 } from "../../src/core/DicomValidation.js";
 
 // Helper: expect no throw
 const ok = (fn: () => void) => expect(fn).not.toThrow();
 // Helper: expect DicomValidationException
 const fail = (fn: () => void) => expect(fn).toThrow(DicomValidationException);
+
+afterEach(() => {
+  setValidationWarningHandler(null);
+  clearValidationWarnings();
+  setValidationLevel(DicomValidationLevel.Error);
+});
 
 // ---------------------------------------------------------------------------
 describe("validateAE", () => {
@@ -155,4 +168,44 @@ describe("validateUI", () => {
   it("rejects trailing dot", () => fail(() => validateUI("1.2.3.")));
   it("rejects non-digit chars", () => fail(() => validateUI("1.2.A")));
   it("rejects > 64 chars", () => fail(() => validateUI("1." + "2".repeat(63))));
+});
+
+// ---------------------------------------------------------------------------
+describe("validation level", () => {
+  it("records warnings without throwing in warning mode", () => {
+    setValidationLevel(DicomValidationLevel.Warning);
+    expect(getValidationLevel()).toBe(DicomValidationLevel.Warning);
+
+    expect(() => validateAE("TOO_LONG_AE_TITLE_17")).not.toThrow();
+
+    const warnings = getValidationWarnings();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.vrCode).toBe("AE");
+    expect(warnings[0]?.error).toBeInstanceOf(DicomValidationException);
+  });
+
+  it("invokes warning handler when warning is produced", () => {
+    setValidationLevel(DicomValidationLevel.Warning);
+    const captured: string[] = [];
+    setValidationWarningHandler((warning) => {
+      captured.push(`${warning.vrCode}:${warning.value}`);
+    });
+
+    validateUI("1..3");
+    expect(captured).toEqual(["UI:1..3"]);
+  });
+
+  it("skips validation in ignore mode and via setPerformValidation(false)", () => {
+    setValidationLevel(DicomValidationLevel.Ignore);
+    expect(() => validateSH("A\\B")).not.toThrow();
+    expect(getValidationWarnings()).toHaveLength(0);
+
+    setPerformValidation(false);
+    expect(getValidationLevel()).toBe(DicomValidationLevel.Ignore);
+    expect(() => validateCS("invalid lower")).not.toThrow();
+
+    setPerformValidation(true);
+    expect(getValidationLevel()).toBe(DicomValidationLevel.Error);
+    expect(() => validateCS("invalid lower")).toThrow(DicomValidationException);
+  });
 });

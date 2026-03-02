@@ -25,6 +25,8 @@ import { EmptyBuffer } from "../io/buffer/EmptyBuffer.js";
 import { LazyByteBuffer } from "../io/buffer/LazyByteBuffer.js";
 import { MemoryByteBuffer } from "../io/buffer/MemoryByteBuffer.js";
 import { DicomItem } from "./DicomItem.js";
+import { DicomDateRange } from "./DicomDateRange.js";
+export { DicomDateRange } from "./DicomDateRange.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -184,19 +186,6 @@ export abstract class DicomMultiStringElement extends DicomStringElement {
   protected override validateString(): void {
     const vr = this.valueRepresentation;
     for (const v of this._getValues()) vr.validateString(v);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// DicomDateRange
-// ---------------------------------------------------------------------------
-
-export class DicomDateRange {
-  minimum: Date | null;
-  maximum: Date | null;
-  constructor(minimum: Date | null = null, maximum: Date | null = null) {
-    this.minimum = minimum;
-    this.maximum = maximum;
   }
 }
 

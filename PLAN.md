@@ -716,36 +716,37 @@
 ### 12.1 DicomAnonymizer（脱敏/匿名化）
 参考：`FO-DICOM.Core/DicomAnonymizer.cs`, `DicomAnonymizerGenerated.cs`
 
-- [ ] `SecurityProfileOptions` Flags 枚举（11 个选项）
-- [ ] `DicomAnonymizer` 类
+- [x] `SecurityProfileOptions` Flags 枚举（11 个选项）
+- [x] `DicomAnonymizer` 类
   - 基于 DICOM PS 3.15 保密配置文件
   - 按标签动作：`D`(虚假化) / `Z`(置零) / `X`(删除) / `K`(保留) / `C`(清理) / `U`(UID 替换)
   - UID 替换映射（保持内部一致性）
   - `anonymize(dataset: DicomDataset): DicomDataset`
-- [ ] 测试（参考 `DicomAnonymizerTest.cs`）
+- [x] 测试（参考 `DicomAnonymizerTest.cs`）
+- [x] 补齐默认配置中的全量 PS 3.15 标签规则
 
 ### 12.2 DicomValidation（验证）
-- [ ] `DicomValidation` — VR 格式验证规则
-- [ ] `DicomValidationException`
-- [ ] 可配置验证级别（警告/错误）
+- [x] `DicomValidation` — VR 格式验证规则
+- [x] `DicomValidationException`
+- [x] 可配置验证级别（警告/错误）
 
 ### 12.3 DicomDateRange
-- [ ] `DicomDateRange` — 日期范围查询支持
-- [ ] 测试（参考 `DicomDateRangeTest.cs`）
+- [x] `DicomDateRange` — 日期范围查询支持
+- [x] 测试（参考 `DicomDateRangeTest.cs`）
 
 ### 12.4 DicomMatchRules
-- [ ] `DicomMatchRules` — 数据集匹配（C-FIND 使用）
-- [ ] `DicomTransformRules`
-- [ ] 测试（参考 `DicomMatchRulesTest.cs`）
+- [x] `DicomMatchRules` — 数据集匹配（C-FIND 使用）
+- [x] `DicomTransformRules`
+- [x] 测试（参考 `DicomMatchRulesTest.cs`）
 
 ### 12.5 StructuredReport（结构化报告）
-- [ ] `DicomCodeItem` — 代码序列
-- [ ] `DicomContentItem` — 内容项（TEXT / NUM / CODE / IMAGE / CONTAINER ...）
-- [ ] `DicomMeasuredValue` — 测量值
-- [ ] `DicomReferencedSOP` — 引用 SOP
-- [ ] `DicomStructuredReport` — 顶层 SR 对象，继承 `DicomContentItem`
+- [x] `DicomCodeItem` — 代码序列
+- [x] `DicomContentItem` — 内容项（TEXT / NUM / CODE / IMAGE / CONTAINER ...）
+- [x] `DicomMeasuredValue` — 测量值
+- [x] `DicomReferencedSOP` — 引用 SOP
+- [x] `DicomStructuredReport` — 顶层 SR 对象，继承 `DicomContentItem`
   - `open(path)` / `save(path)`
-- [ ] 测试（参考 `Tests/StructuredReport/`）
+- [x] 测试（参考 `Tests/StructuredReport/`）
 
 ### 12.6 Printing（打印）
 - [ ] `FilmSession` — 胶片会话
@@ -784,7 +785,7 @@
 - Phase 9 — JSON 序列化：`✅ 已完成`
 - Phase 10 — 影像处理：`🟡 进行中`
 - Phase 11 — 网络/DIMSE：`✅ 已完成`
-- Phase 12 — 高级功能：`⬜ 未开始`（日志子项已完成）
+- Phase 12 — 高级功能：`🟡 进行中`（日志子项与 12.1 已完成）
 
 ---
 
