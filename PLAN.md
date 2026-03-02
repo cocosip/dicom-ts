@@ -749,11 +749,11 @@
 - [x] 测试（参考 `Tests/StructuredReport/`）
 
 ### 12.6 Printing（打印）
-- [ ] `FilmSession` — 胶片会话
-- [ ] `FilmBox` — 胶片盒
-- [ ] `ImageBox` — 图像盒
-- [ ] `PresentationLut` — 表示 LUT
-- [ ] 测试（参考 `Tests/Printing/`）
+- [x] `FilmSession` — 胶片会话
+- [x] `FilmBox` — 胶片盒
+- [x] `ImageBox` — 图像盒
+- [x] `PresentationLut` — 表示 LUT
+- [x] 测试（参考 `Tests/Printing/`）
 
 ### 12.7 日志（已提前实现，位于 `src/logging/`）
 - [x] `IDicomLogger` 接口（`LogLevel` 枚举 + `log/debug/info/warn/error/fatal` 方法）
@@ -763,7 +763,7 @@
 - [x] 13 个单元测试（`tests/logging/DicomLogger.test.ts`）
 
 ### 12.8 DicomImplementation
-- [ ] 实现 `DicomImplementation` — 实现类/版本名称常量
+- [x] 实现 `DicomImplementation` — 实现类/版本名称常量
 
 ---
 
@@ -785,7 +785,7 @@
 - Phase 9 — JSON 序列化：`✅ 已完成`
 - Phase 10 — 影像处理：`🟡 进行中`
 - Phase 11 — 网络/DIMSE：`✅ 已完成`
-- Phase 12 — 高级功能：`🟡 进行中`（日志子项与 12.1 已完成）
+- Phase 12 — 高级功能：`✅ 已完成`
 
 ---
 

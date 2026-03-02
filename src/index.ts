@@ -14,6 +14,7 @@ export * from "./serialization/index.js";
 export * from "./imaging/index.js";
 export * from "./network/index.js";
 export * from "./structured-report/index.js";
+export * from "./printing/index.js";
 export { DicomFile } from "./DicomFile.js";
 export { DicomFileMetaInformation } from "./DicomFileMetaInformation.js";
 export { DicomFileFormat } from "./DicomFileFormat.js";
