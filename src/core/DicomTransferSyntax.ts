@@ -209,6 +209,18 @@ export class DicomTransferSyntax {
     { isExplicitVR: true, isEncapsulated: true, isLossy: true, lossyCompressionMethod: "ISO_15444_1", endian: Endian.Little },
   );
 
+  /** JPEG 2000 Part 2 Multi-component (lossless only) */
+  static readonly JPEG2000MCLossless = DicomTransferSyntax.make(
+    DicomUIDs.JPEG2000MCLossless,
+    { isExplicitVR: true, isEncapsulated: true, endian: Endian.Little },
+  );
+
+  /** JPEG 2000 Part 2 Multi-component */
+  static readonly JPEG2000MC = DicomTransferSyntax.make(
+    DicomUIDs.JPEG2000MC,
+    { isExplicitVR: true, isEncapsulated: true, isLossy: true, lossyCompressionMethod: "ISO_15444_2", endian: Endian.Little },
+  );
+
   /** RLE Lossless */
   static readonly RLELossless = DicomTransferSyntax.make(
     DicomUIDs.RLELossless,

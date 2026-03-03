@@ -8,6 +8,12 @@ import { DicomJpegProcess14Codec } from "./jpeg/lossless/DicomJpegProcess14Codec
 import { DicomJpegProcess14SV1Codec } from "./jpeg/lossless14sv1/DicomJpegProcess14SV1Codec.js";
 import { DicomJpegLsLosslessCodec } from "./jpeg-ls/lossless/index.js";
 import { DicomJpegLsNearLosslessCodec } from "./jpeg-ls/nearlossless/index.js";
+import {
+  DicomJpeg2000LosslessCodec,
+  DicomJpeg2000LossyCodec,
+  DicomJpeg2000Part2MCLosslessCodec,
+  DicomJpeg2000Part2MCCodec,
+} from "./jpeg2000/index.js";
 
 function syntaxUid(transferSyntax: DicomTransferSyntax | string): string {
   return typeof transferSyntax === "string" ? transferSyntax : transferSyntax.uid.uid;
@@ -114,5 +120,9 @@ export class DefaultTranscoderManager extends TranscoderManager {
     this.register(new DicomJpegProcess14SV1Codec());
     this.register(new DicomJpegLsLosslessCodec());
     this.register(new DicomJpegLsNearLosslessCodec());
+    this.register(new DicomJpeg2000LosslessCodec());
+    this.register(new DicomJpeg2000LossyCodec());
+    this.register(new DicomJpeg2000Part2MCLosslessCodec());
+    this.register(new DicomJpeg2000Part2MCCodec());
   }
 }

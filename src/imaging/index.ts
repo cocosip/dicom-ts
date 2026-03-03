@@ -63,6 +63,21 @@ export type { ITranscoderManager } from "./codec/ITranscoderManager.js";
 export { TranscoderManager, DefaultTranscoderManager } from "./codec/TranscoderManager.js";
 export { DicomTranscoder } from "./codec/DicomTranscoder.js";
 export { DicomRleCodec } from "./codec/rle/index.js";
+export {
+  DicomJpeg2000Params,
+  DicomJpeg2000LosslessCodec,
+  DicomJpeg2000LossyCodec,
+  DicomJpeg2000Part2MCLosslessCodec,
+  DicomJpeg2000Part2MCCodec,
+} from "./codec/jpeg2000/index.js";
+export type {
+  DicomJpeg2000ProgressionOrder,
+  DicomJpeg2000MctBinding,
+  DicomJpeg2000FrameContext,
+  DicomJpeg2000DecodedMetadata,
+  DicomJpeg2000DecodeResult,
+  DicomJpeg2000Adapter,
+} from "./codec/jpeg2000/index.js";
 
 export { Point2 } from "./math/Point2.js";
 export { Point2D } from "./math/Point2D.js";

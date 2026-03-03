@@ -9,7 +9,7 @@ Required syntax UIDs:
 
 - JPEG Family
   - `1.2.840.10008.1.2.4.50` JPEG Baseline (Process 1), lossy 8-bit
-  - `1.2.840.10008.1.2.4.51` JPEG Extended (Process 2 & 4), lossy 8/12-bit
+  - `1.2.840.10008.1.2.4.51` JPEG Extended (Process 2 and 4), lossy 8/12-bit
   - `1.2.840.10008.1.2.4.57` JPEG Lossless (Process 14), all predictors
   - `1.2.840.10008.1.2.4.70` JPEG Lossless SV1 (Process 14, predictor 1)
 - JPEG-LS Family
@@ -30,6 +30,10 @@ Required syntax UIDs:
   - `source-code/fo-dicom.Codecs/Codec/`
   - `source-code/fo-dicom.Codecs/Native/`
   - `source-code/fo-dicom.Codecs/Tests/Acceptance/`
+- Pure Go JPEG2000 behavior reference:
+  - `source-code/go-dicom-codec/jpeg2000/`
+  - `source-code/go-dicom-codec/jpeg2000/lossless/`
+  - `source-code/go-dicom-codec/jpeg2000/lossy/`
 
 ## 3) Current State and Gaps
 
@@ -49,6 +53,7 @@ Current state in `dicom-ts`:
   - `DicomTransferSyntax` does not fully expose `4.92` / `4.93` constants
   - No unified codec capability metadata (decode-only vs encode+decode)
   - No full acceptance matrix for all required transfer syntaxes
+  - No JPEG2000 `IDicomCodec` implementation classes yet
 
 ## 4) Architecture and Boundaries
 
@@ -57,6 +62,10 @@ Current state in `dicom-ts`:
 - Built-in vs plugin strategy:
   - Built-in (in-tree): JPEG Lossless Process 14 family (`4.57`, `4.70`) and RLE
   - Plugin-first: JPEG Baseline/Extended, JPEG-LS, JPEG 2000 family
+- JPEG2000 implementation rule for this phase:
+  - Implement concrete `IDicomCodec` classes directly
+  - Do not add a new abstract codec base layer for JPEG2000
+  - Shared helper functions are allowed in `jpeg2000/common/`
 - Source layout strategy:
   - By family directory:
     - `codec/rle/`
@@ -64,21 +73,6 @@ Current state in `dicom-ts`:
     - `codec/jpeg-ls/`
     - `codec/jpeg2000/`
     - `codec/common/`
-  - JPEG transfer-syntax split (one transfer syntax => one codec entrypoint):
-    - baseline (`4.50`)
-    - extended (`4.51`)
-    - lossless (`4.57`)
-    - lossless14sv1 (`4.70`)
-  - Current TS layout:
-    - `codec/jpeg/baseline/DicomJpegProcess1Codec.ts`
-    - `codec/jpeg/extended/DicomJpegProcess2_4Codec.ts`
-    - `codec/jpeg/lossless/DicomJpegProcess14Codec.ts`
-    - `codec/jpeg/lossless14sv1/DicomJpegProcess14SV1Codec.ts`
-    - `codec/jpeg/common/JpegProcess14Common.ts`
-    - `codec/jpeg/common/JpegBaselineExtendedCommon.ts`
-  - Reference for codec family split style:
-    - `source-code/go-dicom-codec/jpeg/`
-  - Each family keeps its own adapter/codec/decoder/encoder files and `index.ts`
 - Do not import native binaries from `source-code/fo-dicom.Codecs/Native/` into core runtime
 
 ## 5) Work Breakdown Structure (WBS)
@@ -119,38 +113,128 @@ Current state in `dicom-ts`:
 - [ ] D2. Provide one reference adapter example
 - [ ] D3. Add integration tests for lossless and near-lossless paths
 
-### E. JPEG 2000 (`4.90`, `4.91`, `4.92`, `4.93`) - plugin path
-- [ ] E1. Complete syntax routing and registry wiring for all 4 UIDs
-- [ ] E2. Define multi-component handling expectations
-- [ ] E3. Provide one reference adapter example
-- [ ] E4. Add integration tests for all 4 UIDs
+### E. JPEG 2000 (`4.90`, `4.91`, `4.92`, `4.93`) - direct `IDicomCodec` implementations
 
-## 6) Test and Acceptance Plan
+- [ ] E0. Class matrix and source structure
+  - [ ] `src/imaging/codec/jpeg2000/lossless/DicomJpeg2000LosslessCodec.ts` (`4.90`)
+  - [ ] `src/imaging/codec/jpeg2000/lossy/DicomJpeg2000LossyCodec.ts` (`4.91`)
+  - [ ] `src/imaging/codec/jpeg2000/mc-lossless/DicomJpeg2000Part2MCLosslessCodec.ts` (`4.92`)
+  - [ ] `src/imaging/codec/jpeg2000/mc-lossy/DicomJpeg2000Part2MCCodec.ts` (`4.93`)
+  - [ ] `src/imaging/codec/jpeg2000/index.ts` export wiring
+
+- [ ] E1. Transfer syntax routing and registry wiring (P0)
+  - [ ] Add `.92` / `.93` transfer syntax constants and lookup coverage
+  - [ ] Register all 4 JPEG2000 codecs in `DefaultTranscoderManager.loadCodecs()`
+  - [ ] Add routing tests via `TranscoderManager.getCodec(...)`
+
+- [ ] E2. Parameter model (P0)
+  - [ ] Add `DicomJpeg2000Params` with baseline fields:
+    - `irreversible`, `rate`, `rateLevels`, `numLevels`
+    - `numLayers`, `targetRatio`, `progressionOrder`
+    - `allowMct`, `updatePhotometricInterpretation`
+    - `encodeSignedPixelValuesAsUnsigned`
+  - [ ] Add Part 2 fields for `.92/.93`:
+    - `mctBindings`, `mctMatrix`, `inverseMctMatrix`
+    - `mctOffsets`, `mctMatrixElementType`, `mctAssocType`
+    - `mcoPrecision`, `mcoRecordOrder`
+  - [ ] Add normalization rules:
+    - `numLevels` in `0..6`
+    - `progressionOrder` in `0..4`
+    - `numLayers >= 1`
+    - `targetRatio >= 0`
+
+- [ ] E3. Encode behavior (P0)
+  - [ ] Support single-frame and multi-frame encode loops
+  - [ ] Validate pixel constraints before encode:
+    - `BitsStored` in 2..16
+    - `BitsAllocated` in 8/16
+    - `.90/.91`: `SamplesPerPixel` 1 or 3
+    - `.92/.93`: multi-component path enabled
+  - [ ] Strip trailing frame padding byte before encode
+  - [ ] Emit actionable errors with syntax UID and frame index
+
+- [ ] E4. Decode behavior (P0)
+  - [ ] Support single-frame and multi-frame decode loops
+  - [ ] Validate decoded metadata against DICOM tags:
+    - rows, columns, samplesPerPixel, bit depth
+  - [ ] Explicitly define supported codestream forms (J2K and/or JP2)
+  - [ ] Emit actionable errors with syntax UID and frame index
+
+- [ ] E5. Photometric and Planar behavior (P0)
+  - [ ] Write `PlanarConfiguration = Interleaved` after JPEG2000 encode
+  - [ ] If `allowMct && updatePhotometricInterpretation`:
+    - `.91/.93` with `irreversible=true` => `YBR_ICT`
+    - otherwise => `YBR_RCT`
+  - [ ] Decode path normalizes `YBR_ICT`/`YBR_RCT`/`YBR_FULL(_422)` to RGB output path
+
+- [ ] E6. Part 2 multi-component behavior (P1)
+  - [ ] `.92`: support Part 2 multi-component lossless parameter path
+  - [ ] `.93`: support Part 2 multi-component lossy/lossless path
+  - [ ] Support explicit MCT binding order (`mcoRecordOrder`) with safe fallback
+  - [ ] If no MCT binding is provided, fall back to Part 1 behavior
+
+- [ ] E7. Quality layer and rate control behavior (P1)
+  - [ ] Support `rate` and `targetRatio` entry points
+  - [ ] Support `numLayers` and `rateLevels`
+  - [ ] Support progression order values `0..4` (LRCP/RLCP/RPCL/PCRL/CPRL)
+  - [ ] Support optional quantization controls (`quantStepScale`, `subbandSteps`) when backend allows
+
+- [ ] E8. Deferred items (P2, out of initial Phase 10.5 delivery)
+  - [ ] ROI advanced controls (RGN/COM)
+  - [ ] Tile/Precinct fine-grained controls
+  - [ ] HTJ2K (`.201/.202/.203`) in a separate milestone
+
+- [ ] E9. Reference integration example (P0)
+  - [ ] Provide one minimal backend registration example for tests
+  - [ ] Document register -> encode/decode -> transcode workflow
+
+## 6) JPEG2000 Feature Confirmation (from go-dicom-codec)
+
+Features confirmed in the reference implementation:
+
+- Must-have for Phase 10.5
+  - Encode/decode support for `.90`, `.91`, `.92`, `.93`
+  - Multi-frame processing
+  - Parameter model for rate/layer/progression/MCT
+  - Part 2 MCT/MCC/MCO parameter path
+- Candidate for second step in this phase
+  - Multi-layer quality with rate-distortion allocation
+  - Custom quantization step control
+  - More complete Part 2 binding order and precision tuning
+- Deferred to later phases
+  - ROI, Tile, Precinct advanced controls
+  - HTJ2K track
+
+## 7) Test and Acceptance Plan
 
 Test layers:
-- Unit tests: parser/codec internal behavior and edge cases
-- Integration tests: `DicomTranscoder` path with registered codecs
-- Acceptance tests: use samples from `source-code/fo-dicom.Codecs/Tests/Acceptance/`
+- Unit tests: parameter normalization, routing, error model, metadata checks
+- Integration tests: `DicomTranscoder` full path (encode/decode/transcode)
+- Acceptance tests: fixtures and behavior baselines from `fo-dicom.Codecs` and `go-dicom-codec/jpeg2000`
 
 Minimum acceptance criteria:
-- [ ] Each required UID can be decoded through standard codec routing
-- [ ] `4.57` and `4.70` pass pixel-level validation against reference outputs (full fixture matrix)
-- [ ] Plugin families complete "register -> decode -> transcode pipeline" validation
-- [ ] Error messages are actionable and include syntax UID and frame index
+- [ ] `4.90`, `4.91`, `4.92`, `4.93` all route through standard codec registration
+- [ ] Each JPEG2000 UID has single-frame, multi-frame, and invalid-input tests
+- [ ] Parameter normalization and fallback behavior are covered by tests
+- [ ] Photometric and Planar updates are verified in encode/decode tests
+- [ ] Error messages include syntax UID and frame index
 
-## 7) Milestones
+## 8) Milestones
 
 - M1 (P0): Foundation tasks (A1-A3)
 - M2 (P0): JPEG Lossless Process 14 family (`4.57`, `4.70`) usable in core
 - M3 (P1): JPEG Baseline/Extended + JPEG-LS plugin pipeline usable
-- M4 (P1): JPEG 2000 family (`4.90`, `4.91`, `4.92`, `4.93`) plugin pipeline usable
-- M5 (P1): Full regression matrix and documentation closure
+- M4 (P0): JPEG2000 P0 done (4 UIDs routing + base encode/decode + parameter model)
+- M5 (P1): JPEG2000 P1 done (Part 2 depth + quality layer/rate control)
+- M6 (P1): Full regression matrix and documentation closure
 
-## 8) Risks and Mitigation
+## 9) Risks and Mitigation
 
-- Risk: Color space and bit depth mismatches across codec families
-  - Mitigation: Add strict pixel-level reference assertions
-- Risk: Different external codec backends behave differently
-  - Mitigation: Enforce adapter contract and conformance fixtures
-- Risk: Multi-component JPEG 2000 complexity (`4.92`, `4.93`)
-  - Mitigation: Prioritize decode path first, then encode path as follow-up
+- Risk: Too many JPEG2000 parameter combinations cause behavior drift
+  - Mitigation: lock a P0 subset first, then open P1 options in controlled batches
+- Risk: Different backend engines produce different byte streams
+  - Mitigation: assert semantic compatibility, not byte-for-byte identity
+- Risk: Part 2 multi-component path (`4.92`, `4.93`) is complex
+  - Mitigation: stage delivery (core decode/encode first, advanced binding validation second)
+- Risk: Photometric conversion changes downstream render behavior
+  - Mitigation: add regression tests for photometric + planar tags before/after transcode
