@@ -19,3 +19,6 @@ Each tool lives in its own directory and can run independently.
 - `dicom-cstore-scp`: run a C-STORE SCP and save received files
   - docs: `tools/dicom-cstore-scp/README.md`
   - entry: `tools/dicom-cstore-scp/index.mjs`
+- `dicom-transcode`: transcode one DICOM file to one or all compressed transfer syntaxes
+  - docs: `tools/dicom-transcode/README.md`
+  - entry: `tools/dicom-transcode/index.mjs`
