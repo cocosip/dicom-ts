@@ -125,8 +125,14 @@ try {
         console.log(`[tool] [ok]   ${target.alias}: ${outputPath}`);
         results.success++;
       } catch (error) {
-        console.error(`[tool] [fail] ${target.alias}: ${error instanceof Error ? error.message : String(error)}`);
-        results.failed++;
+        const message = error instanceof Error ? error.message : String(error);
+        if (isNotImplementedError(message)) {
+          console.log(`[tool] [skip] ${target.alias}: ${message}`);
+          results.skipped++;
+        } else {
+          console.error(`[tool] [fail] ${target.alias}: ${message}`);
+          results.failed++;
+        }
       }
     }
 
@@ -249,6 +255,10 @@ function validateTranscode(dicom, sourceSyntax, targetSyntax) {
     return { ok: false, reason: missing.join(", ") };
   }
   return { ok: false, reason: "transcoder manager rejected this conversion" };
+}
+
+function isNotImplementedError(message) {
+  return /not implemented/i.test(message);
 }
 
 async function loadDicomTs() {

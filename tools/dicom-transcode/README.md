@@ -14,6 +14,7 @@ node tools/dicom-transcode/index.mjs <input-file> [target-syntax] [options]
 - `[target-syntax]`: Target Transfer Syntax UID or alias.
   - If omitted, the tool will generate output files for all known compressed transfer syntaxes.
   - If provided, the tool will generate exactly one output file.
+  - In all-target mode, unavailable or not-yet-implemented codecs are skipped with a reason.
 
 ### Options
 
