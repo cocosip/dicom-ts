@@ -68,7 +68,7 @@ try {
 
     const outputPath = path.resolve(options.outputPath || generateOutputPath(filePath, targetSyntax));
     if (targetSyntax.uid.uid === sourceSyntax.uid.uid) {
-      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+      await ensureDirectory(path.dirname(outputPath));
       if (outputPath !== filePath) {
         await fs.copyFile(filePath, outputPath);
         console.log(`[tool] Source and target syntax are the same. Copied to: ${outputPath}`);
@@ -94,7 +94,7 @@ try {
       process.exit(1);
     }
 
-    await fs.mkdir(outputDir, { recursive: true });
+    await ensureDirectory(outputDir);
     console.log(`[tool] Output directory: ${outputDir}`);
     console.log(`[tool] Target count: ${allTargets.length}`);
 
@@ -170,8 +170,38 @@ async function saveTranscodedFile(dicom, dataset, sourceSyntax, targetSyntax, ou
   const transcoder = new dicom.DicomTranscoder(sourceSyntax, targetSyntax);
   const newDataset = transcoder.transcode(dataset);
   const newFile = new dicom.DicomFile(newDataset);
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await ensureDirectory(path.dirname(outputPath));
   await newFile.save(outputPath);
+}
+
+async function ensureDirectory(dirPath) {
+  const resolved = path.resolve(dirPath);
+  if (isFilesystemRoot(resolved)) {
+    return;
+  }
+  await fs.mkdir(resolved, { recursive: true });
+}
+
+function isFilesystemRoot(dirPath) {
+  const resolvedPath = path.resolve(dirPath);
+  const resolved = normalizePathForCompare(resolvedPath);
+  const rootToken = path.parse(resolvedPath).root;
+  if (!rootToken) {
+    return false;
+  }
+  const root = normalizePathForCompare(path.resolve(rootToken));
+  if (!root) {
+    return false;
+  }
+  if (process.platform === "win32") {
+    return resolved.toLowerCase() === root.toLowerCase();
+  }
+  return resolved === root;
+}
+
+function normalizePathForCompare(value) {
+  const normalized = path.normalize(value);
+  return normalized.replace(/[\\\/]+$/, "");
 }
 
 function registerCodecs(dicom) {
