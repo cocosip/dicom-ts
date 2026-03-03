@@ -46,9 +46,6 @@ if (!dicom) {
   process.exit(1);
 }
 
-// Register codecs
-registerCodecs(dicom);
-
 try {
   const filePath = path.resolve(options.inputPath);
   const file = await dicom.DicomFile.open(filePath);
@@ -202,29 +199,6 @@ function isFilesystemRoot(dirPath) {
 function normalizePathForCompare(value) {
   const normalized = path.normalize(value);
   return normalized.replace(/[\\\/]+$/, "");
-}
-
-function registerCodecs(dicom) {
-  if (dicom.DicomCodecSetup) {
-    dicom.DicomCodecSetup.initialize();
-    return;
-  }
-
-  // Fallback for older versions or if DicomCodecSetup is missing
-  // Register RLE
-  if (dicom.DicomRleCodec) {
-    dicom.TranscoderManager.register(new dicom.DicomRleCodec());
-  }
-  
-  // Register JPEG Process 14
-  if (dicom.DicomJpegProcess14Codec) {
-    dicom.TranscoderManager.register(new dicom.DicomJpegProcess14Codec());
-  }
-
-  // Register JPEG Process 14 SV1
-  if (dicom.DicomJpegProcess14SV1Codec) {
-    dicom.TranscoderManager.register(new dicom.DicomJpegProcess14SV1Codec());
-  }
 }
 
 function resolveTransferSyntax(dicom, syntax) {

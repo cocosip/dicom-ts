@@ -23,5 +23,6 @@ describe("DicomFileMetaInformation", () => {
     expect(meta.implementationClassUID).toBeTruthy();
     expect(meta.implementationVersionName).toBeTruthy();
     expect(Array.from(meta.version)).toEqual([0x00, 0x01]);
+    expect(meta.contains(DicomTags.PatientName)).toBe(false);
   });
 });

@@ -26,7 +26,10 @@ export class DicomFileMetaInformation extends DicomDataset {
 
     if (arg) {
       for (const item of arg) {
-        this.addOrUpdate(item);
+        // File meta information must only contain group 0002 elements.
+        if (arg instanceof DicomFileMetaInformation || item.tag.group === 0x0002) {
+          this.addOrUpdate(item);
+        }
       }
     }
 
