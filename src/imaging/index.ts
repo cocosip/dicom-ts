@@ -73,10 +73,6 @@ export {
 export type {
   DicomJpeg2000ProgressionOrder,
   DicomJpeg2000MctBinding,
-  DicomJpeg2000FrameContext,
-  DicomJpeg2000DecodedMetadata,
-  DicomJpeg2000DecodeResult,
-  DicomJpeg2000Adapter,
 } from "./codec/jpeg2000/index.js";
 
 export { Point2 } from "./math/Point2.js";

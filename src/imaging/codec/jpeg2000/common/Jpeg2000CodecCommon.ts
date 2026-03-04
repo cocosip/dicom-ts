@@ -1,17 +1,19 @@
 import { DicomTransferSyntax } from "../../../../core/DicomTransferSyntax.js";
-import type { IByteBuffer } from "../../../../io/buffer/IByteBuffer.js";
 import type { DicomPixelData } from "../../../DicomPixelData.js";
 import { PhotometricInterpretation } from "../../../PhotometricInterpretation.js";
 import { PlanarConfiguration } from "../../../PlanarConfiguration.js";
 import type { DicomCodecParams } from "../../DicomCodecParams.js";
 import { DicomJpeg2000Params } from "../DicomJpeg2000Params.js";
-import type {
-  DicomJpeg2000DecodeResult,
-  DicomJpeg2000DecodedMetadata,
-  DicomJpeg2000FrameContext,
-} from "./DicomJpeg2000Adapter.js";
 
 export type Jpeg2000SampleConstraint = "part1" | "multicomponent";
+
+export interface Jpeg2000DecodedMetadata {
+  width?: number;
+  height?: number;
+  components?: number;
+  bitsAllocated?: number;
+  bitsStored?: number;
+}
 
 export function resolveJpeg2000Params(
   parameters: DicomCodecParams | null,
@@ -24,27 +26,6 @@ export function resolveJpeg2000Params(
 export function enforceLosslessParams(parameters: DicomJpeg2000Params): DicomJpeg2000Params {
   parameters.irreversible = false;
   return parameters;
-}
-
-export function buildJpeg2000FrameContext(
-  transferSyntax: DicomTransferSyntax,
-  pixelData: DicomPixelData,
-  parameters: DicomJpeg2000Params,
-  frameIndex: number,
-): DicomJpeg2000FrameContext {
-  return {
-    transferSyntax,
-    parameters,
-    samplesPerPixel: pixelData.samplesPerPixel,
-    columns: pixelData.columns,
-    rows: pixelData.rows,
-    bitsAllocated: pixelData.bitsAllocated,
-    bitsStored: pixelData.bitsStored,
-    pixelRepresentation: pixelData.pixelRepresentation,
-    photometricInterpretation: pixelData.photometricInterpretation,
-    planarConfiguration: pixelData.planarConfiguration,
-    frameIndex,
-  };
 }
 
 export function validateJpeg2000EncodeInput(
@@ -87,21 +68,9 @@ export function stripFramePaddingByte(data: Uint8Array, pixelData: DicomPixelDat
   return expectedLength > 0 && data.length > expectedLength ? data.subarray(0, expectedLength) : data;
 }
 
-export function normalizeDecodeResult(
-  value: Uint8Array | DicomJpeg2000DecodeResult,
-): { pixelData: Uint8Array; metadata?: DicomJpeg2000DecodedMetadata } {
-  if (value instanceof Uint8Array) {
-    return { pixelData: value };
-  }
-  if (value.metadata === undefined) {
-    return { pixelData: value.pixelData };
-  }
-  return { pixelData: value.pixelData, metadata: value.metadata };
-}
-
 export function validateDecodedFrame(
   decoded: Uint8Array,
-  metadata: DicomJpeg2000DecodedMetadata | undefined,
+  metadata: Jpeg2000DecodedMetadata | undefined,
   pixelData: DicomPixelData,
   frameIndex: number,
   syntaxUid: string,
@@ -144,6 +113,12 @@ export function validateDecodedFrame(
     if (metadata.bitsStored !== undefined && metadata.bitsStored !== pixelData.bitsStored) {
       throw new Error(
         `JPEG2000 decoded bitsStored mismatch: decoded=${metadata.bitsStored}, expected=${pixelData.bitsStored} [frame=${frameIndex}, syntax=${syntaxUid}]`,
+      );
+    }
+
+    if (metadata.bitsAllocated !== undefined && metadata.bitsAllocated !== pixelData.bitsAllocated) {
+      throw new Error(
+        `JPEG2000 decoded bitsAllocated mismatch: decoded=${metadata.bitsAllocated}, expected=${pixelData.bitsAllocated} [frame=${frameIndex}, syntax=${syntaxUid}]`,
       );
     }
   }
@@ -204,8 +179,4 @@ export function applyJpeg2000DecodePixelMetadata(pixelData: DicomPixelData): voi
   ) {
     pixelData.photometricInterpretation = PhotometricInterpretation.RGB;
   }
-}
-
-export function readRawFrameForEncode(pixelData: DicomPixelData, frameIndex: number): IByteBuffer {
-  return pixelData.getFrame(frameIndex);
 }

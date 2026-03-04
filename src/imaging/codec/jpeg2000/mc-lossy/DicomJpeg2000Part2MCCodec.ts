@@ -5,13 +5,10 @@ import type { DicomPixelData } from "../../../DicomPixelData.js";
 import type { DicomCodecParams } from "../../DicomCodecParams.js";
 import type { IDicomCodec } from "../../IDicomCodec.js";
 import { DicomJpeg2000Params } from "../DicomJpeg2000Params.js";
-import type { DicomJpeg2000Adapter } from "../common/DicomJpeg2000Adapter.js";
-import { createMissingJpeg2000Adapter } from "../common/DicomJpeg2000Adapter.js";
+import { decodeJpeg2000, encodeJpeg2000 } from "../common/Jpeg2000Core.js";
 import {
   applyJpeg2000DecodePixelMetadata,
   applyJpeg2000EncodePixelMetadata,
-  buildJpeg2000FrameContext,
-  normalizeDecodeResult,
   resolveJpeg2000Params,
   stripFramePaddingByte,
   validateDecodedFrame,
@@ -25,12 +22,6 @@ export class DicomJpeg2000Part2MCCodec implements IDicomCodec {
   readonly name = "JPEG 2000 Part 2 Multi-component";
   readonly transferSyntax = DicomTransferSyntax.JPEG2000MC;
 
-  private readonly adapter: DicomJpeg2000Adapter;
-
-  constructor(adapter: DicomJpeg2000Adapter = createMissingJpeg2000Adapter("JPEG 2000 Part 2 Multi-component")) {
-    this.adapter = adapter;
-  }
-
   getDefaultParameters(): DicomJpeg2000Params {
     return new DicomJpeg2000Params();
   }
@@ -40,16 +31,14 @@ export class DicomJpeg2000Part2MCCodec implements IDicomCodec {
   decode(
     arg1: DicomPixelData,
     arg2: number | DicomPixelData,
-    arg3?: DicomCodecParams | null,
+    _arg3?: DicomCodecParams | null,
   ): IByteBuffer | void {
-    const parameters = resolveJpeg2000Params(arg3 ?? null, this.getDefaultParameters());
-
     if (typeof arg2 === "number") {
-      return this.decodeFrame(arg1, arg2, parameters);
+      return this.decodeFrame(arg1, arg2);
     }
 
     for (let i = 0; i < arg1.numberOfFrames; i++) {
-      arg2.addFrame(this.decodeFrame(arg1, i, parameters));
+      arg2.addFrame(this.decodeFrame(arg1, i));
     }
 
     applyJpeg2000DecodePixelMetadata(arg2);
@@ -77,9 +66,8 @@ export class DicomJpeg2000Part2MCCodec implements IDicomCodec {
     applyJpeg2000EncodePixelMetadata(arg2, this.transferSyntax, parameters);
   }
 
-  private decodeFrame(pixelData: DicomPixelData, frameIndex: number, parameters: DicomJpeg2000Params): IByteBuffer {
-    const context = buildJpeg2000FrameContext(this.transferSyntax, pixelData, parameters, frameIndex);
-    const decoded = normalizeDecodeResult(this.adapter.decode(pixelData.getFrame(frameIndex).data, context));
+  private decodeFrame(pixelData: DicomPixelData, frameIndex: number): IByteBuffer {
+    const decoded = decodeJpeg2000(pixelData.getFrame(frameIndex).data);
     const normalized = validateDecodedFrame(
       decoded.pixelData,
       decoded.metadata,
@@ -97,9 +85,17 @@ export class DicomJpeg2000Part2MCCodec implements IDicomCodec {
     parameters: DicomJpeg2000Params,
   ): IByteBuffer {
     validateJpeg2000EncodeInput(pixelData, frameIndex, this.transferSyntax.uid.uid, "multicomponent");
-    const context = buildJpeg2000FrameContext(this.transferSyntax, pixelData, parameters, frameIndex);
     const stripped = stripFramePaddingByte(rawFrame.data, pixelData);
-    const encoded = this.adapter.encode(stripped, context);
+    const encoded = encodeJpeg2000(stripped, {
+      width: pixelData.columns,
+      height: pixelData.rows,
+      components: pixelData.samplesPerPixel,
+      bitsAllocated: pixelData.bitsAllocated,
+      bitsStored: pixelData.bitsStored,
+      pixelRepresentation: pixelData.pixelRepresentation,
+      parameters,
+      isPart2: true,
+    });
 
     if (!(encoded instanceof Uint8Array) || encoded.length === 0) {
       throw new Error(
