@@ -180,9 +180,39 @@ export class DicomTranscoder implements IDicomTranscoder {
     const newPixelData = DicomPixelData.create(output, true);
 
     codec.encode(oldPixelData, newPixelData, this.outputCodecParams);
+    this.applyLossyCompressionMetadataIfNeeded(output, oldPixelData, newPixelData, target);
 
     DicomTranscoder.processOverlays(dataset, output);
     return output;
+  }
+
+  private applyLossyCompressionMetadataIfNeeded(
+    output: DicomDataset,
+    oldPixelData: DicomPixelData,
+    newPixelData: DicomPixelData,
+    target: DicomTransferSyntax,
+  ): void {
+    if (!target.isLossy || newPixelData.numberOfFrames <= 0) {
+      return;
+    }
+
+    output.addOrUpdateElement(DicomVR.CS, Tags.LossyImageCompression, "01");
+
+    const methods = output.tryGetValues<string>(Tags.LossyImageCompressionMethod) ?? [];
+    if (target.lossyCompressionMethod.length > 0) {
+      methods.push(target.lossyCompressionMethod);
+      output.addOrUpdateElement(DicomVR.CS, Tags.LossyImageCompressionMethod, ...methods);
+    }
+
+    const oldFrameSize = oldPixelData.getFrame(0).size;
+    const newFrameSize = newPixelData.getFrame(0).size;
+    if (oldFrameSize <= 0 || newFrameSize <= 0) {
+      return;
+    }
+
+    const ratios = output.tryGetValues<string>(Tags.LossyImageCompressionRatio) ?? [];
+    ratios.push((oldFrameSize / newFrameSize).toFixed(3));
+    output.addOrUpdateElement(DicomVR.DS, Tags.LossyImageCompressionRatio, ...ratios);
   }
 
   /** Clone dataset, set new transfer syntax, and remove pixel data so codec writes fresh. */

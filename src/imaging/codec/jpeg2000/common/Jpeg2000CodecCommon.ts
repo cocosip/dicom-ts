@@ -23,9 +23,51 @@ export function resolveJpeg2000Params(
   return base.cloneNormalized();
 }
 
+export function resolveLosslessJpeg2000Params(
+  parameters: DicomCodecParams | null,
+  defaults: DicomJpeg2000Params,
+): DicomJpeg2000Params {
+  const source = parameters instanceof DicomJpeg2000Params ? parameters : defaults;
+  const normalized = source.cloneNormalized();
+  if (!(Number.isFinite(source.rate) && source.rate > 0)) {
+    normalized.rate = 0;
+  }
+  normalized.irreversible = false;
+  return normalized;
+}
+
 export function enforceLosslessParams(parameters: DicomJpeg2000Params): DicomJpeg2000Params {
   parameters.irreversible = false;
   return parameters;
+}
+
+export function normalizeLosslessRateControlParams(
+  parameters: DicomJpeg2000Params,
+  bitsStored: number,
+  bitsAllocated: number,
+): DicomJpeg2000Params {
+  const normalized = parameters.cloneNormalized();
+  if (!(Number.isFinite(parameters.rate) && parameters.rate > 0)) {
+    normalized.rate = 0;
+  }
+
+  if (normalized.targetRatio <= 0 && normalized.rate > 0) {
+    normalized.targetRatio = rateToTargetRatio(normalized.rate, bitsStored, bitsAllocated);
+  }
+
+  if (normalized.targetRatio > 0 && normalized.numLayers <= 1) {
+    normalized.numLayers = layersFromRateLevels(normalized.rate, normalized.rateLevels);
+  }
+
+  if (normalized.appendLosslessLayer && normalized.targetRatio > 0 && normalized.numLayers < 2) {
+    normalized.numLayers = 2;
+  }
+
+  if (normalized.targetRatio > 0) {
+    normalized.usePcrdOpt = true;
+  }
+
+  return normalized;
 }
 
 export function validateJpeg2000EncodeInput(
@@ -179,4 +221,34 @@ export function applyJpeg2000DecodePixelMetadata(pixelData: DicomPixelData): voi
   ) {
     pixelData.photometricInterpretation = PhotometricInterpretation.RGB;
   }
+}
+
+function rateToTargetRatio(rate: number, bitsStored: number, bitsAllocated: number): number {
+  if (rate <= 0) {
+    return 0;
+  }
+
+  const safeBitsStored = bitsStored > 0 ? bitsStored : 0;
+  const safeBitsAllocated = bitsAllocated > 0 ? bitsAllocated : safeBitsStored;
+  if (safeBitsStored <= 0 || safeBitsAllocated <= 0) {
+    return rate;
+  }
+
+  return (rate * safeBitsStored) / safeBitsAllocated;
+}
+
+function layersFromRateLevels(rate: number, rateLevels: number[]): number {
+  if (rate <= 0 || !Array.isArray(rateLevels) || rateLevels.length === 0) {
+    return 1;
+  }
+
+  let layers = 1;
+  for (let i = 0; i < rateLevels.length; i++) {
+    const threshold = rateLevels[i]!;
+    if (Number.isFinite(threshold) && threshold > rate) {
+      layers++;
+    }
+  }
+
+  return Math.max(1, layers);
 }

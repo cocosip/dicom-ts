@@ -5,10 +5,14 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { DicomFile } from "../../src/DicomFile.js";
+import * as Tags from "../../src/core/DicomTag.generated.js";
 import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
+import { DicomVR } from "../../src/core/DicomVR.js";
+import { DicomDataset } from "../../src/dataset/DicomDataset.js";
 import { DicomPixelData } from "../../src/imaging/DicomPixelData.js";
 import { DicomTranscoder } from "../../src/imaging/codec/DicomTranscoder.js";
 import { DicomJpeg2000Params } from "../../src/imaging/codec/jpeg2000/DicomJpeg2000Params.js";
+import { MemoryByteBuffer } from "../../src/io/buffer/MemoryByteBuffer.js";
 
 const ACCEPTANCE_DIR = "source-code/fo-dicom.Codecs/Tests/Acceptance";
 const GO_CODEC_DIR = "source-code/go-dicom-codec";
@@ -69,6 +73,34 @@ function decodeCodestreamWithGo(codestream: Uint8Array): { metadata: GoDecodeRes
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
+}
+
+function createTwoFrameRgbDataset(width: number, height: number, frameA: Uint8Array, frameB: Uint8Array): DicomDataset {
+  const dataset = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
+  dataset.addOrUpdateElement(DicomVR.US, Tags.Rows, height);
+  dataset.addOrUpdateElement(DicomVR.US, Tags.Columns, width);
+  dataset.addOrUpdateElement(DicomVR.US, Tags.BitsAllocated, 8);
+  dataset.addOrUpdateElement(DicomVR.US, Tags.BitsStored, 8);
+  dataset.addOrUpdateElement(DicomVR.US, Tags.HighBit, 7);
+  dataset.addOrUpdateElement(DicomVR.US, Tags.SamplesPerPixel, 3);
+  dataset.addOrUpdateElement(DicomVR.US, Tags.PixelRepresentation, 0);
+  dataset.addOrUpdateElement(DicomVR.CS, Tags.PhotometricInterpretation, "RGB");
+  dataset.addOrUpdateElement(DicomVR.US, Tags.PlanarConfiguration, 0);
+  dataset.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, "0");
+
+  const pixelData = DicomPixelData.create(dataset, true);
+  pixelData.addFrame(new MemoryByteBuffer(frameA));
+  pixelData.addFrame(new MemoryByteBuffer(frameB));
+  return dataset;
+}
+
+function createFrameVariant(frame: Uint8Array): Uint8Array {
+  const output = new Uint8Array(frame.length);
+  for (let i = 0; i < frame.length; i++) {
+    const value = frame[i] ?? 0;
+    output[i] = (value + ((i % 7) - 3)) & 0xff;
+  }
+  return output;
 }
 
 describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
@@ -161,4 +193,78 @@ describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
       }
     }
   }, 180000);
+
+  it("validates TS encode -> Go decode parity for multi-frame .90/.91", async () => {
+    const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));
+    const sourcePixelData = DicomPixelData.create(source.dataset);
+    const frameA = sourcePixelData.getFrame(0).data;
+    const frameB = createFrameVariant(frameA);
+    const sourceFrames = [frameA, frameB];
+    const multiFrameSource = createTwoFrameRgbDataset(960, 540, frameA, frameB);
+
+    const losslessParams = DicomJpeg2000Params.createLosslessDefaults();
+    losslessParams.numLevels = 5;
+    losslessParams.allowMct = true;
+    losslessParams.numLayers = 1;
+
+    const lossyParams = new DicomJpeg2000Params();
+    lossyParams.irreversible = true;
+    lossyParams.numLevels = 5;
+    lossyParams.allowMct = true;
+    lossyParams.numLayers = 1;
+
+    const matrix = [
+      {
+        name: ".90-lossless-multiframe",
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        params: losslessParams,
+        expectLossless: true,
+      },
+      {
+        name: ".91-lossy-multiframe",
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        params: lossyParams,
+        expectLossless: false,
+      },
+    ];
+
+    for (const entry of matrix) {
+      const encoded = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        entry.syntax,
+        null,
+        entry.params,
+      ).transcode(multiFrameSource);
+
+      const encodedPixelData = DicomPixelData.create(encoded);
+      expect(encodedPixelData.numberOfFrames, `${entry.name} encoded frames`).toBe(2);
+
+      const tsDecoded = new DicomTranscoder(
+        entry.syntax,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      ).transcode(encoded);
+      const tsDecodedPixelData = DicomPixelData.create(tsDecoded);
+      expect(tsDecodedPixelData.numberOfFrames, `${entry.name} decoded frames`).toBe(2);
+
+      for (let frameIndex = 0; frameIndex < sourceFrames.length; frameIndex++) {
+        const encodedFrame = encodedPixelData.getFrame(frameIndex).data;
+        const goDecoded = decodeCodestreamWithGo(encodedFrame);
+        const tsFrame = tsDecodedPixelData.getFrame(frameIndex).data;
+        const sourceFrame = sourceFrames[frameIndex]!;
+
+        expect(goDecoded.metadata.width, `${entry.name} frame ${frameIndex} width`).toBe(960);
+        expect(goDecoded.metadata.height, `${entry.name} frame ${frameIndex} height`).toBe(540);
+        expect(goDecoded.metadata.components, `${entry.name} frame ${frameIndex} components`).toBe(3);
+        expect(goDecoded.pixelData.length, `${entry.name} frame ${frameIndex} decoded length`).toBe(sourceFrame.length);
+        expect(goDecoded.metadata.sha256, `${entry.name} frame ${frameIndex} Go vs TS hash`).toBe(sha256(tsFrame));
+
+        if (entry.expectLossless) {
+          expect(goDecoded.metadata.sha256, `${entry.name} frame ${frameIndex} source hash`).toBe(sha256(sourceFrame));
+        } else {
+          const mae = meanAbsoluteError(goDecoded.pixelData, sourceFrame);
+          expect(mae, `${entry.name} frame ${frameIndex} lossy MAE`).toBeLessThan(25);
+        }
+      }
+    }
+  }, 240000);
 });

@@ -44,7 +44,7 @@ Status legend:
 | `.92` encode | TODO | Part 2 + MCT parity |
 | `.93` encode | TODO | Part 2 + MCT parity |
 | Photometric/Planar updates | WIP | Existing logic present; must verify against Go behavior |
-| Parameter normalization parity | WIP | `DicomJpeg2000Params` exists; needs strict parity audit |
+| Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage), full-table audit still pending |
 | Error model parity | TODO | Syntax/frame context and matching failure classes |
 
 ---
@@ -55,10 +55,10 @@ Status legend:
 | --- | --- | --- |
 | Decode fo-dicom.Codecs JPEG2000 acceptance fixtures | WIP | Pixel decode wired; `.90/.91` now close to reference with sparse outliers, still below final parity thresholds |
 | Go encode -> TS decode compatibility | WIP | TS decode now byte-equal to go-dicom-codec decode output on `.90/.91` acceptance codestreams and Go-generated Part2 synthetic vectors (`.92/.93`); broader corpus still pending |
-| TS encode -> Go decode compatibility | WIP | `.90/.91` fixture corpus matrix added (single-layer + multi-layer/rate-derived cases), Go-decode/TS-decode hash parity wired |
+| TS encode -> Go decode compatibility | WIP | `.90/.91` fixture corpus matrix now covers single-frame + multi-frame (single-layer + multi-layer/rate-derived), Go-decode/TS-decode hash parity wired |
 | Lossless deterministic checks | TODO | Hash/byte exactness where expected |
 | Lossy threshold checks | TODO | Error metric thresholds |
-| Single-frame + multi-frame coverage | TODO | All 4 transfer syntaxes |
+| Single-frame + multi-frame coverage | WIP | `.90/.91` single-frame + multi-frame compatibility is green; `.92/.93` pending |
 | Invalid codestream negative tests | TODO | Truncation, marker corruption, metadata mismatch |
 
 ---
@@ -378,3 +378,81 @@ Status legend:
   - `npm run build`
 - Row status updates:
   - `TS encode -> Go decode compatibility` changed `TODO -> WIP`
+
+### 2026-03-05 (Phase 3 / P3.6 + Phase 4 hardening - multi-frame matrix + lossless rate normalization)
+
+- Files changed:
+  - `src/imaging/codec/jpeg2000/DicomJpeg2000Params.ts`
+  - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
+  - `src/imaging/codec/jpeg2000/lossless/DicomJpeg2000LosslessCodec.ts`
+  - `src/imaging/codec/jpeg2000/mc-lossless/DicomJpeg2000Part2MCLosslessCodec.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Tests added/updated:
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+- Commands run:
+  - `npm test -- tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm run build`
+- Row status updates:
+  - `Parameter normalization parity` remains `WIP` (lossless defaults + rate/targetRatio/layer derivation aligned; full audit pending)
+  - `TS encode -> Go decode compatibility` remains `WIP` (extended with `.90/.91` multi-frame parity)
+  - `Single-frame + multi-frame coverage` changed `TODO -> WIP`
+
+### 2026-03-05 (Phase 4 / P4.3 kickoff - strict invalid/fallback parameter tests)
+
+- Files changed:
+  - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
+  - `src/imaging/codec/jpeg2000/lossless/DicomJpeg2000LosslessCodec.ts`
+  - `src/imaging/codec/jpeg2000/mc-lossless/DicomJpeg2000Part2MCLosslessCodec.ts`
+  - `tests/imaging/DicomJpeg2000Params.test.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Tests added/updated:
+  - `tests/imaging/DicomJpeg2000Params.test.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+- Commands run:
+  - `npm test -- tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm run build`
+- Row status updates:
+  - `Parameter normalization parity` remains `WIP` (strict invalid/fallback tests now covered for current lossless alignment path)
+
+### 2026-03-05 (Phase 4 / P4.3 follow-up - allowMct/updatePI/encodeSigned strict regression table)
+
+- Files changed:
+  - `tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Tests added/updated:
+  - `tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
+- Commands run:
+  - `npm test -- tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
+  - `npm test -- tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test`
+  - `npm run build`
+- Row status updates:
+  - `Parameter normalization parity` remains `WIP` (strict semantics table now includes `allowMct`, `updatePhotometricInterpretation`, `encodeSignedPixelValuesAsUnsigned`)
+
+### 2026-03-05 (Phase 4 / P4.3 follow-up - metadata helper coverage `.92/.93` + boolean fallback normalization)
+
+- Files changed:
+  - `src/imaging/codec/jpeg2000/DicomJpeg2000Params.ts`
+  - `tests/imaging/DicomJpeg2000Params.test.ts`
+  - `tests/imaging/jpeg2000/Jpeg2000CodecCommonMetadata.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Tests added/updated:
+  - `tests/imaging/DicomJpeg2000Params.test.ts`
+  - `tests/imaging/jpeg2000/Jpeg2000CodecCommonMetadata.test.ts`
+- Commands run:
+  - `npm test -- tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/jpeg2000/Jpeg2000CodecCommonMetadata.test.ts`
+  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test`
+  - `npm run build`
+- Row status updates:
+  - `Parameter normalization parity` remains `WIP` (extended with helper-level `.92/.93` metadata mapping assertions + boolean fallback normalization tests)

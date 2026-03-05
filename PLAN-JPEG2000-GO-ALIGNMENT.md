@@ -152,10 +152,12 @@ Progress note:
 - P3.3 kickoff done: baseline single-layer LRCP packet header/body encoding + single-tile codestream writer are now wired into `Jpeg2000Encoder.encodeFrame` and `encodeJpeg2000` for Part1 `.90/.91` staging.
 - P3.4 baseline done: LRCP multi-layer packet planning is now wired with layer pass allocation, TERMALL code-block style, and per-layer pass/length header semantics (`numPasses` + pass-length vectors) in TS T1/T2 encode path.
 - P3.6 kickoff done: TS encode -> Go decode compatibility matrix now covers `.90/.91` fixture corpus (single-layer + multi-layer/rate-derived scenarios) with parity checks against TS decode output.
-- Next sub-goal (current): P3.6/P4 hardening:
-  - extend matrix to multi-frame cases and wider fixture coverage,
-  - tighten irreversible (`.91`) quality/threshold assertions and metadata semantics,
-  - align remaining rate/target-ratio parameter normalization edge cases.
+- P3.6 follow-up done: `.90/.91` TS->Go matrix now includes multi-frame parity checks (per-frame Go hash == TS decode hash).
+- P4 follow-up done (partial): lossless defaults + rate-to-targetRatio/layer derivation are now aligned with Go baseline semantics in codec normalization path.
+- Next sub-goal (current): continue P3.6/P4/P6 hardening:
+  - widen multi-frame corpus and add `.91` stronger quality assertions,
+  - finish parameter normalization table audit and invalid/fallback tests,
+  - close metadata semantics alignment (`PhotometricInterpretation` / lossy tags).
 
 Exit criteria:
 
@@ -175,6 +177,12 @@ Exit criteria:
   - `allowMct`, `updatePhotometricInterpretation`
   - `encodeSignedPixelValuesAsUnsigned`
 - [ ] P4.3 Add strict parameter validation tests (invalid + fallback behavior)
+
+Progress note:
+
+- P4.3 kickoff done: added strict invalid/fallback tests for `DicomJpeg2000Params.cloneNormalized` and lossless codec encode path fallback behavior (including out-of-range progression, invalid layer/ratio inputs).
+- P4.3 follow-up done: added strict semantics matrix tests for `allowMct` + `updatePhotometricInterpretation` (PI + COD MCT flag assertions on `.90/.91`) and compatibility regression for `encodeSignedPixelValuesAsUnsigned`.
+- P4.3 follow-up done: added helper-level metadata semantics matrix for `.90/.91/.92/.93` and boolean fallback normalization tests for compatibility flags in `DicomJpeg2000Params.cloneNormalized`.
 
 Exit criteria:
 

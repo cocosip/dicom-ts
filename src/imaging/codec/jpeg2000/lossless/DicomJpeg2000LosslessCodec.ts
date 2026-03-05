@@ -9,8 +9,8 @@ import { decodeJpeg2000, encodeJpeg2000 } from "../common/Jpeg2000Core.js";
 import {
   applyJpeg2000DecodePixelMetadata,
   applyJpeg2000EncodePixelMetadata,
-  enforceLosslessParams,
-  resolveJpeg2000Params,
+  normalizeLosslessRateControlParams,
+  resolveLosslessJpeg2000Params,
   stripFramePaddingByte,
   validateDecodedFrame,
   validateJpeg2000EncodeInput,
@@ -53,11 +53,19 @@ export class DicomJpeg2000LosslessCodec implements IDicomCodec {
     arg3?: IByteBuffer | DicomCodecParams | null,
   ): IByteBuffer | void {
     if (typeof arg2 === "number") {
-      const parameters = enforceLosslessParams(resolveJpeg2000Params(null, this.getDefaultParameters()));
+      const parameters = normalizeLosslessRateControlParams(
+        resolveLosslessJpeg2000Params(null, this.getDefaultParameters()),
+        arg1.bitsStored,
+        arg1.bitsAllocated,
+      );
       return this.encodeFrame(arg1, arg2, arg3 as IByteBuffer, parameters);
     }
 
-    const parameters = enforceLosslessParams(resolveJpeg2000Params((arg3 as DicomCodecParams | null | undefined) ?? null, this.getDefaultParameters()));
+    const parameters = normalizeLosslessRateControlParams(
+      resolveLosslessJpeg2000Params((arg3 as DicomCodecParams | null | undefined) ?? null, this.getDefaultParameters()),
+      arg1.bitsStored,
+      arg1.bitsAllocated,
+    );
 
     for (let i = 0; i < arg1.numberOfFrames; i++) {
       const rawFrame = arg1.getFrame(i);

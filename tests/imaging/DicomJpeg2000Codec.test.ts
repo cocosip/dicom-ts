@@ -8,12 +8,14 @@ import { MemoryByteBuffer } from "../../src/io/buffer/MemoryByteBuffer.js";
 import { DicomPixelData } from "../../src/imaging/DicomPixelData.js";
 import { DicomTranscoder } from "../../src/imaging/codec/DicomTranscoder.js";
 import { TranscoderManager } from "../../src/imaging/codec/TranscoderManager.js";
+import { DicomJpeg2000Params } from "../../src/imaging/codec/jpeg2000/DicomJpeg2000Params.js";
 import {
   DicomJpeg2000LosslessCodec,
   DicomJpeg2000LossyCodec,
   DicomJpeg2000Part2MCLosslessCodec,
   DicomJpeg2000Part2MCCodec,
 } from "../../src/imaging/codec/jpeg2000/index.js";
+import { parseJpeg2000Codestream } from "../../src/imaging/codec/jpeg2000/core/index.js";
 
 function buildDataset(
   syntax: DicomTransferSyntax,
@@ -187,6 +189,83 @@ describe("DicomJpeg2000Codec", () => {
     ).transcode(source);
     expect(transcoded.internalTransferSyntax).toBe(DicomTransferSyntax.JPEG2000Lossy);
     expect(DicomPixelData.create(transcoded).numberOfFrames).toBe(1);
+  });
+
+  it("derives lossless layering from rate/rateLevels when targetRatio is unset", () => {
+    const raw = new Uint8Array([
+      5, 15, 25, 35,
+      45, 55, 65, 75,
+      85, 95, 105, 115,
+      125, 135, 145, 155,
+    ]);
+    const source = buildDataset(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      8,
+      8,
+      4,
+      4,
+      1,
+      "MONOCHROME2",
+      raw,
+    );
+
+    const parameters = DicomJpeg2000Params.createLosslessDefaults();
+    parameters.rate = 32;
+    parameters.rateLevels = [128, 64, 32, 16];
+    parameters.targetRatio = 0;
+    parameters.numLayers = 1;
+
+    const transcoded = new DicomTranscoder(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      DicomTransferSyntax.JPEG2000Lossless,
+      null,
+      parameters,
+    ).transcode(source);
+
+    const codestream = DicomPixelData.create(transcoded).getFrame(0).data;
+    const parsed = parseJpeg2000Codestream(codestream);
+
+    expect(parsed.cod?.numberOfLayers).toBe(3);
+    expect((parsed.cod?.codeBlockStyle ?? 0) & 0x04).toBe(0x04);
+  });
+
+  it("falls back invalid lossless parameter values during encode", () => {
+    const raw = new Uint8Array([
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16,
+    ]);
+    const source = buildDataset(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      8,
+      8,
+      4,
+      4,
+      1,
+      "MONOCHROME2",
+      raw,
+    );
+
+    const parameters = DicomJpeg2000Params.createLosslessDefaults();
+    (parameters as { progressionOrder: number }).progressionOrder = 99;
+    parameters.numLayers = 0;
+    parameters.targetRatio = -2;
+    parameters.rate = 0;
+
+    const transcoded = new DicomTranscoder(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      DicomTransferSyntax.JPEG2000Lossless,
+      null,
+      parameters,
+    ).transcode(source);
+
+    const codestream = DicomPixelData.create(transcoded).getFrame(0).data;
+    const parsed = parseJpeg2000Codestream(codestream);
+
+    expect(parsed.cod?.progressionOrder).toBe(0);
+    expect(parsed.cod?.numberOfLayers).toBe(1);
+    expect((parsed.cod?.codeBlockStyle ?? 0) & 0x04).toBe(0);
   });
 });
 

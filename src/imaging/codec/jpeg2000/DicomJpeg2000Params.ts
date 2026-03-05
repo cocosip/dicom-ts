@@ -50,7 +50,7 @@ export class DicomJpeg2000Params extends DicomCodecParams {
   cloneNormalized(): DicomJpeg2000Params {
     const clone = new DicomJpeg2000Params();
 
-    clone.irreversible = this.irreversible;
+    clone.irreversible = typeof this.irreversible === "boolean" ? this.irreversible : true;
     clone.rate = Number.isFinite(this.rate) && this.rate > 0 ? Math.trunc(this.rate) : 20;
     clone.rateLevels = Array.isArray(this.rateLevels) && this.rateLevels.length > 0
       ? this.rateLevels.filter((v) => Number.isFinite(v) && v > 0).map((v) => Math.trunc(v))
@@ -60,16 +60,20 @@ export class DicomJpeg2000Params extends DicomCodecParams {
     }
 
     clone.progressionOrder = normalizeProgressionOrder(this.progressionOrder);
-    clone.isVerbose = this.isVerbose;
-    clone.allowMct = this.allowMct;
-    clone.updatePhotometricInterpretation = this.updatePhotometricInterpretation;
-    clone.encodeSignedPixelValuesAsUnsigned = this.encodeSignedPixelValuesAsUnsigned;
+    clone.isVerbose = typeof this.isVerbose === "boolean" ? this.isVerbose : false;
+    clone.allowMct = typeof this.allowMct === "boolean" ? this.allowMct : true;
+    clone.updatePhotometricInterpretation = typeof this.updatePhotometricInterpretation === "boolean"
+      ? this.updatePhotometricInterpretation
+      : true;
+    clone.encodeSignedPixelValuesAsUnsigned = typeof this.encodeSignedPixelValuesAsUnsigned === "boolean"
+      ? this.encodeSignedPixelValuesAsUnsigned
+      : false;
 
     clone.numLevels = normalizeIntegerInRange(this.numLevels, 5, 0, 6);
     clone.numLayers = Math.max(1, Number.isFinite(this.numLayers) ? Math.trunc(this.numLayers) : 1);
     clone.targetRatio = Number.isFinite(this.targetRatio) && this.targetRatio >= 0 ? this.targetRatio : 0;
-    clone.usePcrdOpt = this.usePcrdOpt;
-    clone.appendLosslessLayer = this.appendLosslessLayer;
+    clone.usePcrdOpt = typeof this.usePcrdOpt === "boolean" ? this.usePcrdOpt : false;
+    clone.appendLosslessLayer = typeof this.appendLosslessLayer === "boolean" ? this.appendLosslessLayer : false;
 
     clone.quantStepScale = Number.isFinite(this.quantStepScale) && this.quantStepScale > 0
       ? this.quantStepScale
@@ -104,6 +108,7 @@ export class DicomJpeg2000Params extends DicomCodecParams {
   static createLosslessDefaults(): DicomJpeg2000Params {
     const parameters = new DicomJpeg2000Params();
     parameters.irreversible = false;
+    parameters.rate = 0;
     return parameters;
   }
 }
