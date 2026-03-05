@@ -43,7 +43,7 @@ Status legend:
 | `.91` encode | WIP | LRCP single/multi-layer path landed (irreversible + TERMALL layered semantics); full rate-target/pixel-threshold parity pending |
 | `.92` encode | TODO | Part 2 + MCT parity |
 | `.93` encode | TODO | Part 2 + MCT parity |
-| Photometric/Planar updates | WIP | Existing logic present; must verify against Go behavior |
+| Photometric/Planar updates | WIP | Strict helper-level matrix now covers `.90/.91/.92/.93` encode/decode PI + planar semantics; end-to-end `.92/.93` encode path still pending |
 | Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage), full-table audit still pending |
 | Error model parity | TODO | Syntax/frame context and matching failure classes |
 
@@ -456,3 +456,21 @@ Status legend:
   - `npm run build`
 - Row status updates:
   - `Parameter normalization parity` remains `WIP` (extended with helper-level `.92/.93` metadata mapping assertions + boolean fallback normalization tests)
+
+### 2026-03-05 (Phase 6 / P6.4 kickoff - lossy metadata tags + transcoder regression)
+
+- Files changed:
+  - `src/imaging/codec/DicomTranscoder.ts`
+  - `tests/imaging/DicomTranscoder.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Tests added/updated:
+  - `tests/imaging/DicomTranscoder.test.ts`
+- Commands run:
+  - `npm test -- tests/imaging/DicomTranscoder.test.ts`
+  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomTranscoder.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test`
+  - `npm run build`
+- Row status updates:
+  - `Photometric/Planar updates` remains `WIP` (strict helper-level matrix has `.90/.91/.92/.93` coverage)
+  - `Parameter normalization parity` remains `WIP`

@@ -212,6 +212,11 @@ Exit criteria:
 - [ ] P6.3 Enforce planar configuration behavior after encode/decode
 - [ ] P6.4 Align lossy flags/ratio metadata updates where applicable
 
+Progress note:
+
+- P6 follow-up done (partial): added strict metadata semantics test matrix for encode/decode helper paths covering `.90/.91/.92/.93` PI + planar behavior.
+- P6.4 kickoff done (partial): `DicomTranscoder` now appends lossy metadata (`0028,2110/2112/2114`) on lossy encode paths with fo-dicom-aligned append semantics and ratio formatting.
+
 Exit criteria:
 
 - Metadata assertions pass for `.90/.91/.92/.93`
