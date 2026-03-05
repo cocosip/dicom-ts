@@ -216,6 +216,14 @@ Progress note:
 
 - P6 follow-up done (partial): added strict metadata semantics test matrix for encode/decode helper paths covering `.90/.91/.92/.93` PI + planar behavior.
 - P6.4 kickoff done (partial): `DicomTranscoder` now appends lossy metadata (`0028,2110/2112/2114`) on lossy encode paths with fo-dicom-aligned append semantics and ratio formatting.
+- P6.4 follow-up done: unified lossy metadata assertions extended to all lossy transfer syntaxes:
+  - JPEG Baseline (Process 1) — `ISO_10918_1`
+  - JPEG Extended (Process 2 & 4) — `ISO_10918_1`
+  - JPEG-LS Near-Lossless — `ISO_14495_1`
+  - JPEG2000 Lossy — `ISO_15444_1`
+  - JPEG2000 Part 2 MC — `ISO_15444_2`
+  - HT-J2K Lossy — `ISO_15444_15`
+  - Test coverage includes preserving existing metadata when appending new entries.
 
 Exit criteria:
 

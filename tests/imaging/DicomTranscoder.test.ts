@@ -314,4 +314,110 @@ describe("DicomTranscoder", () => {
       }
     }
   });
+
+  it("appends lossy compression metadata for all lossy transfer syntaxes", () => {
+    const lossySyntaxes = [
+      { syntax: DicomTransferSyntax.JPEGProcess1, expectedMethod: "ISO_10918_1" },
+      { syntax: DicomTransferSyntax.JPEGProcess2_4, expectedMethod: "ISO_10918_1" },
+      { syntax: DicomTransferSyntax.JPEGLSNearLossless, expectedMethod: "ISO_14495_1" },
+      { syntax: DicomTransferSyntax.JPEG2000Lossy, expectedMethod: "ISO_15444_1" },
+      { syntax: DicomTransferSyntax.JPEG2000MC, expectedMethod: "ISO_15444_2" },
+      { syntax: DicomTransferSyntax.HTJ2K, expectedMethod: "ISO_15444_15" },
+    ];
+
+    for (const { syntax, expectedMethod } of lossySyntaxes) {
+      const ds = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
+      ds.addOrUpdateElement(DicomVR.US, Tags.Rows, 1);
+      ds.addOrUpdateElement(DicomVR.US, Tags.Columns, 4);
+      ds.addOrUpdateElement(DicomVR.US, Tags.BitsAllocated, 8);
+      ds.addOrUpdateElement(DicomVR.US, Tags.BitsStored, 8);
+      ds.addOrUpdateElement(DicomVR.US, Tags.HighBit, 7);
+      ds.addOrUpdateElement(DicomVR.US, Tags.SamplesPerPixel, 1);
+      ds.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, "1");
+      ds.addOrUpdate(new DicomOtherByte(Tags.PixelData, new Uint8Array([1, 2, 3, 4])));
+
+      const previous = TranscoderManager.tryGetCodec(syntax);
+      const codec: IDicomCodec = {
+        name: `Mock${syntax.uid.name}`,
+        transferSyntax: syntax,
+        getDefaultParameters: () => null,
+        decode: () => { throw new Error("Not impl"); },
+        encode: (_old, newPixelData) => {
+          newPixelData.addFrame(new MemoryByteBuffer(new Uint8Array([0xaa, 0xbb])));
+        },
+      };
+      TranscoderManager.register(codec);
+
+      try {
+        const transcoder = new DicomTranscoder(
+          DicomTransferSyntax.ExplicitVRLittleEndian,
+          syntax,
+        );
+        const out = transcoder.transcode(ds);
+        expect(out.internalTransferSyntax).toBe(syntax);
+        expect(out.getSingleValue<string>(Tags.LossyImageCompression)).toBe("01");
+        expect(out.getValues<string>(Tags.LossyImageCompressionMethod)).toEqual([expectedMethod]);
+        expect(out.getValues<string>(Tags.LossyImageCompressionRatio)).toHaveLength(1);
+      } finally {
+        TranscoderManager.unregister(syntax);
+        if (previous) {
+          TranscoderManager.register(previous);
+        }
+      }
+    }
+  });
+
+  it("preserves existing lossy compression metadata when appending new entries", () => {
+    const lossySyntaxes = [
+      { syntax: DicomTransferSyntax.JPEGProcess1, expectedMethod: "ISO_10918_1" },
+      { syntax: DicomTransferSyntax.JPEGProcess2_4, expectedMethod: "ISO_10918_1" },
+      { syntax: DicomTransferSyntax.JPEGLSNearLossless, expectedMethod: "ISO_14495_1" },
+      { syntax: DicomTransferSyntax.JPEG2000Lossy, expectedMethod: "ISO_15444_1" },
+      { syntax: DicomTransferSyntax.JPEG2000MC, expectedMethod: "ISO_15444_2" },
+    ];
+
+    for (const { syntax, expectedMethod } of lossySyntaxes) {
+      const ds = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
+      ds.addOrUpdateElement(DicomVR.US, Tags.Rows, 1);
+      ds.addOrUpdateElement(DicomVR.US, Tags.Columns, 4);
+      ds.addOrUpdateElement(DicomVR.US, Tags.BitsAllocated, 8);
+      ds.addOrUpdateElement(DicomVR.US, Tags.BitsStored, 8);
+      ds.addOrUpdateElement(DicomVR.US, Tags.HighBit, 7);
+      ds.addOrUpdateElement(DicomVR.US, Tags.SamplesPerPixel, 1);
+      ds.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, "1");
+      ds.addOrUpdateElement(DicomVR.CS, Tags.LossyImageCompression, "01");
+      ds.addOrUpdateElement(DicomVR.CS, Tags.LossyImageCompressionMethod, "EXISTING_METHOD");
+      ds.addOrUpdateElement(DicomVR.DS, Tags.LossyImageCompressionRatio, "1.500");
+      ds.addOrUpdate(new DicomOtherByte(Tags.PixelData, new Uint8Array([1, 2, 3, 4])));
+
+      const previous = TranscoderManager.tryGetCodec(syntax);
+      const codec: IDicomCodec = {
+        name: `Mock${syntax.uid.name}`,
+        transferSyntax: syntax,
+        getDefaultParameters: () => null,
+        decode: () => { throw new Error("Not impl"); },
+        encode: (_old, newPixelData) => {
+          newPixelData.addFrame(new MemoryByteBuffer(new Uint8Array([0xaa, 0xbb])));
+        },
+      };
+      TranscoderManager.register(codec);
+
+      try {
+        const transcoder = new DicomTranscoder(
+          DicomTransferSyntax.ExplicitVRLittleEndian,
+          syntax,
+        );
+        const out = transcoder.transcode(ds);
+        expect(out.internalTransferSyntax).toBe(syntax);
+        expect(out.getSingleValue<string>(Tags.LossyImageCompression)).toBe("01");
+        expect(out.getValues<string>(Tags.LossyImageCompressionMethod)).toEqual(["EXISTING_METHOD", expectedMethod]);
+        expect(out.getValues<string>(Tags.LossyImageCompressionRatio)).toEqual(["1.500", expect.any(String)]);
+      } finally {
+        TranscoderManager.unregister(syntax);
+        if (previous) {
+          TranscoderManager.register(previous);
+        }
+      }
+    }
+  });
 });

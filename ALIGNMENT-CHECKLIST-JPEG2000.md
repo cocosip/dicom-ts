@@ -474,3 +474,26 @@ Status legend:
 - Row status updates:
   - `Photometric/Planar updates` remains `WIP` (strict helper-level matrix has `.90/.91/.92/.93` coverage)
   - `Parameter normalization parity` remains `WIP`
+
+### 2026-03-05 (Phase 6 / P6.4 follow-up - unify lossy metadata assertions across all lossy codecs)
+
+- Files changed:
+  - `tests/imaging/DicomTranscoder.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Tests added/updated:
+  - `tests/imaging/DicomTranscoder.test.ts` (added 2 new parameterized tests covering all lossy syntaxes)
+- Commands run:
+  - `npm test -- tests/imaging/DicomTranscoder.test.ts`
+  - `npm test`
+  - `npm run build`
+- Row status updates:
+  - `Photometric/Planar updates` remains `WIP`
+  - `Parameter normalization parity` remains `WIP`
+  - Added unified lossy metadata assertions for:
+    - JPEG Baseline (Process 1) — `ISO_10918_1`
+    - JPEG Extended (Process 2 & 4) — `ISO_10918_1`
+    - JPEG-LS Near-Lossless — `ISO_14495_1`
+    - JPEG2000 Lossy — `ISO_15444_1`
+    - JPEG2000 Part 2 MC — `ISO_15444_2`
+    - HT-J2K Lossy — `ISO_15444_15`
