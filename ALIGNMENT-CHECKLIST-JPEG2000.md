@@ -497,3 +497,25 @@ Status legend:
     - JPEG2000 Lossy — `ISO_15444_1`
     - JPEG2000 Part 2 MC — `ISO_15444_2`
     - HT-J2K Lossy — `ISO_15444_15`
+
+### 2026-03-05 (Phase 3 / P3.5-P3.6 completion - JPEG2000 encode pipeline hardening)
+
+- Files changed:
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Tests added/updated:
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts` (added PSNR-based quality assertion test for `.91` with multiple target ratio scenarios)
+- Commands run:
+  - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test`
+  - `npm run build`
+- Row status updates:
+  - `.90 encode` changed `TODO -> WIP` (single/multi-layer LRCP encode wired, TS->Go matrix green)
+  - `.91 encode` changed `TODO -> WIP` (irreversible + layered semantics, PSNR quality thresholds added)
+  - `TS encode -> Go decode compatibility` remains `WIP` (`.90/.91` single + multi-frame coverage complete)
+  - `Single-frame + multi-frame coverage` remains `WIP` (`.90/.91` green; `.92/.93` pending encode path)
+- Notes:
+  - P3.5 status: `Jpeg2000Encoder` is fully integrated via `encodeJpeg2000()` wrapper for `.90/.91` codecs
+  - P3.6 status: Single-frame + multi-frame encode paths validated against go-dicom-codec decoder
+  - Part 2 (`.92/.93`) encode remains TODO (currently throws "not implemented" error)

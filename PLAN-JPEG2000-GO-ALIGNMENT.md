@@ -154,10 +154,14 @@ Progress note:
 - P3.6 kickoff done: TS encode -> Go decode compatibility matrix now covers `.90/.91` fixture corpus (single-layer + multi-layer/rate-derived scenarios) with parity checks against TS decode output.
 - P3.6 follow-up done: `.90/.91` TS->Go matrix now includes multi-frame parity checks (per-frame Go hash == TS decode hash).
 - P4 follow-up done (partial): lossless defaults + rate-to-targetRatio/layer derivation are now aligned with Go baseline semantics in codec normalization path.
-- Next sub-goal (current): continue P3.6/P4/P6 hardening:
-  - widen multi-frame corpus and add `.91` stronger quality assertions,
-  - finish parameter normalization table audit and invalid/fallback tests,
-  - close metadata semantics alignment (`PhotometricInterpretation` / lossy tags).
+- P3.6 follow-up done (Phase 3 completion):
+  - Added PSNR-based quality assertion test for `.91` with multiple target ratio scenarios (quality 50/30/10 thresholds),
+  - Parameter normalization table audit completed with strict invalid/fallback tests,
+  - Metadata semantics alignment completed for `.90/.91/.92/.93` (PI + planar configuration).
+- Next sub-goal (current): continue P4/P5/P6 hardening:
+  - Part 2 (`.92/.93`) encode path implementation,
+  - Full parameter behavior table audit completion,
+  - Error model parity with go-dicom-codec.
 
 Exit criteria:
 

@@ -48,6 +48,27 @@ function meanAbsoluteError(a: Uint8Array, b: Uint8Array): number {
   return total / length;
 }
 
+function peakSignalToNoiseRatio(original: Uint8Array, compressed: Uint8Array): number {
+  const length = Math.min(original.length, compressed.length);
+  if (length === 0) {
+    return Infinity;
+  }
+
+  let mse = 0;
+  for (let i = 0; i < length; i++) {
+    const diff = (original[i] ?? 0) - (compressed[i] ?? 0);
+    mse += diff * diff;
+  }
+  mse /= length;
+
+  if (mse === 0) {
+    return Infinity;
+  }
+
+  const maxPixel = 255;
+  return 10 * Math.log10((maxPixel * maxPixel) / mse);
+}
+
 function decodeCodestreamWithGo(codestream: Uint8Array): { metadata: GoDecodeResult; pixelData: Uint8Array } {
   const tempDir = mkdtempSync(join(tmpdir(), "dicom-ts-j2k-go-"));
   const inputPath = join(tempDir, "encoded.j2k");
@@ -267,4 +288,67 @@ describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
       }
     }
   }, 240000);
+
+  it("validates .91 lossy encode quality with stricter PSNR thresholds", async () => {
+    const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));
+    const sourceFrame = DicomPixelData.create(source.dataset).getFrame(0).data;
+
+    const qualityMatrix = [
+      {
+        name: ".91-lossy-quality-50",
+        targetRatio: 20,
+        minPsnr: 30,
+        maxMae: 10,
+      },
+      {
+        name: ".91-lossy-quality-30",
+        targetRatio: 40,
+        minPsnr: 25,
+        maxMae: 15,
+      },
+      {
+        name: ".91-lossy-quality-10",
+        targetRatio: 80,
+        minPsnr: 20,
+        maxMae: 20,
+      },
+    ];
+
+    for (const entry of qualityMatrix) {
+      const params = new DicomJpeg2000Params();
+      params.irreversible = true;
+      params.numLayers = 1;
+      params.numLevels = 5;
+      params.allowMct = true;
+      params.targetRatio = entry.targetRatio;
+
+      const encoded = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        DicomTransferSyntax.JPEG2000Lossy,
+        null,
+        params,
+      ).transcode(source.dataset);
+
+      const encodedFrame = DicomPixelData.create(encoded).getFrame(0).data;
+      expect(encodedFrame.length, `${entry.name} encoded size`).toBeGreaterThan(0);
+
+      const compressionRatio = sourceFrame.length / encodedFrame.length;
+      expect(compressionRatio, `${entry.name} compression ratio`).toBeGreaterThanOrEqual(entry.targetRatio * 0.8);
+
+      const goDecoded = decodeCodestreamWithGo(encodedFrame);
+      const tsDecoded = new DicomTranscoder(
+        DicomTransferSyntax.JPEG2000Lossy,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      ).transcode(encoded);
+      const tsFrame = DicomPixelData.create(tsDecoded).getFrame(0).data;
+
+      const psnr = peakSignalToNoiseRatio(sourceFrame, goDecoded.pixelData);
+      const mae = meanAbsoluteError(goDecoded.pixelData, sourceFrame);
+
+      expect(psnr, `${entry.name} PSNR`).toBeGreaterThanOrEqual(entry.minPsnr);
+      expect(mae, `${entry.name} MAE`).toBeLessThanOrEqual(entry.maxMae);
+
+      expect(goDecoded.metadata.sha256, `${entry.name} Go vs TS hash`).toBe(sha256(tsFrame));
+    }
+  }, 180000);
 });
