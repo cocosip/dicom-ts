@@ -1,11 +1,17 @@
 import { Jpeg2000Marker } from "./Jpeg2000Markers.js";
 
+export interface Jpeg2000MainHeaderSegmentWriteEntry {
+  marker: number;
+  payload: Uint8Array;
+}
+
 export interface Jpeg2000CodestreamWriteOptions {
   width: number;
   height: number;
   components: number;
   bitsStored: number;
   isSigned: boolean;
+  rSiz?: number;
   numLevels: number;
   progressionOrder: number;
   numberOfLayers: number;
@@ -15,6 +21,7 @@ export interface Jpeg2000CodestreamWriteOptions {
   codeBlockStyle: number;
   transformation: number;
   tileData: Uint8Array;
+  extraMainHeaderSegments?: readonly Jpeg2000MainHeaderSegmentWriteEntry[];
 }
 
 export function writeJpeg2000SingleTileCodestream(options: Jpeg2000CodestreamWriteOptions): Uint8Array {
@@ -24,6 +31,10 @@ export function writeJpeg2000SingleTileCodestream(options: Jpeg2000CodestreamWri
   writer.writeSegment(Jpeg2000Marker.SIZ, buildSizPayload(options));
   writer.writeSegment(Jpeg2000Marker.COD, buildCodPayload(options));
   writer.writeSegment(Jpeg2000Marker.QCD, buildQcdPayload(options.numLevels));
+
+  for (const segment of options.extraMainHeaderSegments ?? []) {
+    writer.writeSegment(segment.marker, segment.payload);
+  }
 
   const psot = 14 + options.tileData.length;
   const sotPayload = new Uint8Array(8);
@@ -44,7 +55,7 @@ function buildSizPayload(options: Jpeg2000CodestreamWriteOptions): Uint8Array {
   const componentCount = options.components;
   const payload = new Uint8Array(36 + (componentCount * 3));
 
-  writeU16At(payload, 0, 0); // Rsiz
+  writeU16At(payload, 0, options.rSiz ?? 0); // Rsiz
   writeU32At(payload, 2, options.width);
   writeU32At(payload, 6, options.height);
   writeU32At(payload, 10, 0); // XOsiz

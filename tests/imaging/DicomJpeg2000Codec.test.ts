@@ -73,7 +73,7 @@ describe("DicomJpeg2000Codec", () => {
     expect(TranscoderManager.hasCodec(DicomTransferSyntax.JPEG2000MC)).toBe(true);
   });
 
-  it("encodes baseline JPEG2000 for .90/.91 and keeps .92/.93 encode gated", () => {
+  it("encodes baseline JPEG2000 for .90/.91/.92/.93", () => {
     const sourceRaw = new Uint8Array([10, 20, 30, 40]);
     const codecEntries = [
       {
@@ -86,11 +86,11 @@ describe("DicomJpeg2000Codec", () => {
       },
       {
         syntax: DicomTransferSyntax.JPEG2000MCLossless,
-        expectEncodeImplemented: false,
+        expectEncodeImplemented: true,
       },
       {
         syntax: DicomTransferSyntax.JPEG2000MC,
-        expectEncodeImplemented: false,
+        expectEncodeImplemented: true,
       },
     ];
 

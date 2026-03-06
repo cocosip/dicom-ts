@@ -1,7 +1,8 @@
 import { PixelRepresentation } from "../../../../PixelRepresentation.js";
-import type { DicomJpeg2000Params } from "../../DicomJpeg2000Params.js";
+import type { DicomJpeg2000MctBinding, DicomJpeg2000Params } from "../../DicomJpeg2000Params.js";
 import { writeJpeg2000SingleTileCodestream } from "../codestream/index.js";
 import { forwardIct, forwardRct } from "../colorspace/index.js";
+import { buildPart2MctMainHeaderSegments } from "../mct/index.js";
 import { CBLK_STYLE_TERMALL, Jpeg2000T1Encoder } from "../t1/index.js";
 import { bandInfosForResolution, encodePacketsLrcp, type Jpeg2000PacketBandPlan, type Jpeg2000PacketCodeBlockContribution, type Jpeg2000PacketPlan } from "../t2/index.js";
 import {
@@ -121,6 +122,10 @@ export class Jpeg2000Encoder {
       pixelRepresentation === 1,
     );
 
+    if (isPart2) {
+      applyPart2ForwardMct(componentSamples, parameters);
+    }
+
     const appliedMct = applyPart1ForwardMct(componentSamples, parameters.irreversible, parameters.allowMct, isPart2);
     const numLevels = clampNumLevels(parameters.numLevels, width, height);
     const analyzedComponents = transformComponents(componentSamples, width, height, numLevels, parameters.irreversible);
@@ -141,9 +146,6 @@ export class Jpeg2000Encoder {
 
   encodeFrame(options: Jpeg2000EncoderAnalyzeOptions): Uint8Array {
     const analyzed = this.analyzeFrame(options);
-    if (analyzed.isPart2) {
-      throw new Error("JPEG2000 Part2 encode is not implemented yet in baseline LRCP path");
-    }
     if (options.parameters.progressionOrder !== 0) {
       throw new Error(`JPEG2000 encode currently supports LRCP only; got progressionOrder=${options.parameters.progressionOrder}`);
     }
@@ -256,21 +258,29 @@ export class Jpeg2000Encoder {
     );
     const tileData = encodePacketsLrcp(packetPlans, contributions);
 
+    const part2Segments = analyzed.isPart2
+      ? buildPart2MctMainHeaderSegments(options.parameters, analyzed.components, analyzed.irreversible)
+      : [];
+
     return writeJpeg2000SingleTileCodestream({
       width: analyzed.width,
       height: analyzed.height,
       components: analyzed.components,
       bitsStored: analyzed.bitsStored,
       isSigned: options.pixelRepresentation === PixelRepresentation.Signed,
+      rSiz: analyzed.isPart2 ? 2 : 0,
       numLevels: analyzed.numLevels,
       progressionOrder: 0,
       numberOfLayers,
-      multipleComponentTransform: analyzed.appliedMct === "none" ? 0 : 1,
+      multipleComponentTransform: analyzed.isPart2
+        ? (part2Segments.length > 0 ? 1 : 0)
+        : (analyzed.appliedMct === "none" ? 0 : 1),
       codeBlockWidthExponent,
       codeBlockHeightExponent,
       codeBlockStyle,
       transformation: analyzed.irreversible ? 0 : 1,
       tileData,
+      extraMainHeaderSegments: part2Segments,
     });
   }
 }
@@ -352,6 +362,142 @@ function applyPart1ForwardMct(
   }
 
   return irreversible ? "ict" : "rct";
+}
+
+function applyPart2ForwardMct(componentSamples: Int32Array[], parameters: DicomJpeg2000Params): void {
+  if (!parameters.allowMct || componentSamples.length === 0) {
+    return;
+  }
+
+  const bindings = resolveEncodePart2Bindings(parameters, componentSamples.length);
+  if (bindings.length === 0) {
+    return;
+  }
+
+  const pixelCount = componentSamples[0]?.length ?? 0;
+  for (const binding of bindings) {
+    const componentIds = resolveBindingComponentIds(binding, componentSamples.length);
+    const componentCount = componentIds.length;
+    if (componentCount <= 0) {
+      continue;
+    }
+
+    const inverseMatrix = resolvePart2Matrix(binding.inverse ?? parameters.inverseMctMatrix, componentCount)
+      ?? resolvePart2Matrix(binding.matrix ?? parameters.mctMatrix, componentCount);
+    if (!inverseMatrix) {
+      continue;
+    }
+
+    const offsets = resolvePart2Offsets(binding.offsets ?? parameters.mctOffsets, componentCount);
+
+    for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++) {
+      const y = new Array<number>(componentCount);
+      for (let i = 0; i < componentCount; i++) {
+        const componentIndex = componentIds[i]!;
+        const sample = componentSamples[componentIndex]?.[pixelIndex] ?? 0;
+        y[i] = sample - (offsets?.[i] ?? 0);
+      }
+
+      const x = new Array<number>(componentCount).fill(0);
+      for (let row = 0; row < componentCount; row++) {
+        let sum = 0;
+        const matrixRow = inverseMatrix[row] ?? [];
+        for (let col = 0; col < componentCount; col++) {
+          sum += (matrixRow[col] ?? 0) * (y[col] ?? 0);
+        }
+        x[row] = Math.round(sum);
+      }
+
+      for (let i = 0; i < componentCount; i++) {
+        const componentIndex = componentIds[i]!;
+        if (componentSamples[componentIndex]) {
+          componentSamples[componentIndex]![pixelIndex] = x[i] ?? 0;
+        }
+      }
+    }
+  }
+}
+
+function resolveEncodePart2Bindings(parameters: DicomJpeg2000Params, componentCount: number): DicomJpeg2000MctBinding[] {
+  if (Array.isArray(parameters.mctBindings) && parameters.mctBindings.length > 0) {
+    return parameters.mctBindings;
+  }
+
+  if (parameters.mctMatrix || parameters.inverseMctMatrix || parameters.mctOffsets) {
+    const fallback: DicomJpeg2000MctBinding = {
+      componentIds: Array.from({ length: componentCount }, (_, i) => i),
+    };
+    if (parameters.mctMatrix) {
+      fallback.matrix = parameters.mctMatrix;
+    }
+    if (parameters.inverseMctMatrix) {
+      fallback.inverse = parameters.inverseMctMatrix;
+    }
+    if (parameters.mctOffsets) {
+      fallback.offsets = parameters.mctOffsets;
+    }
+    return [fallback];
+  }
+
+  return [];
+}
+
+function resolveBindingComponentIds(binding: DicomJpeg2000MctBinding, componentCount: number): number[] {
+  if (Array.isArray(binding.componentIds) && binding.componentIds.length > 0) {
+    const filtered = binding.componentIds
+      .filter((id) => Number.isInteger(id) && id >= 0 && id < componentCount)
+      .map((id) => Math.trunc(id));
+    if (filtered.length > 0) {
+      return [...new Set(filtered)];
+    }
+  }
+
+  return Array.from({ length: componentCount }, (_, i) => i);
+}
+
+function resolvePart2Matrix(matrix: number[][] | undefined, size: number): number[][] | undefined {
+  if (!Array.isArray(matrix) || matrix.length !== size) {
+    return undefined;
+  }
+
+  const normalized: number[][] = [];
+  for (let row = 0; row < size; row++) {
+    const sourceRow = matrix[row];
+    if (!Array.isArray(sourceRow) || sourceRow.length !== size) {
+      return undefined;
+    }
+
+    const outputRow = new Array<number>(size);
+    for (let col = 0; col < size; col++) {
+      const rawValue = sourceRow[col];
+      const value = typeof rawValue === "number" ? rawValue : Number.NaN;
+      if (!Number.isFinite(value)) {
+        return undefined;
+      }
+      outputRow[col] = value;
+    }
+    normalized.push(outputRow);
+  }
+
+  return normalized;
+}
+
+function resolvePart2Offsets(offsets: number[] | undefined, size: number): number[] | undefined {
+  if (!Array.isArray(offsets) || offsets.length !== size) {
+    return undefined;
+  }
+
+  const normalized = new Array<number>(size);
+  for (let i = 0; i < size; i++) {
+    const rawValue = offsets[i];
+    const value = typeof rawValue === "number" ? rawValue : Number.NaN;
+    if (!Number.isFinite(value)) {
+      return undefined;
+    }
+    normalized[i] = value;
+  }
+
+  return normalized;
 }
 
 function transformComponents(

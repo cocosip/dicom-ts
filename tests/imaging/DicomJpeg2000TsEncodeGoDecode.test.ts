@@ -215,6 +215,243 @@ describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
     }
   }, 180000);
 
+  it("validates TS encode -> Go decode parity for single-frame .92/.93", () => {
+    const width = 16;
+    const height = 16;
+    const frame = new Uint8Array(width * height * 3);
+    for (let i = 0; i < frame.length; i += 3) {
+      const pixel = Math.floor(i / 3);
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      frame[i] = (x * 11 + y * 7) & 0xff;
+      frame[i + 1] = (x * 3 + y * 13 + 17) & 0xff;
+      frame[i + 2] = (x * 5 + y * 9 + 29) & 0xff;
+    }
+
+    const source = createTwoFrameRgbDataset(width, height, frame, frame);
+    const sourceFrame = DicomPixelData.create(source).getFrame(0).data;
+
+    const losslessPart2 = DicomJpeg2000Params.createLosslessDefaults();
+    losslessPart2.numLevels = 3;
+    losslessPart2.numLayers = 1;
+    losslessPart2.allowMct = true;
+    losslessPart2.mctBindings = [
+      {
+        assocType: 1,
+        componentIds: [0, 1, 2],
+        matrix: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        inverse: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        offsets: [5, -3, 2],
+        elementType: 1,
+        mcoPrecision: 0,
+      },
+    ];
+
+    const lossyPart2 = new DicomJpeg2000Params();
+    lossyPart2.irreversible = true;
+    lossyPart2.numLevels = 3;
+    lossyPart2.numLayers = 1;
+    lossyPart2.allowMct = true;
+    lossyPart2.targetRatio = 20;
+    lossyPart2.mctBindings = [
+      {
+        assocType: 1,
+        componentIds: [0, 1, 2],
+        matrix: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        inverse: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        offsets: [5, -3, 2],
+        elementType: 1,
+        mcoPrecision: 0,
+      },
+    ];
+
+    const matrix = [
+      {
+        name: ".92-lossless-singleframe",
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        params: losslessPart2,
+        expectLossless: true,
+      },
+      {
+        name: ".93-lossy-singleframe",
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        params: lossyPart2,
+        expectLossless: false,
+      },
+    ];
+
+    for (const entry of matrix) {
+      const encoded = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        entry.syntax,
+        null,
+        entry.params,
+      ).transcode(source);
+
+      const encodedFrame = DicomPixelData.create(encoded).getFrame(0).data;
+      expect(encodedFrame.length, `${entry.name} encoded size`).toBeGreaterThan(0);
+
+      const goDecoded = decodeCodestreamWithGo(encodedFrame);
+      const tsDecoded = new DicomTranscoder(
+        entry.syntax,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      ).transcode(encoded);
+      const tsFrame = DicomPixelData.create(tsDecoded).getFrame(0).data;
+
+      expect(goDecoded.metadata.width, `${entry.name} width`).toBe(width);
+      expect(goDecoded.metadata.height, `${entry.name} height`).toBe(height);
+      expect(goDecoded.metadata.components, `${entry.name} components`).toBe(3);
+      expect(goDecoded.pixelData.length, `${entry.name} decoded length`).toBe(sourceFrame.length);
+      expect(goDecoded.metadata.sha256, `${entry.name} Go vs TS hash`).toBe(sha256(tsFrame));
+
+      if (entry.expectLossless) {
+        expect(goDecoded.metadata.sha256, `${entry.name} lossless hash`).toBe(sha256(sourceFrame));
+      } else {
+        const mae = meanAbsoluteError(goDecoded.pixelData, sourceFrame);
+        expect(mae, `${entry.name} lossy MAE`).toBeLessThan(20);
+      }
+    }
+  }, 180000);
+
+  it("validates TS encode -> Go decode parity for multi-frame .92/.93", () => {
+    const width = 16;
+    const height = 16;
+
+    const frameA = new Uint8Array(width * height * 3);
+    for (let i = 0; i < frameA.length; i += 3) {
+      const pixel = Math.floor(i / 3);
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      frameA[i] = (x * 11 + y * 7) & 0xff;
+      frameA[i + 1] = (x * 3 + y * 13 + 17) & 0xff;
+      frameA[i + 2] = (x * 5 + y * 9 + 29) & 0xff;
+    }
+    const frameB = createFrameVariant(frameA);
+
+    const source = createTwoFrameRgbDataset(width, height, frameA, frameB);
+    const sourceFrames = [frameA, frameB];
+
+    const losslessPart2 = DicomJpeg2000Params.createLosslessDefaults();
+    losslessPart2.numLevels = 3;
+    losslessPart2.numLayers = 1;
+    losslessPart2.allowMct = true;
+    losslessPart2.mctBindings = [
+      {
+        assocType: 1,
+        componentIds: [0, 1, 2],
+        matrix: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        inverse: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        offsets: [5, -3, 2],
+        elementType: 1,
+        mcoPrecision: 0,
+      },
+    ];
+
+    const lossyPart2 = new DicomJpeg2000Params();
+    lossyPart2.irreversible = true;
+    lossyPart2.numLevels = 3;
+    lossyPart2.numLayers = 1;
+    lossyPart2.allowMct = true;
+    lossyPart2.targetRatio = 20;
+    lossyPart2.mctBindings = [
+      {
+        assocType: 1,
+        componentIds: [0, 1, 2],
+        matrix: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        inverse: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        offsets: [5, -3, 2],
+        elementType: 1,
+        mcoPrecision: 0,
+      },
+    ];
+
+    const matrix = [
+      {
+        name: ".92-lossless-multiframe",
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        params: losslessPart2,
+        expectLossless: true,
+      },
+      {
+        name: ".93-lossy-multiframe",
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        params: lossyPart2,
+        expectLossless: false,
+      },
+    ];
+
+    for (const entry of matrix) {
+      const encoded = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        entry.syntax,
+        null,
+        entry.params,
+      ).transcode(source);
+
+      const encodedPixelData = DicomPixelData.create(encoded);
+      expect(encodedPixelData.numberOfFrames, `${entry.name} encoded frames`).toBe(2);
+
+      const tsDecoded = new DicomTranscoder(
+        entry.syntax,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      ).transcode(encoded);
+      const tsDecodedPixelData = DicomPixelData.create(tsDecoded);
+      expect(tsDecodedPixelData.numberOfFrames, `${entry.name} decoded frames`).toBe(2);
+
+      for (let frameIndex = 0; frameIndex < sourceFrames.length; frameIndex++) {
+        const encodedFrame = encodedPixelData.getFrame(frameIndex).data;
+        const goDecoded = decodeCodestreamWithGo(encodedFrame);
+        const tsFrame = tsDecodedPixelData.getFrame(frameIndex).data;
+        const sourceFrame = sourceFrames[frameIndex]!;
+
+        expect(goDecoded.metadata.width, `${entry.name} frame ${frameIndex} width`).toBe(width);
+        expect(goDecoded.metadata.height, `${entry.name} frame ${frameIndex} height`).toBe(height);
+        expect(goDecoded.metadata.components, `${entry.name} frame ${frameIndex} components`).toBe(3);
+        expect(goDecoded.pixelData.length, `${entry.name} frame ${frameIndex} decoded length`).toBe(sourceFrame.length);
+        expect(goDecoded.metadata.sha256, `${entry.name} frame ${frameIndex} Go vs TS hash`).toBe(sha256(tsFrame));
+
+        if (entry.expectLossless) {
+          expect(goDecoded.metadata.sha256, `${entry.name} frame ${frameIndex} source hash`).toBe(sha256(sourceFrame));
+        } else {
+          const mae = meanAbsoluteError(goDecoded.pixelData, sourceFrame);
+          expect(mae, `${entry.name} frame ${frameIndex} lossy MAE`).toBeLessThan(20);
+        }
+      }
+    }
+  }, 180000);
+
   it("validates TS encode -> Go decode parity for multi-frame .90/.91", async () => {
     const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));
     const sourcePixelData = DicomPixelData.create(source.dataset);

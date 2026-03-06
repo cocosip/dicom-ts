@@ -159,9 +159,18 @@ Progress note:
   - Parameter normalization table audit completed with strict invalid/fallback tests,
   - Metadata semantics alignment completed for `.90/.91/.92/.93` (PI + planar configuration).
 - Next sub-goal (current): continue P4/P5/P6 hardening:
-  - Part 2 (`.92/.93`) encode path implementation,
   - Full parameter behavior table audit completion,
-  - Error model parity with go-dicom-codec.
+  - Error model parity with go-dicom-codec,
+  - Part 2 (`.92/.93`) acceptance-corpus expansion + negative/error-path hardening.
+- P3.5/P5 kickoff update:
+  - Added in-tree Part2 MCT builder module (`jpeg2000/core/mct`) for encode-side `MCT/MCC/MCO` marker construction (bindings + ordering + element-type serialization).
+  - `Jpeg2000Encoder` now supports Part2 encode path (no adapter):
+    - encode-side Part2 forward pre-transform (inverse-matrix based) + offsets normalization,
+    - codestream `Rsiz=2`,
+    - main-header emission of `MCT/MCC/MCO` segments.
+  - `.92/.93` codec encode gating removed (baseline path now active in `mc-lossless` / `mc-lossy`).
+- P3.6 extension update:
+  - Added `.92/.93` TS->Go compatibility tests (single-frame + multi-frame synthetic vectors), hash parity green against Go decoder output.
 
 Exit criteria:
 
@@ -196,8 +205,8 @@ Exit criteria:
 
 ## Phase 5 - Part 2 Multi-component and MCT Alignment (P1)
 
-- [ ] P5.1 Align `.92/.93` multi-component routing and validation
-- [ ] P5.2 Align MCT-related parameters and bindings:
+- [x] P5.1 Align `.92/.93` multi-component routing and validation
+- [x] P5.2 Align MCT-related parameters and bindings:
   - `mctBindings`, `mctMatrix`, `inverseMctMatrix`, `mctOffsets`
   - `mctAssocType`, `mctMatrixElementType`
   - `mcoPrecision`, `mcoRecordOrder`

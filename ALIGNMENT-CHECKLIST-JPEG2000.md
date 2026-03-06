@@ -25,7 +25,7 @@ Status legend:
 | `jpeg2000/wavelet/*` | `jpeg2000/core/wavelet/*` | WIP | Inverse + forward 5/3 & 9/7 multilevel/parity path landed with roundtrip tests; fixture-level parity/perf validation pending |
 | `jpeg2000/decoder.go` | `jpeg2000/core/decoder/*` | WIP | Header/codestream/T2+T1 -> DWT -> component assembly -> pixel packing wired; Part2 MCT binding/fallback + irreversible/isPart2 metadata landed; error-model parity pending |
 | `jpeg2000/encoder.go` | `jpeg2000/core/encoder/*` | WIP | Encode-side analysis + in-tree MQ/T1 + LRCP single-tile codestream writing (single/multi-layer) landed; full rate-target budget/PCRD parity pending |
-| `jpeg2000/mct_builder.go` + MCT tests | `jpeg2000/core/mct/*` | TODO | Part 2 MCT bindings/ordering |
+| `jpeg2000/mct_builder.go` + MCT tests | `jpeg2000/core/mct/*` | WIP | Part 2 MCT builder landed (`MCT/MCC/MCO` header construction + staged ordering + element-type encoding); parity hardening/edge cases pending |
 | `jpeg2000/lossless/*` | `jpeg2000/lossless/*` + `mc-lossless/*` | WIP | Codec shell exists; backend not aligned |
 | `jpeg2000/lossy/*` | `jpeg2000/lossy/*` + `mc-lossy/*` | WIP | Codec shell exists; backend not aligned |
 
@@ -41,8 +41,8 @@ Status legend:
 | `.93` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, real fixture parity pending |
 | `.90` encode | WIP | LRCP single/multi-layer path landed (TERMALL + layered pass-length header semantics, Part1 single-tile); broader compatibility matrix pending |
 | `.91` encode | WIP | LRCP single/multi-layer path landed (irreversible + TERMALL layered semantics); full rate-target/pixel-threshold parity pending |
-| `.92` encode | TODO | Part 2 + MCT parity |
-| `.93` encode | TODO | Part 2 + MCT parity |
+| `.92` encode | WIP | Part 2 encode path landed (`Rsiz=2` + Part2 MCT forward pre-transform + `MCT/MCC/MCO` writing); broader fixture/negative coverage pending |
+| `.93` encode | WIP | Part 2 encode path landed (`Rsiz=2` + Part2 MCT forward pre-transform + `MCT/MCC/MCO` writing); broader fixture/threshold hardening pending |
 | Photometric/Planar updates | WIP | Strict helper-level matrix now covers `.90/.91/.92/.93` encode/decode PI + planar semantics; end-to-end `.92/.93` encode path still pending |
 | Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage), full-table audit still pending |
 | Error model parity | TODO | Syntax/frame context and matching failure classes |
@@ -55,10 +55,10 @@ Status legend:
 | --- | --- | --- |
 | Decode fo-dicom.Codecs JPEG2000 acceptance fixtures | WIP | Pixel decode wired; `.90/.91` now close to reference with sparse outliers, still below final parity thresholds |
 | Go encode -> TS decode compatibility | WIP | TS decode now byte-equal to go-dicom-codec decode output on `.90/.91` acceptance codestreams and Go-generated Part2 synthetic vectors (`.92/.93`); broader corpus still pending |
-| TS encode -> Go decode compatibility | WIP | `.90/.91` fixture corpus matrix now covers single-frame + multi-frame (single-layer + multi-layer/rate-derived), Go-decode/TS-decode hash parity wired |
+| TS encode -> Go decode compatibility | WIP | `.90/.91` fixture corpus matrix + `.92/.93` synthetic single/multi-frame matrix are green (Go-decode/TS-decode hash parity wired); broader corpus pending |
 | Lossless deterministic checks | TODO | Hash/byte exactness where expected |
 | Lossy threshold checks | TODO | Error metric thresholds |
-| Single-frame + multi-frame coverage | WIP | `.90/.91` single-frame + multi-frame compatibility is green; `.92/.93` pending |
+| Single-frame + multi-frame coverage | WIP | `.90/.91` + `.92/.93` synthetic single-frame/multi-frame compatibility are green; acceptance-corpus expansion pending |
 | Invalid codestream negative tests | TODO | Truncation, marker corruption, metadata mismatch |
 
 ---
@@ -519,3 +519,35 @@ Status legend:
   - P3.5 status: `Jpeg2000Encoder` is fully integrated via `encodeJpeg2000()` wrapper for `.90/.91` codecs
   - P3.6 status: Single-frame + multi-frame encode paths validated against go-dicom-codec decoder
   - Part 2 (`.92/.93`) encode remains TODO (currently throws "not implemented" error)
+
+### 2026-03-06 (Phase 3/P5 follow-up - `.92/.93` encode path + Part2 MCT builder)
+
+- Files changed:
+  - `src/imaging/codec/jpeg2000/core/mct/Jpeg2000Part2MctBuilder.ts`
+  - `src/imaging/codec/jpeg2000/core/mct/index.ts`
+  - `src/imaging/codec/jpeg2000/core/index.ts`
+  - `src/imaging/codec/jpeg2000/core/codestream/Jpeg2000CodestreamWriter.ts`
+  - `src/imaging/codec/jpeg2000/core/encoder/Jpeg2000Encoder.ts`
+  - `tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Tests added/updated:
+  - `tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts` (removed `.92/.93` encode gate expectation)
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts` (added `.92/.93` single-frame + multi-frame TS->Go parity cases)
+- Commands run:
+  - `npm test -- tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts -t ".92/.93"`
+  - `npm run build`
+- Row status updates:
+  - `jpeg2000/mct_builder.go + MCT tests -> jpeg2000/core/mct/*` changed `TODO -> WIP`
+  - `.92 encode` changed `TODO -> WIP`
+  - `.93 encode` changed `TODO -> WIP`
+  - `TS encode -> Go decode compatibility` remains `WIP` (extended with `.92/.93` synthetic single/multi-frame coverage)
+  - `Single-frame + multi-frame coverage` remains `WIP` (`.90/.91` + `.92/.93` synthetic are green; broader acceptance corpus pending)
+- Notes:
+  - Part2 encode path now writes `Rsiz=2` + main-header `MCT/MCC/MCO` segments.
+  - `Jpeg2000Encoder` now applies encode-side Part2 forward pre-transform (`inverse` matrix + offsets) before DWT/T1/T2.
+  - Existing pre-existing instability remains in `.91` quality test compression-ratio threshold (`~14.3 < 16` for quality-50 case), unrelated to new `.92/.93` coverage.
