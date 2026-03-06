@@ -191,6 +191,90 @@ describe("DicomJpeg2000Codec", () => {
     expect(DicomPixelData.create(transcoded).numberOfFrames).toBe(1);
   });
 
+  it("decodes multi-frame loops for .90/.91/.92/.93 codec classes", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      const encodedPixelData = DicomPixelData.create(encodedDataset, true);
+      encodedPixelData.addFrame(new MemoryByteBuffer(buildMinimalJ2kCodestream()));
+      encodedPixelData.addFrame(new MemoryByteBuffer(buildMinimalJ2kCodestream()));
+
+      const decodedDataset = buildDataset(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+
+      entry.codec.decode(
+        DicomPixelData.create(encodedDataset),
+        DicomPixelData.create(decodedDataset, true),
+        null,
+      );
+
+      const decodedPixelData = DicomPixelData.create(decodedDataset);
+      expect(decodedPixelData.numberOfFrames).toBe(2);
+      expect(decodedPixelData.getFrame(0).data.length).toBe(4);
+      expect(decodedPixelData.getFrame(1).data.length).toBe(4);
+    }
+  });
+
+  it("throws decode metadata validation errors with syntax/frame context", () => {
+    const encodedDataset = buildDataset(
+      DicomTransferSyntax.JPEG2000Lossless,
+      8,
+      8,
+      3,
+      2,
+      1,
+      "MONOCHROME2",
+    );
+
+    DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildMinimalJ2kCodestream()));
+
+    let thrown: unknown;
+    try {
+      new DicomJpeg2000LosslessCodec().decode(DicomPixelData.create(encodedDataset), 0);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    const message = (thrown as Error).message;
+    expect(message).toContain("JPEG2000 decoded frame length mismatch");
+    expect(message).toContain("syntax=1.2.840.10008.1.2.4.90");
+    expect(message).toContain("frame=0");
+  });
+
   it("derives lossless layering from rate/rateLevels when targetRatio is unset", () => {
     const raw = new Uint8Array([
       5, 15, 25, 35,

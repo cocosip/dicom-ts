@@ -108,12 +108,12 @@ Exit criteria:
 
 ## Phase 2 - Decode Pipeline (P0 Priority)
 
-- [ ] P2.1 Port T2 packet header/packet decode primitives needed by baseline decode
-- [ ] P2.2 Port T1 block decode path and MQ arithmetic decode dependencies
+- [x] P2.1 Port T2 packet header/packet decode primitives needed by baseline decode
+- [x] P2.2 Port T1 block decode path and MQ arithmetic decode dependencies
 - [x] P2.3 Port inverse wavelet path (5/3 and 9/7 as required)
 - [x] P2.4 Port component reconstruction and output sample packing
-- [ ] P2.5 Build `Jpeg2000Decoder` API and wire into four JPEG2000 codec classes
-- [ ] P2.6 Handle multi-frame decode loops and metadata validation in DICOM bridge
+- [x] P2.5 Build `Jpeg2000Decoder` API and wire into four JPEG2000 codec classes
+- [x] P2.6 Handle multi-frame decode loops and metadata validation in DICOM bridge
 
 Progress note:
 
@@ -127,6 +127,10 @@ Progress note:
 - P2 follow-up: sparse outliers were confirmed to be identical to go-dicom-codec output for the same codestream; TS decode now byte-equal to Go decode on `.90/.91` acceptance fixtures (hash parity tests added).
 - P2/P5 bridge kickoff: Part 2 marker parsing (`MCT/MCC/MCO`) + decode-side binding/fallback inverse MCT path landed, with header metadata (`irreversible/isPart2`) wired from codestream state.
 - P8.1 kickoff extension: added Go-generated Part 2 parity vectors (`.92/.93`) and TS hash-parity decode tests against Go decoder output.
+- P2 verification update (2026-03-06):
+  - Re-validated decode API wiring for all four codec classes (`.90/.91/.92/.93`) through current in-tree `decodeJpeg2000` path.
+  - Added explicit multi-frame decode-loop regression test at codec level (all four syntaxes).
+  - Added decode-side metadata mismatch/context regression test asserting `syntax` + `frame` in error messages.
 
 Exit criteria:
 

@@ -81,6 +81,21 @@ Status legend:
 - [x] Row statuses updated (`TODO/WIP/DONE`)
 - Retention policy: this file keeps only recent session records; older detailed history is retained in Git history.
 
+### 2026-03-06 (Phase 2 verification / decode API + multi-frame + metadata-context regressions)
+
+- Focus:
+  - Re-validate whether Phase 2 decode pipeline is already landed in code, and close residual checklist drift.
+- Key updates:
+  - Confirmed `.90/.91/.92/.93` decode path is wired through `Jpeg2000Decoder` in all four codec classes.
+  - Added explicit multi-frame decode-loop regression coverage for all four JPEG2000 syntaxes.
+  - Added decode-side metadata mismatch regression asserting error context contains `syntax` + `frame`.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts`
+
 ### 2026-03-06 (Phase 5 / P5.3 - `.92/.93` no-binding fallback alignment)
 
 - Focus:
