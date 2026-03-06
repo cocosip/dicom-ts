@@ -88,4 +88,24 @@ describe("DicomJpeg2000Params", () => {
     const normalized = normalizeLosslessRateControlParams(params, 12, 16);
     expect(normalized.numLayers).toBe(2);
   });
+
+  it("keeps Part2 fallback matrix/offsets through clone normalization", () => {
+    const params = new DicomJpeg2000Params();
+    params.mctBindings = [];
+    params.mctMatrix = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1],
+    ];
+    params.mctOffsets = [5, -3, 2];
+
+    const normalized = params.cloneNormalized();
+    expect(normalized.mctBindings).toEqual([]);
+    expect(normalized.mctMatrix).toEqual([
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1],
+    ]);
+    expect(normalized.mctOffsets).toEqual([5, -3, 2]);
+  });
 });

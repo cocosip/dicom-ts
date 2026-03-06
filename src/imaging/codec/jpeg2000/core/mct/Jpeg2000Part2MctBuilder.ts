@@ -18,6 +18,7 @@ export function buildPart2MctMainHeaderSegments(
     return [];
   }
 
+  const hasExplicitBindings = Array.isArray(params.mctBindings) && params.mctBindings.length > 0;
   const requestedBindings = resolveRequestedBindings(params);
   if (requestedBindings.length === 0) {
     return [];
@@ -39,6 +40,9 @@ export function buildPart2MctMainHeaderSegments(
     const matrix = resolveMatrix(binding, params, componentIds.length);
     const offsets = resolveOffsets(binding, params, componentIds.length);
     if (!matrix && !offsets) {
+      continue;
+    }
+    if (!hasExplicitBindings && !matrix) {
       continue;
     }
 
@@ -109,14 +113,12 @@ function resolveRequestedBindings(params: DicomJpeg2000Params): DicomJpeg2000Mct
     return params.mctBindings;
   }
 
-  if (params.mctMatrix || params.mctOffsets) {
+  if (params.mctMatrix) {
     const binding: DicomJpeg2000MctBinding = {
       assocType: params.mctAssocType,
       elementType: params.mctMatrixElementType,
+      matrix: params.mctMatrix,
     };
-    if (params.mctMatrix) {
-      binding.matrix = params.mctMatrix;
-    }
     if (params.mctOffsets) {
       binding.offsets = params.mctOffsets;
     }

@@ -122,11 +122,17 @@ export class Jpeg2000Encoder {
       pixelRepresentation === 1,
     );
 
-    if (isPart2) {
+    const usePart2CustomMct = isPart2 && shouldApplyPart2CustomMct(parameters, components);
+    if (usePart2CustomMct) {
       applyPart2ForwardMct(componentSamples, parameters);
     }
 
-    const appliedMct = applyPart1ForwardMct(componentSamples, parameters.irreversible, parameters.allowMct, isPart2);
+    const appliedMct = applyPart1ForwardMct(
+      componentSamples,
+      parameters.irreversible,
+      parameters.allowMct,
+      usePart2CustomMct,
+    );
     const numLevels = clampNumLevels(parameters.numLevels, width, height);
     const analyzedComponents = transformComponents(componentSamples, width, height, numLevels, parameters.irreversible);
 
@@ -261,6 +267,9 @@ export class Jpeg2000Encoder {
     const part2Segments = analyzed.isPart2
       ? buildPart2MctMainHeaderSegments(options.parameters, analyzed.components, analyzed.irreversible)
       : [];
+    const part2CodMctEnabled = analyzed.isPart2
+      ? isPart2CodMctEnabled(options.parameters, analyzed.components, part2Segments.length)
+      : false;
 
     return writeJpeg2000SingleTileCodestream({
       width: analyzed.width,
@@ -273,7 +282,7 @@ export class Jpeg2000Encoder {
       progressionOrder: 0,
       numberOfLayers,
       multipleComponentTransform: analyzed.isPart2
-        ? (part2Segments.length > 0 ? 1 : 0)
+        ? (part2CodMctEnabled ? 1 : 0)
         : (analyzed.appliedMct === "none" ? 0 : 1),
       codeBlockWidthExponent,
       codeBlockHeightExponent,
@@ -418,12 +427,48 @@ function applyPart2ForwardMct(componentSamples: Int32Array[], parameters: DicomJ
   }
 }
 
+function shouldApplyPart2CustomMct(parameters: DicomJpeg2000Params, componentCount: number): boolean {
+  if (!parameters.allowMct || componentCount <= 0) {
+    return false;
+  }
+
+  if (Array.isArray(parameters.mctBindings) && parameters.mctBindings.length > 0) {
+    return true;
+  }
+
+  return hasValidPart2FallbackMatrix(parameters, componentCount);
+}
+
+function isPart2CodMctEnabled(
+  parameters: DicomJpeg2000Params,
+  componentCount: number,
+  part2SegmentCount: number,
+): boolean {
+  if (!parameters.allowMct) {
+    return false;
+  }
+
+  if (part2SegmentCount > 0) {
+    return true;
+  }
+
+  if (Array.isArray(parameters.mctBindings) && parameters.mctBindings.length > 0) {
+    return true;
+  }
+
+  if (hasValidPart2FallbackMatrix(parameters, componentCount)) {
+    return true;
+  }
+
+  return componentCount >= 3;
+}
+
 function resolveEncodePart2Bindings(parameters: DicomJpeg2000Params, componentCount: number): DicomJpeg2000MctBinding[] {
   if (Array.isArray(parameters.mctBindings) && parameters.mctBindings.length > 0) {
     return parameters.mctBindings;
   }
 
-  if (parameters.mctMatrix || parameters.inverseMctMatrix || parameters.mctOffsets) {
+  if (hasValidPart2FallbackMatrix(parameters, componentCount)) {
     const fallback: DicomJpeg2000MctBinding = {
       componentIds: Array.from({ length: componentCount }, (_, i) => i),
     };
@@ -440,6 +485,10 @@ function resolveEncodePart2Bindings(parameters: DicomJpeg2000Params, componentCo
   }
 
   return [];
+}
+
+function hasValidPart2FallbackMatrix(parameters: DicomJpeg2000Params, componentCount: number): boolean {
+  return resolvePart2Matrix(parameters.mctMatrix, componentCount) !== undefined;
 }
 
 function resolveBindingComponentIds(binding: DicomJpeg2000MctBinding, componentCount: number): number[] {

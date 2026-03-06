@@ -207,6 +207,98 @@ describe("DicomJpeg2000ParamSemantics", () => {
     }
   });
 
+  it("aligns .92/.93 fallback behavior when mctBindings are not provided", () => {
+    const rgb = new Uint8Array([
+      10, 30, 50,
+      20, 40, 60,
+      70, 90, 110,
+      80, 100, 120,
+    ]);
+
+    const source = buildDataset(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      8,
+      8,
+      2,
+      2,
+      3,
+      "RGB",
+      rgb,
+    );
+
+    const syntaxes = [
+      DicomTransferSyntax.JPEG2000MCLossless,
+      DicomTransferSyntax.JPEG2000MC,
+    ];
+
+    const scenarios = [
+      {
+        name: "no mctBindings + no fallback matrix",
+        configure: (_params: DicomJpeg2000Params) => {
+          // no-op
+        },
+        expectPart2Markers: false,
+      },
+      {
+        name: "no mctBindings + mctMatrix/mctOffsets fallback",
+        configure: (params: DicomJpeg2000Params) => {
+          params.mctMatrix = [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+          ];
+          params.mctOffsets = [5, -3, 2];
+        },
+        expectPart2Markers: true,
+      },
+      {
+        name: "no mctBindings + invalid fallback matrix dimensions",
+        configure: (params: DicomJpeg2000Params) => {
+          params.mctMatrix = [
+            [1, 0],
+            [0, 1],
+          ];
+          params.mctOffsets = [5, -3, 2];
+        },
+        expectPart2Markers: false,
+      },
+    ] as const;
+
+    for (const syntax of syntaxes) {
+      for (const scenario of scenarios) {
+        const params = syntax === DicomTransferSyntax.JPEG2000MCLossless
+          ? DicomJpeg2000Params.createLosslessDefaults()
+          : new DicomJpeg2000Params();
+        params.allowMct = true;
+        params.numLevels = 1;
+        params.numLayers = 1;
+        params.mctBindings = [];
+        scenario.configure(params);
+
+        const encoded = new DicomTranscoder(
+          DicomTransferSyntax.ExplicitVRLittleEndian,
+          syntax,
+          null,
+          params,
+        ).transcode(source);
+
+        const codestream = DicomPixelData.create(encoded).getFrame(0).data;
+        const parsed = parseJpeg2000Codestream(codestream);
+        expect(parsed.cod?.multipleComponentTransform ?? 0, `${syntax.uid.uid} ${scenario.name} COD MCT`).toBe(1);
+
+        if (scenario.expectPart2Markers) {
+          expect(parsed.mct.length, `${syntax.uid.uid} ${scenario.name} MCT`).toBeGreaterThan(0);
+          expect(parsed.mcc.length, `${syntax.uid.uid} ${scenario.name} MCC`).toBeGreaterThan(0);
+          expect(parsed.mco.length, `${syntax.uid.uid} ${scenario.name} MCO`).toBeGreaterThan(0);
+        } else {
+          expect(parsed.mct.length, `${syntax.uid.uid} ${scenario.name} MCT`).toBe(0);
+          expect(parsed.mcc.length, `${syntax.uid.uid} ${scenario.name} MCC`).toBe(0);
+          expect(parsed.mco.length, `${syntax.uid.uid} ${scenario.name} MCO`).toBe(0);
+        }
+      }
+    }
+  });
+
   it("keeps encodeSignedPixelValuesAsUnsigned behavior stable (compat/no-op)", () => {
     const signedValues = Int16Array.from([-1024, -300, -1, 0, 1, 511, 777, -512]);
     const words = new Uint16Array(signedValues.length);

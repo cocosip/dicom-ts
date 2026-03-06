@@ -171,6 +171,12 @@ Progress note:
   - `.92/.93` codec encode gating removed (baseline path now active in `mc-lossless` / `mc-lossy`).
 - P3.6 extension update:
   - Added `.92/.93` TS->Go compatibility tests (single-frame + multi-frame synthetic vectors), hash parity green against Go decoder output.
+- P5.3 update:
+  - Aligned no-binding fallback semantics with Go behavior for Part2 encode (`.92/.93`):
+    - no `mctBindings` and no valid fallback matrix => no Part2 markers, fallback to Part1 MCT behavior;
+    - no `mctBindings` with `mctMatrix/mctOffsets` => emit Part2 markers and apply Part2 custom path;
+    - invalid fallback matrix dimensions => skip Part2 markers and use Part1 fallback path.
+  - Added positive/negative regression tests for fallback matrix+offsets, offsets-only, and invalid matrix dimensions.
 
 Exit criteria:
 
@@ -210,7 +216,7 @@ Exit criteria:
   - `mctBindings`, `mctMatrix`, `inverseMctMatrix`, `mctOffsets`
   - `mctAssocType`, `mctMatrixElementType`
   - `mcoPrecision`, `mcoRecordOrder`
-- [ ] P5.3 Align fallback behavior when no MCT binding is provided
+- [x] P5.3 Align fallback behavior when no MCT binding is provided
 
 Exit criteria:
 

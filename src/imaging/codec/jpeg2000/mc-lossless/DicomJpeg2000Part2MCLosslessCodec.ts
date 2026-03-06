@@ -14,6 +14,7 @@ import {
   stripFramePaddingByte,
   validateDecodedFrame,
   validateJpeg2000EncodeInput,
+  validateDecodedFrameResult,
 } from "../common/Jpeg2000CodecCommon.js";
 
 /**
@@ -77,9 +78,8 @@ export class DicomJpeg2000Part2MCLosslessCodec implements IDicomCodec {
 
   private decodeFrame(pixelData: DicomPixelData, frameIndex: number): IByteBuffer {
     const decoded = decodeJpeg2000(pixelData.getFrame(frameIndex).data);
-    const normalized = validateDecodedFrame(
-      decoded.pixelData,
-      decoded.metadata,
+    const normalized = validateDecodedFrameResult(
+      decoded,
       pixelData,
       frameIndex,
       this.transferSyntax.uid.uid,

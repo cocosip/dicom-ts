@@ -72,482 +72,72 @@ Status legend:
 
 ---
 
-## 5) Session checklist (update every chat)
+## 5) Session log (compact)
 
-- [x] Chosen sub-goal mapped to one row above (Phase 2 decode pipeline kickoff)
+- [x] Chosen sub-goal mapped to one row above
 - [x] Files changed listed
 - [x] Tests added/updated listed
 - [x] Commands run listed
 - [x] Row statuses updated (`TODO/WIP/DONE`)
+- Retention policy: this file keeps only recent session records; older detailed history is retained in Git history.
 
-### 2026-03-04 (Phase 2 / P2.1)
+### 2026-03-06 (Phase 5 / P5.3 - `.92/.93` no-binding fallback alignment)
 
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketTypes.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketHeaderBitIo.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000TagTree.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketHeaderParser.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketDecoder.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/index.ts`
-  - `src/imaging/codec/jpeg2000/core/index.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000PacketHeaderParser.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000PacketHeaderParser.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000PacketHeaderParser.test.ts tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts`
-  - `npm test -- tests/imaging/jpeg2000`
-  - `npm run build`
-- Row status updates:
-  - `jpeg2000/t2/* -> jpeg2000/core/t2/*` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 2 / P2.1 follow-up)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketGeometry.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketDecoder.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/index.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/Jpeg2000Decoder.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/index.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts tests/imaging/jpeg2000/Jpeg2000PacketHeaderParser.test.ts`
-  - `npm test -- tests/imaging/jpeg2000`
-  - `npm run build`
-- Row status updates:
-  - `jpeg2000/decoder.go -> jpeg2000/core/decoder/*` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 2 / P2.2 kickoff)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/mqc/Jpeg2000MqDecoder.ts`
-  - `src/imaging/codec/jpeg2000/core/mqc/index.ts`
-  - `src/imaging/codec/jpeg2000/core/t1/Jpeg2000T1ContextModel.ts`
-  - `src/imaging/codec/jpeg2000/core/t1/Jpeg2000T1Decoder.ts`
-  - `src/imaging/codec/jpeg2000/core/t1/index.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketDecoder.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/index.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/Jpeg2000Decoder.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/index.ts`
-  - `src/imaging/codec/jpeg2000/core/index.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000MqDecoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000T1Decoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000MqDecoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000T1Decoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000MqDecoder.test.ts tests/imaging/jpeg2000/Jpeg2000T1Decoder.test.ts tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-  - `npm test -- tests/imaging/jpeg2000`
-  - `npm run build`
-- Row status updates:
-  - `jpeg2000/mqc/* -> jpeg2000/core/mqc/*` changed `TODO -> WIP`
-  - `jpeg2000/t1/* -> jpeg2000/core/t1/*` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 2 / P2.3 + P2.4 bridge)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/wavelet/Jpeg2000WaveletParity.ts`
-  - `src/imaging/codec/jpeg2000/core/wavelet/Jpeg2000Dwt53.ts`
-  - `src/imaging/codec/jpeg2000/core/wavelet/Jpeg2000Dwt97.ts`
-  - `src/imaging/codec/jpeg2000/core/wavelet/index.ts`
-  - `src/imaging/codec/jpeg2000/core/index.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/Jpeg2000Decoder.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/index.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-  - `tests/imaging/DicomJpeg2000Codec.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-  - `tests/imaging/DicomJpeg2000Codec.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-  - `npm test -- tests/imaging/jpeg2000`
-  - `npm test -- tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `jpeg2000/wavelet/* -> jpeg2000/core/wavelet/*` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 2 follow-up / MCT & colorspace inverse path)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/colorspace/Jpeg2000ColorTransforms.ts`
-  - `src/imaging/codec/jpeg2000/core/colorspace/index.ts`
-  - `src/imaging/codec/jpeg2000/core/index.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/Jpeg2000Decoder.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000ColorTransforms.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000ColorTransforms.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000ColorTransforms.test.ts tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `jpeg2000/colorspace/* -> jpeg2000/core/colorspace/*` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 2 follow-up / acceptance pixel-level comparison baseline)
-
-- Files changed:
-  - `tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-- Tests added/updated:
-  - `tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `Decode fo-dicom.Codecs JPEG2000 acceptance fixtures` remains `WIP` (now with explicit `.90`逐像素一致与`.91`阈值红线断言)
-
-### 2026-03-04 (Phase 2 follow-up / bitplane mapping alignment)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/decoder/Jpeg2000Decoder.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm run build`
-- Metrics snapshot (vs `PM5644-960x540_RGB.dcm`):
-  - `.90` Lossless: `MAE 40.90 -> 0.239`, `PSNR 11.82 -> 30.28`, mismatch rate `48.77% -> 0.09375%`
-  - `.91` Lossy: `MAE 40.85 -> 0.174`, `PSNR 11.84 -> 31.66`, mismatch rate `48.75% -> 0.068%`
-
-### 2026-03-04 (Phase 2 follow-up / Go parity confirmation)
-
-- Files changed:
-  - `tests/imaging/DicomJpeg2000GoParity.test.ts`
-- Tests added/updated:
-  - `tests/imaging/DicomJpeg2000GoParity.test.ts`
-- Commands run:
-  - `go run source-code/go-dicom-codec/tmp_decode_main.go ...` (temporary local verification script, then removed)
-  - `npm test -- tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `Go encode -> TS decode compatibility` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 2/P5 follow-up / Part2 marker + inverse MCT bridge)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/codestream/Jpeg2000CodestreamTypes.ts`
-  - `src/imaging/codec/jpeg2000/core/codestream/Jpeg2000CodestreamParser.ts`
-  - `src/imaging/codec/jpeg2000/core/codestream/index.ts`
-  - `src/imaging/codec/jpeg2000/core/colorspace/Jpeg2000Part2Mct.ts`
-  - `src/imaging/codec/jpeg2000/core/colorspace/index.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/Jpeg2000Decoder.ts`
-  - `src/imaging/codec/jpeg2000/common/Jpeg2000Core.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Part2Mct.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Part2Mct.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000Part2Mct.test.ts tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
-  - `npm run build`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-- Row status updates:
-  - `.92 decode` changed `TODO -> WIP`
-  - `.93 decode` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 8.1 follow-up / Go-generated Part2 parity vectors)
-
-- Files changed:
-  - `source-code/go-dicom-codec/tools/generate_part2_vectors/main.go`
-  - `tests/imaging/jpeg2000/fixtures/go-part2-lossless.j2k`
-  - `tests/imaging/jpeg2000/fixtures/go-part2-lossy.j2k`
-  - `tests/imaging/DicomJpeg2000GoPart2Parity.test.ts`
-- Tests added/updated:
-  - `tests/imaging/DicomJpeg2000GoPart2Parity.test.ts`
-- Commands run:
-  - `go run ./tools/generate_part2_vectors` (from `source-code/go-dicom-codec`)
-  - `npm test -- tests/imaging/DicomJpeg2000GoPart2Parity.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `Go encode -> TS decode compatibility` remains `WIP` (extended with `.92/.93` Go-generated synthetic parity coverage)
-
-### 2026-03-04 (Phase 3 / P3.1 kickoff - forward DWT + encoder analysis scaffold)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/wavelet/Jpeg2000Dwt53.ts`
-  - `src/imaging/codec/jpeg2000/core/wavelet/Jpeg2000Dwt97.ts`
-  - `src/imaging/codec/jpeg2000/core/wavelet/index.ts`
-  - `src/imaging/codec/jpeg2000/core/colorspace/Jpeg2000ColorTransforms.ts`
-  - `src/imaging/codec/jpeg2000/core/colorspace/index.ts`
+- Focus:
+  - Align Part2 encode fallback semantics with Go behavior when no explicit `mctBindings`.
+- Key updates:
+  - No valid fallback matrix => no `MCT/MCC/MCO` markers, fallback to Part1 path.
+  - Valid fallback matrix/offsets => emit Part2 markers + Part2 custom path.
+  - Offsets-only / invalid matrix dims => skip Part2 markers and fallback to Part1 behavior.
+- Main touched files:
   - `src/imaging/codec/jpeg2000/core/encoder/Jpeg2000Encoder.ts`
-  - `src/imaging/codec/jpeg2000/core/encoder/index.ts`
-  - `src/imaging/codec/jpeg2000/core/index.ts`
-  - `src/imaging/codec/jpeg2000/common/Jpeg2000Core.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000WaveletForward.test.ts`
+  - `src/imaging/codec/jpeg2000/core/mct/Jpeg2000Part2MctBuilder.ts`
   - `tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000ColorTransforms.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000WaveletForward.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000ColorTransforms.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000WaveletForward.test.ts tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts tests/imaging/jpeg2000/Jpeg2000ColorTransforms.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `jpeg2000/encoder.go -> jpeg2000/core/encoder/*` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 3 / P3.2 kickoff - MQ encoder + T1 encoder minimum path)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/mqc/Jpeg2000MqEncoder.ts`
-  - `src/imaging/codec/jpeg2000/core/mqc/index.ts`
-  - `src/imaging/codec/jpeg2000/core/t1/Jpeg2000T1Encoder.ts`
-  - `src/imaging/codec/jpeg2000/core/t1/index.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000MqEncoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000T1Encoder.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000MqEncoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000T1Encoder.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000MqEncoder.test.ts tests/imaging/jpeg2000/Jpeg2000T1Encoder.test.ts tests/imaging/jpeg2000/Jpeg2000MqDecoder.test.ts tests/imaging/jpeg2000/Jpeg2000T1Decoder.test.ts`
-  - `npm test -- tests/imaging/jpeg2000`
-  - `npm test -- tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `jpeg2000/mqc/* -> jpeg2000/core/mqc/*` remains `WIP` (encoder path now landed; packetization integration pending)
-  - `jpeg2000/t1/* -> jpeg2000/core/t1/*` remains `WIP` (encoder path now landed; packetization integration pending)
-
-### 2026-03-04 (Phase 3 / P3.3 kickoff - T2 packetization + codestream writer baseline)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketEncoder.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/index.ts`
-  - `src/imaging/codec/jpeg2000/core/codestream/Jpeg2000CodestreamWriter.ts`
-  - `src/imaging/codec/jpeg2000/core/codestream/index.ts`
-  - `src/imaging/codec/jpeg2000/core/encoder/Jpeg2000Encoder.ts`
-  - `src/imaging/codec/jpeg2000/common/Jpeg2000Core.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000PacketEncoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts`
-  - `tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000PacketEncoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts`
-  - `tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000PacketEncoder.test.ts tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `npm test -- tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `.90 encode` changed `TODO -> WIP`
-  - `.91 encode` changed `TODO -> WIP`
-
-### 2026-03-04 (Phase 3 / P3.4/P3.6 baseline hardening - LRCP multi-layer/rate + TS->Go matrix)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/core/t1/Jpeg2000T1Encoder.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketEncoder.ts`
-  - `src/imaging/codec/jpeg2000/core/t2/index.ts`
-  - `src/imaging/codec/jpeg2000/core/encoder/Jpeg2000Encoder.ts`
-  - `src/imaging/codec/jpeg2000/core/decoder/Jpeg2000Decoder.ts`
-  - `source-code/go-dicom-codec/tools/decode_codestream/main.go`
-  - `tests/imaging/jpeg2000/Jpeg2000T1Encoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000PacketEncoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts`
-  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000T1Encoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000PacketEncoder.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts`
-  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/jpeg2000/Jpeg2000T1Encoder.test.ts tests/imaging/jpeg2000/Jpeg2000PacketEncoder.test.ts tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts`
-  - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `TS encode -> Go decode compatibility` changed `TODO -> WIP`
-
-### 2026-03-05 (Phase 3 / P3.6 + Phase 4 hardening - multi-frame matrix + lossless rate normalization)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/DicomJpeg2000Params.ts`
-  - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
-  - `src/imaging/codec/jpeg2000/lossless/DicomJpeg2000LosslessCodec.ts`
-  - `src/imaging/codec/jpeg2000/mc-lossless/DicomJpeg2000Part2MCLosslessCodec.ts`
-  - `tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
-  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
-- Tests added/updated:
-  - `tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `Parameter normalization parity` remains `WIP` (lossless defaults + rate/targetRatio/layer derivation aligned; full audit pending)
-  - `TS encode -> Go decode compatibility` remains `WIP` (extended with `.90/.91` multi-frame parity)
-  - `Single-frame + multi-frame coverage` changed `TODO -> WIP`
-
-### 2026-03-05 (Phase 4 / P4.3 kickoff - strict invalid/fallback parameter tests)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
-  - `src/imaging/codec/jpeg2000/lossless/DicomJpeg2000LosslessCodec.ts`
-  - `src/imaging/codec/jpeg2000/mc-lossless/DicomJpeg2000Part2MCLosslessCodec.ts`
+  - `tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts`
   - `tests/imaging/DicomJpeg2000Params.test.ts`
-  - `tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
-  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
-- Tests added/updated:
-  - `tests/imaging/DicomJpeg2000Params.test.ts`
-  - `tests/imaging/DicomJpeg2000Codec.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000Codec.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm run build`
-- Row status updates:
-  - `Parameter normalization parity` remains `WIP` (strict invalid/fallback tests now covered for current lossless alignment path)
-
-### 2026-03-05 (Phase 4 / P4.3 follow-up - allowMct/updatePI/encodeSigned strict regression table)
-
-- Files changed:
   - `tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
-  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
-  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
-- Tests added/updated:
-  - `tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
-  - `npm test -- tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm test`
+- Commands:
+  - `npm test -- tests/imaging/jpeg2000/Jpeg2000Encoder.test.ts tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
+  - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts -t ".92/.93"`
   - `npm run build`
-- Row status updates:
-  - `Parameter normalization parity` remains `WIP` (strict semantics table now includes `allowMct`, `updatePhotometricInterpretation`, `encodeSignedPixelValuesAsUnsigned`)
-
-### 2026-03-05 (Phase 4 / P4.3 follow-up - metadata helper coverage `.92/.93` + boolean fallback normalization)
-
-- Files changed:
-  - `src/imaging/codec/jpeg2000/DicomJpeg2000Params.ts`
-  - `tests/imaging/DicomJpeg2000Params.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000CodecCommonMetadata.test.ts`
-  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
-  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
-- Tests added/updated:
-  - `tests/imaging/DicomJpeg2000Params.test.ts`
-  - `tests/imaging/jpeg2000/Jpeg2000CodecCommonMetadata.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/jpeg2000/Jpeg2000CodecCommonMetadata.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm test`
-  - `npm run build`
-- Row status updates:
-  - `Parameter normalization parity` remains `WIP` (extended with helper-level `.92/.93` metadata mapping assertions + boolean fallback normalization tests)
-
-### 2026-03-05 (Phase 6 / P6.4 kickoff - lossy metadata tags + transcoder regression)
-
-- Files changed:
-  - `src/imaging/codec/DicomTranscoder.ts`
-  - `tests/imaging/DicomTranscoder.test.ts`
-  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
-  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
-- Tests added/updated:
-  - `tests/imaging/DicomTranscoder.test.ts`
-- Commands run:
-  - `npm test -- tests/imaging/DicomTranscoder.test.ts`
-  - `npm test -- tests/imaging/jpeg2000 tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomTranscoder.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm test`
-  - `npm run build`
-- Row status updates:
-  - `Photometric/Planar updates` remains `WIP` (strict helper-level matrix has `.90/.91/.92/.93` coverage)
-  - `Parameter normalization parity` remains `WIP`
-
-### 2026-03-05 (Phase 6 / P6.4 follow-up - unify lossy metadata assertions across all lossy codecs)
-
-- Files changed:
-  - `tests/imaging/DicomTranscoder.test.ts`
-  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
-  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
-- Tests added/updated:
-  - `tests/imaging/DicomTranscoder.test.ts` (added 2 new parameterized tests covering all lossy syntaxes)
-- Commands run:
-  - `npm test -- tests/imaging/DicomTranscoder.test.ts`
-  - `npm test`
-  - `npm run build`
-- Row status updates:
-  - `Photometric/Planar updates` remains `WIP`
-  - `Parameter normalization parity` remains `WIP`
-  - Added unified lossy metadata assertions for:
-    - JPEG Baseline (Process 1) — `ISO_10918_1`
-    - JPEG Extended (Process 2 & 4) — `ISO_10918_1`
-    - JPEG-LS Near-Lossless — `ISO_14495_1`
-    - JPEG2000 Lossy — `ISO_15444_1`
-    - JPEG2000 Part 2 MC — `ISO_15444_2`
-    - HT-J2K Lossy — `ISO_15444_15`
-
-### 2026-03-05 (Phase 3 / P3.5-P3.6 completion - JPEG2000 encode pipeline hardening)
-
-- Files changed:
-  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
-  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
-- Tests added/updated:
-  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts` (added PSNR-based quality assertion test for `.91` with multiple target ratio scenarios)
-- Commands run:
-  - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm test`
-  - `npm run build`
-- Row status updates:
-  - `.90 encode` changed `TODO -> WIP` (single/multi-layer LRCP encode wired, TS->Go matrix green)
-  - `.91 encode` changed `TODO -> WIP` (irreversible + layered semantics, PSNR quality thresholds added)
-  - `TS encode -> Go decode compatibility` remains `WIP` (`.90/.91` single + multi-frame coverage complete)
-  - `Single-frame + multi-frame coverage` remains `WIP` (`.90/.91` green; `.92/.93` pending encode path)
-- Notes:
-  - P3.5 status: `Jpeg2000Encoder` is fully integrated via `encodeJpeg2000()` wrapper for `.90/.91` codecs
-  - P3.6 status: Single-frame + multi-frame encode paths validated against go-dicom-codec decoder
-  - Part 2 (`.92/.93`) encode remains TODO (currently throws "not implemented" error)
 
 ### 2026-03-06 (Phase 3/P5 follow-up - `.92/.93` encode path + Part2 MCT builder)
 
-- Files changed:
+- Focus:
+  - Enable baseline Part2 encode pipeline and extend TS->Go parity coverage.
+- Key updates:
+  - Added in-tree Part2 MCT builder.
+  - `Jpeg2000Encoder` writes `Rsiz=2` and main-header `MCT/MCC/MCO`.
+  - `.92/.93` encode path enabled; synthetic single/multi-frame parity added.
+- Main touched files:
   - `src/imaging/codec/jpeg2000/core/mct/Jpeg2000Part2MctBuilder.ts`
-  - `src/imaging/codec/jpeg2000/core/mct/index.ts`
-  - `src/imaging/codec/jpeg2000/core/index.ts`
   - `src/imaging/codec/jpeg2000/core/codestream/Jpeg2000CodestreamWriter.ts`
   - `src/imaging/codec/jpeg2000/core/encoder/Jpeg2000Encoder.ts`
   - `tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts`
   - `tests/imaging/DicomJpeg2000Codec.test.ts`
   - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
-  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
-- Tests added/updated:
-  - `tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts`
-  - `tests/imaging/DicomJpeg2000Codec.test.ts` (removed `.92/.93` encode gate expectation)
-  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts` (added `.92/.93` single-frame + multi-frame TS->Go parity cases)
-- Commands run:
+- Commands:
   - `npm test -- tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
   - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts -t ".92/.93"`
   - `npm run build`
-- Row status updates:
-  - `jpeg2000/mct_builder.go + MCT tests -> jpeg2000/core/mct/*` changed `TODO -> WIP`
-  - `.92 encode` changed `TODO -> WIP`
-  - `.93 encode` changed `TODO -> WIP`
-  - `TS encode -> Go decode compatibility` remains `WIP` (extended with `.92/.93` synthetic single/multi-frame coverage)
-  - `Single-frame + multi-frame coverage` remains `WIP` (`.90/.91` + `.92/.93` synthetic are green; broader acceptance corpus pending)
-- Notes:
-  - Part2 encode path now writes `Rsiz=2` + main-header `MCT/MCC/MCO` segments.
-  - `Jpeg2000Encoder` now applies encode-side Part2 forward pre-transform (`inverse` matrix + offsets) before DWT/T1/T2.
-  - Existing pre-existing instability remains in `.91` quality test compression-ratio threshold (`~14.3 < 16` for quality-50 case), unrelated to new `.92/.93` coverage.
+
+### 2026-03-05 (Phase 3 / P3.5-P3.6 completion - JPEG2000 encode hardening)
+
+- Focus:
+  - Complete `.90/.91` encode integration and quality/assertion hardening.
+- Key updates:
+  - Added `.91` PSNR quality assertions for multiple target-ratio scenarios.
+  - Confirmed `.90/.91` single-frame + multi-frame TS->Go matrix coverage.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test`
+  - `npm run build`
+
+### Archived history
+
+- Detailed records for earlier sessions (not shown here) were intentionally compacted to reduce file size.
+- For full historical trace, use Git history for this file.

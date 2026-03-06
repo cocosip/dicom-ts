@@ -72,10 +72,49 @@ describe("Jpeg2000Encoder", () => {
     }
   });
 
-  it("skips part1 MCT path when analyzing Part2 frame", () => {
+  it("falls back to Part1 MCT when Part2 has no custom bindings/matrix", () => {
     const params = DicomJpeg2000Params.createLosslessDefaults();
     params.allowMct = true;
     params.numLevels = 1;
+
+    const frame = new Uint8Array([
+      4, 8, 12,
+      16, 20, 24,
+      28, 32, 36,
+      40, 44, 48,
+    ]);
+
+    const analyzed = new Jpeg2000Encoder().analyzeFrame({
+      frameData: frame,
+      width: 2,
+      height: 2,
+      components: 3,
+      bitsAllocated: 8,
+      bitsStored: 8,
+      pixelRepresentation: PixelRepresentation.Unsigned,
+      parameters: params,
+      isPart2: true,
+    });
+
+    expect(analyzed.appliedMct).toBe("rct");
+    expect(analyzed.isPart2).toBe(true);
+  });
+
+  it("uses custom Part2 MCT path when fallback matrix is provided", () => {
+    const params = DicomJpeg2000Params.createLosslessDefaults();
+    params.allowMct = true;
+    params.numLevels = 1;
+    params.mctMatrix = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1],
+    ];
+    params.inverseMctMatrix = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1],
+    ];
+    params.mctOffsets = [2, -1, 3];
 
     const frame = new Uint8Array([
       4, 8, 12,
@@ -170,6 +209,112 @@ describe("Jpeg2000Encoder", () => {
       }
     }
     expect(maxDelta).toBeLessThanOrEqual(8);
+  });
+
+  it("encodes Part2 .92 with no bindings using Part1 fallback (COD MCT=1, no Part2 markers)", () => {
+    const params = DicomJpeg2000Params.createLosslessDefaults();
+    params.allowMct = true;
+    params.numLevels = 1;
+    params.progressionOrder = 0;
+    params.numLayers = 1;
+
+    const frame = new Uint8Array([
+      10, 20, 30,
+      40, 50, 60,
+      70, 80, 90,
+      100, 110, 120,
+    ]);
+
+    const codestream = new Jpeg2000Encoder().encodeFrame({
+      frameData: frame,
+      width: 2,
+      height: 2,
+      components: 3,
+      bitsAllocated: 8,
+      bitsStored: 8,
+      pixelRepresentation: PixelRepresentation.Unsigned,
+      parameters: params,
+      isPart2: true,
+    });
+
+    const parsed = parseJpeg2000Codestream(codestream);
+    expect(parsed.siz?.rSiz).toBe(2);
+    expect(parsed.cod?.multipleComponentTransform).toBe(1);
+    expect(parsed.mct).toHaveLength(0);
+    expect(parsed.mcc).toHaveLength(0);
+    expect(parsed.mco).toHaveLength(0);
+  });
+
+  it("encodes Part2 with offsets-only fallback input without Part2 markers", () => {
+    const params = DicomJpeg2000Params.createLosslessDefaults();
+    params.allowMct = true;
+    params.numLevels = 1;
+    params.progressionOrder = 0;
+    params.numLayers = 1;
+    params.mctOffsets = [5, -3, 2];
+
+    const frame = new Uint8Array([
+      10, 20, 30,
+      40, 50, 60,
+      70, 80, 90,
+      100, 110, 120,
+    ]);
+
+    const codestream = new Jpeg2000Encoder().encodeFrame({
+      frameData: frame,
+      width: 2,
+      height: 2,
+      components: 3,
+      bitsAllocated: 8,
+      bitsStored: 8,
+      pixelRepresentation: PixelRepresentation.Unsigned,
+      parameters: params,
+      isPart2: true,
+    });
+
+    const parsed = parseJpeg2000Codestream(codestream);
+    expect(parsed.cod?.multipleComponentTransform).toBe(1);
+    expect(parsed.mct).toHaveLength(0);
+    expect(parsed.mcc).toHaveLength(0);
+    expect(parsed.mco).toHaveLength(0);
+  });
+
+  it("encodes Part2 with invalid fallback matrix dimensions without Part2 markers", () => {
+    const params = DicomJpeg2000Params.createLosslessDefaults();
+    params.allowMct = true;
+    params.numLevels = 1;
+    params.progressionOrder = 0;
+    params.numLayers = 1;
+    params.mctMatrix = [
+      [1, 0],
+      [0, 1],
+    ];
+    params.mctOffsets = [5, -3, 2];
+
+    const frame = new Uint8Array([
+      10, 20, 30,
+      40, 50, 60,
+      70, 80, 90,
+      100, 110, 120,
+    ]);
+
+    const codestream = new Jpeg2000Encoder().encodeFrame({
+      frameData: frame,
+      width: 2,
+      height: 2,
+      components: 3,
+      bitsAllocated: 8,
+      bitsStored: 8,
+      pixelRepresentation: PixelRepresentation.Unsigned,
+      parameters: params,
+      isPart2: true,
+    });
+
+    const parsed = parseJpeg2000Codestream(codestream);
+    expect(parsed.cod?.multipleComponentTransform).toBe(1);
+    expect(parsed.mct).toHaveLength(0);
+    expect(parsed.mcc).toHaveLength(0);
+    expect(parsed.mco).toHaveLength(0);
   });
 
   it("encodes multi-layer LRCP codestream with TERMALL and keeps lossless roundtrip", () => {

@@ -79,4 +79,28 @@ describe("Jpeg2000Part2MctBuilder", () => {
     expect(parsed.mcc[0]?.outputComponentIds).toEqual([0, 1, 2]);
     expect(parsed.mco[0]?.stageIndices).toEqual([1]);
   });
+
+  it("skips Part2 markers when fallback input has offsets only without matrix", () => {
+    const params = DicomJpeg2000Params.createLosslessDefaults();
+    params.allowMct = true;
+    params.mctBindings = [];
+    params.mctOffsets = [5, -3, 2];
+
+    const segments = buildPart2MctMainHeaderSegments(params, 3, false);
+    expect(segments).toHaveLength(0);
+  });
+
+  it("skips Part2 markers when fallback matrix dimensions are invalid", () => {
+    const params = DicomJpeg2000Params.createLosslessDefaults();
+    params.allowMct = true;
+    params.mctBindings = [];
+    params.mctMatrix = [
+      [1, 0],
+      [0, 1],
+    ];
+    params.mctOffsets = [5, -3, 2];
+
+    const segments = buildPart2MctMainHeaderSegments(params, 3, false);
+    expect(segments).toHaveLength(0);
+  });
 });
