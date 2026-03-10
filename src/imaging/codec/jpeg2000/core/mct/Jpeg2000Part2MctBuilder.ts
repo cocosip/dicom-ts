@@ -79,7 +79,7 @@ export function buildPart2MctMainHeaderSegments(
     }
 
     const collectionType = normalizeCollectionType(binding.assocType ?? params.mctAssocType);
-    const reversible = !irreversible;
+    const reversible = resolveMccReversible(binding, hasExplicitBindings, irreversible);
     const mccPayload = buildMccPayload(
       mccIndex,
       collectionType,
@@ -211,6 +211,24 @@ function normalizeCollectionType(value: number): number {
   }
   const normalized = Math.trunc(value);
   return normalized >= 0 && normalized <= 255 ? normalized : 0;
+}
+
+function resolveMccReversible(
+  binding: DicomJpeg2000MctBinding,
+  hasExplicitBindings: boolean,
+  irreversible: boolean,
+): boolean {
+  if (typeof binding.mcoPrecision === "number" && Number.isFinite(binding.mcoPrecision)) {
+    return (Math.trunc(binding.mcoPrecision) & 0x1) !== 0;
+  }
+
+  if (hasExplicitBindings) {
+    // Go reference: explicit bindings default MCOPrecision to 0 when omitted.
+    return false;
+  }
+
+  // Fallback-matrix path mirrors Go custom-MCT behavior via codec irreversible mode.
+  return !irreversible;
 }
 
 function resolveStageOrder(stageIndices: number[], requestedOrder: number[]): number[] {

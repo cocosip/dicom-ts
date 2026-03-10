@@ -94,9 +94,11 @@ export class DicomJpeg2000Params extends DicomCodecParams {
     if (this.mctOffsets) {
       clone.mctOffsets = [...this.mctOffsets];
     }
-    clone.mctNormScale = Number.isFinite(this.mctNormScale) ? this.mctNormScale : 1.0;
+    clone.mctNormScale = Number.isFinite(this.mctNormScale) && this.mctNormScale > 0
+      ? this.mctNormScale
+      : 1.0;
     clone.mctAssocType = normalizeIntegerInRange(this.mctAssocType, 0, 0, 255);
-    clone.mctMatrixElementType = this.mctMatrixElementType === 0 ? 0 : 1;
+    clone.mctMatrixElementType = normalizeIntegerInRange(this.mctMatrixElementType, 1, 0, 3) as 0 | 1 | 2 | 3;
     clone.mcoPrecision = normalizeIntegerInRange(this.mcoPrecision, 0, 0, 255);
     clone.mcoRecordOrder = Array.isArray(this.mcoRecordOrder)
       ? this.mcoRecordOrder.filter((v) => Number.isInteger(v) && v >= 0).map((v) => Math.trunc(v))

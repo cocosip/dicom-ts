@@ -41,6 +41,26 @@ describe("DicomJpeg2000Params", () => {
     expect(normalized.mcoRecordOrder).toEqual([1, 3]);
   });
 
+  it("normalizes Part2 element/matrix scalar fields with Go-aligned ranges", () => {
+    const params = new DicomJpeg2000Params();
+    params.mctNormScale = 0;
+    params.mctMatrixElementType = 3;
+
+    const normalized = params.cloneNormalized();
+    expect(normalized.mctNormScale).toBe(1.0);
+    expect(normalized.mctMatrixElementType).toBe(3);
+
+    params.mctNormScale = 2.5;
+    params.mctMatrixElementType = 2;
+    const normalized2 = params.cloneNormalized();
+    expect(normalized2.mctNormScale).toBe(2.5);
+    expect(normalized2.mctMatrixElementType).toBe(2);
+
+    (params as { mctMatrixElementType: number }).mctMatrixElementType = -1;
+    const normalized3 = params.cloneNormalized();
+    expect(normalized3.mctMatrixElementType).toBe(1);
+  });
+
   it("normalizes non-boolean compatibility flags to defaults", () => {
     const params = new DicomJpeg2000Params();
     (params as { irreversible: unknown }).irreversible = "bad";

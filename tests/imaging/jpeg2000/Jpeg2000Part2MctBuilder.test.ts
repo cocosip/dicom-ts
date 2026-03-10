@@ -78,6 +78,107 @@ describe("Jpeg2000Part2MctBuilder", () => {
     expect(parsed.mcc[0]?.componentIds).toEqual([0, 1, 2]);
     expect(parsed.mcc[0]?.outputComponentIds).toEqual([0, 1, 2]);
     expect(parsed.mco[0]?.stageIndices).toEqual([1]);
+    expect(parsed.mcc[0]?.reversible).toBe(false);
+  });
+
+  it("uses mcoPrecision bit0 from explicit binding to set MCC reversible flag", () => {
+    const params = DicomJpeg2000Params.createLosslessDefaults();
+    params.allowMct = true;
+    params.numLevels = 1;
+    params.numLayers = 1;
+    params.progressionOrder = 0;
+    params.mctBindings = [
+      {
+        componentIds: [0, 1, 2],
+        matrix: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        offsets: [1, 2, 3],
+        elementType: 1,
+        mcoPrecision: 1,
+      },
+    ];
+
+    const codestream = new Jpeg2000Encoder().encodeFrame({
+      frameData: new Uint8Array([
+        10, 20, 30,
+        40, 50, 60,
+        70, 80, 90,
+        100, 110, 120,
+      ]),
+      width: 2,
+      height: 2,
+      components: 3,
+      bitsAllocated: 8,
+      bitsStored: 8,
+      pixelRepresentation: PixelRepresentation.Unsigned,
+      parameters: params,
+      isPart2: true,
+    });
+
+    const parsed = parseJpeg2000Codestream(codestream);
+    expect(parsed.mcc).toHaveLength(1);
+    expect(parsed.mcc[0]?.reversible).toBe(true);
+  });
+
+  it("fallback matrix path derives MCC reversible from irreversible mode", () => {
+    const matrix = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1],
+    ];
+
+    const losslessParams = DicomJpeg2000Params.createLosslessDefaults();
+    losslessParams.allowMct = true;
+    losslessParams.mctBindings = [];
+    losslessParams.mctMatrix = matrix;
+
+    const lossyParams = new DicomJpeg2000Params();
+    lossyParams.allowMct = true;
+    lossyParams.irreversible = true;
+    lossyParams.mctBindings = [];
+    lossyParams.mctMatrix = matrix;
+
+    const losslessCodestream = new Jpeg2000Encoder().encodeFrame({
+      frameData: new Uint8Array([
+        10, 20, 30,
+        40, 50, 60,
+        70, 80, 90,
+        100, 110, 120,
+      ]),
+      width: 2,
+      height: 2,
+      components: 3,
+      bitsAllocated: 8,
+      bitsStored: 8,
+      pixelRepresentation: PixelRepresentation.Unsigned,
+      parameters: losslessParams,
+      isPart2: true,
+    });
+    const lossyCodestream = new Jpeg2000Encoder().encodeFrame({
+      frameData: new Uint8Array([
+        10, 20, 30,
+        40, 50, 60,
+        70, 80, 90,
+        100, 110, 120,
+      ]),
+      width: 2,
+      height: 2,
+      components: 3,
+      bitsAllocated: 8,
+      bitsStored: 8,
+      pixelRepresentation: PixelRepresentation.Unsigned,
+      parameters: lossyParams,
+      isPart2: true,
+    });
+
+    const parsedLossless = parseJpeg2000Codestream(losslessCodestream);
+    const parsedLossy = parseJpeg2000Codestream(lossyCodestream);
+
+    expect(parsedLossless.mcc[0]?.reversible).toBe(true);
+    expect(parsedLossy.mcc[0]?.reversible).toBe(false);
   });
 
   it("skips Part2 markers when fallback input has offsets only without matrix", () => {

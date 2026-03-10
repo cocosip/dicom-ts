@@ -221,21 +221,33 @@ Exit criteria:
 
 ## Phase 4 - Parameter Model Full Alignment
 
-- [ ] P4.1 Align `DicomJpeg2000Params` defaults and normalization rules with Go semantics
-- [ ] P4.2 Align mapping for:
+- [x] P4.1 Align `DicomJpeg2000Params` defaults and normalization rules with Go semantics
+- [x] P4.2 Align mapping for:
   - `irreversible`
   - `rate`, `rateLevels`, `targetRatio`
   - `numLevels`, `numLayers`
   - `progressionOrder`
   - `allowMct`, `updatePhotometricInterpretation`
   - `encodeSignedPixelValuesAsUnsigned`
-- [ ] P4.3 Add strict parameter validation tests (invalid + fallback behavior)
+- [x] P4.3 Add strict parameter validation tests (invalid + fallback behavior)
 
 Progress note:
 
 - P4.3 kickoff done: added strict invalid/fallback tests for `DicomJpeg2000Params.cloneNormalized` and lossless codec encode path fallback behavior (including out-of-range progression, invalid layer/ratio inputs).
 - P4.3 follow-up done: added strict semantics matrix tests for `allowMct` + `updatePhotometricInterpretation` (PI + COD MCT flag assertions on `.90/.91`) and compatibility regression for `encodeSignedPixelValuesAsUnsigned`.
 - P4.3 follow-up done: added helper-level metadata semantics matrix for `.90/.91/.92/.93` and boolean fallback normalization tests for compatibility flags in `DicomJpeg2000Params.cloneNormalized`.
+
+- Phase 4 completion update (2026-03-10):
+  - Completed Part2 scalar normalization alignment in `DicomJpeg2000Params.cloneNormalized`:
+    - `mctNormScale` now enforces positive-only semantics (`<=0` -> `1.0`),
+    - `mctMatrixElementType` now preserves valid range `0..3` (fallback `1`).
+  - Completed Part2 MCC reversible mapping alignment in in-tree builder:
+    - explicit `mctBindings` with missing `mcoPrecision` default to non-reversible,
+    - explicit `mcoPrecision` bit0 controls MCC reversible flag,
+    - fallback matrix path derives reversible from codec irreversible mode.
+  - Added strict regression coverage for above semantics:
+    - `tests/imaging/DicomJpeg2000Params.test.ts`
+    - `tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts`
 
 Exit criteria:
 

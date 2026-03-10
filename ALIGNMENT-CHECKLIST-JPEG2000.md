@@ -44,7 +44,7 @@ Status legend:
 | `.92` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green |
 | `.93` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green + lossy PSNR/MAE thresholds validated |
 | Photometric/Planar updates | WIP | Strict helper-level matrix now covers `.90/.91/.92/.93` encode/decode PI + planar semantics; end-to-end `.92/.93` encode path still pending |
-| Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage), full-table audit still pending |
+| Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage). Phase 4 follow-up added Part2 scalar normalization (`mctNormScale>0`, `mctMatrixElementType` range `0..3`) and explicit-binding `mcoPrecision` bit0 -> MCC reversible semantics; full-table audit still pending |
 | Error model parity | WIP | Four JPEG2000 codec classes now wrap encode/decode failures with standardized `JPEG2000 {encode|decode} failed [class=...]` prefix plus `syntax/frame/size/bits/samples` context; failure-class mapping now distinguishes `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` and extends marker-corruption coverage to invalid segment length + tile header marker sequence errors with codec-level negative matrices for `.90/.91/.92/.93`. Remaining: broader malformed-marker/truncation corpus and Go-side failure-class table audit |
 
 ---
@@ -80,6 +80,32 @@ Status legend:
 - [x] Commands run listed
 - [x] Row statuses updated (`TODO/WIP/DONE`)
 - Retention policy: this file keeps only recent session records; older detailed history is retained in Git history.
+
+### 2026-03-10 (Phase 4 follow-up / P4.2-P4.3 Part2 parameter semantics hardening)
+
+- Focus:
+  - Continue Phase 4 parameter alignment by tightening Part2 scalar normalization and MCC reversible mapping semantics against go-dicom-codec behavior.
+- Key updates:
+  - `DicomJpeg2000Params.cloneNormalized` now normalizes:
+    - `mctNormScale` to positive-only (`<=0` fallback to `1.0`),
+    - `mctMatrixElementType` to integer range `0..3` (fallback `1`).
+  - `Jpeg2000Part2MctBuilder` now aligns MCC reversible flag resolution with Go semantics:
+    - explicit `mctBindings` with omitted `mcoPrecision` default to non-reversible (`false`),
+    - explicit `mcoPrecision` uses bit0 to set reversible,
+    - fallback matrix path derives reversible from codec irreversible mode (`!irreversible`).
+  - Added/extended regression tests:
+    - Part2 scalar normalization coverage in `DicomJpeg2000Params.test.ts`,
+    - Part2 builder reversible-flag matrix for explicit binding vs fallback path in `Jpeg2000Part2MctBuilder.test.ts`.
+- Main touched files:
+  - `src/imaging/codec/jpeg2000/DicomJpeg2000Params.ts`
+  - `src/imaging/codec/jpeg2000/core/mct/Jpeg2000Part2MctBuilder.ts`
+  - `tests/imaging/DicomJpeg2000Params.test.ts`
+  - `tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- tests/imaging/jpeg2000/Jpeg2000Part2MctBuilder.test.ts tests/imaging/DicomJpeg2000Params.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
+  - `npm run build`
 
 ### 2026-03-10 (Phase 7 follow-up / P7.2 marker-corruption hardening for invalid segment length + tile marker sequence)
 
