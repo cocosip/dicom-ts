@@ -362,11 +362,15 @@ function classifyJpeg2000Failure(error: unknown): Jpeg2000FailureClass {
   }
 
   if (
-    message.includes("expected soc marker")
+    message.includes("segment length")
+    || message.includes("invalid jp2 box length")
+    || message.includes("expected soc marker")
     || message.includes("unexpected marker")
+    || message.includes("unexpected non-segment marker")
     || message.includes("invalid jp2 codestream box")
     || message.includes("unsupported jpeg2000 stream form")
     || message.includes("ended before sod marker")
+    || message.includes("tile-part header ended before sod marker")
   ) {
     return "marker-corruption";
   }

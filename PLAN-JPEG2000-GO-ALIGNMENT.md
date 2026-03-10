@@ -178,6 +178,14 @@ Progress note:
     - truncated codestream => `class=truncation`
     - metadata mismatch => `class=metadata-mismatch`
     - encode input validation => `class=validation`
+- P7.2 hardening update (2026-03-10):
+  - Refined `marker-corruption` classifier rules to cover:
+    - invalid segment length path
+    - tile header marker order path (`tile-part header ended before SOD marker`)
+    - unexpected non-segment marker path
+  - Added `.90/.91/.92/.93` codec-level negative matrices for:
+    - invalid segment length codestream => `class=marker-corruption`
+    - tile header marker sequence error (missing `SOD`) => `class=marker-corruption`
 - Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
   - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,

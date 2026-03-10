@@ -370,7 +370,7 @@ describe("DicomJpeg2000Codec", () => {
     }
   });
 
-  it("wraps decode parser errors with syntax/frame context for .90/.91/.92/.93", () => {
+  it("classifies invalid segment length as marker-corruption for .90/.91/.92/.93", () => {
     const codecEntries = [
       {
         syntax: DicomTransferSyntax.JPEG2000Lossless,
@@ -400,7 +400,7 @@ describe("DicomJpeg2000Codec", () => {
         1,
         "MONOCHROME2",
       );
-      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(new Uint8Array([0x00])));
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildInvalidSegmentLengthCodestream()));
 
       let thrown: unknown;
       try {
@@ -411,7 +411,54 @@ describe("DicomJpeg2000Codec", () => {
 
       expect(thrown).toBeInstanceOf(Error);
       const message = (thrown as Error).message;
-      expect(message).toContain("JPEG2000 decode failed");
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
+  it("classifies tile marker sequence errors as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildTileHeaderOrderErrorCodestream()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
       expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
       expect(message).toContain("frame=0");
     }
@@ -594,4 +641,48 @@ function pushU32(target: number[], value: number): void {
 
 function buildTruncatedCodestream(): Uint8Array {
   return buildMinimalJ2kCodestream().subarray(0, 8);
+}
+
+function buildInvalidSegmentLengthCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 1); // invalid (<2)
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildTileHeaderOrderErrorCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 41);
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 1);
+  bytes.push(7, 1, 1);
+  pushU16(bytes, 0xff52); // COD
+  pushU16(bytes, 12);
+  bytes.push(0, 0);
+  pushU16(bytes, 1);
+  bytes.push(0, 0, 2, 2, 0, 1);
+  pushU16(bytes, 0xff5c); // QCD
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+
+  // Tile sequence with wrong order: SOT followed directly by EOC (missing SOD)
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14);
+  bytes.push(0, 1);
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
 }
