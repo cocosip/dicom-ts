@@ -209,6 +209,15 @@ Progress note:
   - Added `.90/.91/.92/.93` codec-level negative matrices for:
     - JP2 truncated `XLBox` => `class=truncation`
     - missing trailing codestream bytes (EOC-removed fixture) => `class=truncation`
+- P7.2 hardening update (2026-03-10, duplicate main-header segment mapping):
+  - Extended `marker-corruption` classifier coverage for duplicate main-header segment failures:
+    - `Duplicate SIZ segment in main header`
+    - `Duplicate COD segment in main header`
+    - `Duplicate QCD segment in main header`
+  - Added `.90/.91/.92/.93` codec-level negative matrices for:
+    - duplicate `SIZ` => `class=marker-corruption`
+    - duplicate `COD` => `class=marker-corruption`
+    - duplicate `QCD` => `class=marker-corruption`
 - Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
   - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,

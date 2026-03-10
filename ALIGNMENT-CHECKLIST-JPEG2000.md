@@ -45,7 +45,7 @@ Status legend:
 | `.93` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green + lossy PSNR/MAE thresholds validated |
 | Photometric/Planar updates | DONE | Helper-level + end-to-end matrices now cover `.90/.91/.92/.93` encode/decode PI + planar semantics (including Part 2 `.92/.93` transcode roundtrip assertions) |
 | Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage). Phase 4 follow-up added Part2 scalar normalization (`mctNormScale>0`, `mctMatrixElementType` range `0..3`) and explicit-binding `mcoPrecision` bit0 -> MCC reversible semantics; full-table audit still pending |
-| Error model parity | WIP | Four JPEG2000 codec classes now wrap encode/decode failures with standardized `JPEG2000 {encode|decode} failed [class=...]` prefix plus `syntax/frame/size/bits/samples` context; failure-class mapping now distinguishes `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` and extends marker-corruption coverage to invalid segment length + tile header marker sequence errors + codestream missing `SIZ` + JP2 missing `jp2c` box + invalid `SOT/Psot` tile-part length semantics, and extends truncation coverage to JP2 `XLBox` truncation + codestream premature-end cases with codec-level negative matrices for `.90/.91/.92/.93`. Remaining: broader malformed-marker/truncation corpus and Go-side failure-class table audit |
+| Error model parity | WIP | Four JPEG2000 codec classes now wrap encode/decode failures with standardized `JPEG2000 {encode|decode} failed [class=...]` prefix plus `syntax/frame/size/bits/samples` context; failure-class mapping now distinguishes `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` and extends marker-corruption coverage to invalid segment length + tile header marker sequence errors + codestream missing `SIZ` + JP2 missing `jp2c` box + invalid `SOT/Psot` tile-part length semantics + duplicate main-header (`SIZ/COD/QCD`) cases, and extends truncation coverage to JP2 `XLBox` truncation + codestream premature-end cases with codec-level negative matrices for `.90/.91/.92/.93`. Remaining: broader malformed-marker/truncation corpus and Go-side failure-class table audit |
 
 ---
 
@@ -101,6 +101,29 @@ Status legend:
   - `ALIGNMENT-CHECKLIST-JPEG2000.md`
 - Commands:
   - `npm test -- --run tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/jpeg2000/Jpeg2000CodecCommonMetadata.test.ts tests/imaging/DicomTranscoder.test.ts`
+  - `npm run build`
+
+### 2026-03-10 (Phase 7 follow-up / P7.2 duplicate main-header mapping: SIZ/COD/QCD)
+
+- Focus:
+  - Continue P7.2 by extending marker-corruption mapping for duplicate main-header segment failures and pinning behavior across `.90/.91/.92/.93`.
+- Key updates:
+  - Extended JPEG2000 error-classifier `marker-corruption` branch to recognize:
+    - `Duplicate SIZ segment in main header`
+    - `Duplicate COD segment in main header`
+    - `Duplicate QCD segment in main header`
+  - Added codec-level negative tests for all `.90/.91/.92/.93` syntaxes:
+    - duplicate `SIZ` => `class=marker-corruption`
+    - duplicate `COD` => `class=marker-corruption`
+    - duplicate `QCD` => `class=marker-corruption`
+  - Expanded `DicomJpeg2000Codec` negative matrix from 19 to 22 tests.
+- Main touched files:
+  - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000Codec.test.ts`
   - `npm run build`
 
 ### 2026-03-10 (Phase 7 follow-up / P7.2 malformed-marker corpus extension: missing SIZ + JP2 missing jp2c)

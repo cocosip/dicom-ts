@@ -752,6 +752,150 @@ describe("DicomJpeg2000Codec", () => {
     }
   });
 
+  it("classifies duplicate SIZ segment in main header as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildDuplicateSizMainHeaderCodestream()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+      expect(message).toContain("Duplicate SIZ segment in main header");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
+  it("classifies duplicate COD segment in main header as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildDuplicateCodMainHeaderCodestream()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+      expect(message).toContain("Duplicate COD segment in main header");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
+  it("classifies duplicate QCD segment in main header as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildDuplicateQcdMainHeaderCodestream()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+      expect(message).toContain("Duplicate QCD segment in main header");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
   it("wraps encode validation errors with syntax/frame context for .90/.91/.92/.93", () => {
     const codecEntries = [
       {
@@ -1095,4 +1239,46 @@ function buildJp2TruncatedXlbox(): Uint8Array {
 function buildCodestreamMissingEoc(): Uint8Array {
   const codestream = buildMinimalJ2kCodestream();
   return codestream.subarray(0, codestream.length - 2);
+}
+
+function buildDuplicateSizMainHeaderCodestream(): Uint8Array {
+  const bytes = Array.from(buildMinimalJ2kCodestream());
+  bytes.splice(bytes.length - 2, 0,
+    0xff, 0x51, // duplicate SIZ marker
+    0x00, 0x29, // length=41
+    0x00, 0x00, // Rsiz
+    0x00, 0x00, 0x00, 0x02, // Xsiz
+    0x00, 0x00, 0x00, 0x02, // Ysiz
+    0x00, 0x00, 0x00, 0x00, // XOsiz
+    0x00, 0x00, 0x00, 0x00, // YOsiz
+    0x00, 0x00, 0x00, 0x02, // XTsiz
+    0x00, 0x00, 0x00, 0x02, // YTsiz
+    0x00, 0x00, 0x00, 0x00, // XTOsiz
+    0x00, 0x00, 0x00, 0x00, // YTOsiz
+    0x00, 0x01, // Csiz
+    0x07, 0x01, 0x01,
+  );
+  return new Uint8Array(bytes);
+}
+
+function buildDuplicateCodMainHeaderCodestream(): Uint8Array {
+  const bytes = Array.from(buildMinimalJ2kCodestream());
+  bytes.splice(bytes.length - 2, 0,
+    0xff, 0x52, // duplicate COD marker
+    0x00, 0x0c, // length=12
+    0x00, 0x00,
+    0x00, 0x01,
+    0x00, 0x00, 0x02, 0x02, 0x00, 0x01,
+  );
+  return new Uint8Array(bytes);
+}
+
+function buildDuplicateQcdMainHeaderCodestream(): Uint8Array {
+  const bytes = Array.from(buildMinimalJ2kCodestream());
+  bytes.splice(bytes.length - 2, 0,
+    0xff, 0x5c, // duplicate QCD marker
+    0x00, 0x05, // length=5
+    0x00, 0x00, 0x00,
+  );
+  return new Uint8Array(bytes);
 }
