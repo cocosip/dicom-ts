@@ -45,7 +45,7 @@ Status legend:
 | `.93` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green + lossy PSNR/MAE thresholds validated |
 | Photometric/Planar updates | WIP | Strict helper-level matrix now covers `.90/.91/.92/.93` encode/decode PI + planar semantics; end-to-end `.92/.93` encode path still pending |
 | Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage). Phase 4 follow-up added Part2 scalar normalization (`mctNormScale>0`, `mctMatrixElementType` range `0..3`) and explicit-binding `mcoPrecision` bit0 -> MCC reversible semantics; full-table audit still pending |
-| Error model parity | WIP | Four JPEG2000 codec classes now wrap encode/decode failures with standardized `JPEG2000 {encode|decode} failed [class=...]` prefix plus `syntax/frame/size/bits/samples` context; failure-class mapping now distinguishes `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` and extends marker-corruption coverage to invalid segment length + tile header marker sequence errors + codestream missing `SIZ` + JP2 missing `jp2c` box with codec-level negative matrices for `.90/.91/.92/.93`. Remaining: broader malformed-marker/truncation corpus and Go-side failure-class table audit |
+| Error model parity | WIP | Four JPEG2000 codec classes now wrap encode/decode failures with standardized `JPEG2000 {encode|decode} failed [class=...]` prefix plus `syntax/frame/size/bits/samples` context; failure-class mapping now distinguishes `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` and extends marker-corruption coverage to invalid segment length + tile header marker sequence errors + codestream missing `SIZ` + JP2 missing `jp2c` box + invalid `SOT/Psot` tile-part length semantics with codec-level negative matrices for `.90/.91/.92/.93`. Remaining: broader malformed-marker/truncation corpus and Go-side failure-class table audit |
 
 ---
 
@@ -59,7 +59,7 @@ Status legend:
 | Lossless deterministic checks | TODO | Hash/byte exactness where expected |
 | Lossy threshold checks | DONE | `.91/.93` lossy quality threshold checks are stable via PSNR/MAE assertions against Go decode output |
 | Single-frame + multi-frame coverage | DONE | `.90/.91/.92/.93` single-frame and multi-frame encode->decode compatibility matrix is green |
-| Invalid codestream negative tests | WIP | Truncation + marker corruption + metadata mismatch baseline matrices are covered at codec level (including invalid segment length, tile header order, missing `SIZ`, JP2 missing `jp2c`); broader corpus still pending |
+| Invalid codestream negative tests | WIP | Truncation + marker corruption + metadata mismatch baseline matrices are covered at codec level (including invalid segment length, tile header order, missing `SIZ`, JP2 missing `jp2c`, and invalid `SOT/Psot` tile-part length cases); broader corpus still pending |
 
 ---
 
@@ -95,6 +95,26 @@ Status legend:
     - codestream missing `SIZ` => `class=marker-corruption`
     - JP2 container without `jp2c` codestream box => `class=marker-corruption`
   - Updated invalid-codestream validation row from `TODO` to `WIP` with explicit covered-corpus notes.
+- Main touched files:
+  - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `npm run build`
+
+### 2026-03-10 (Phase 7 follow-up / P7.2 SOT/Psot structural error mapping)
+
+- Focus:
+  - Continue P7.2 by extending marker-corruption classification for invalid tile-part length semantics (`Psot`) and pinning behavior in `.90/.91/.92/.93` codec-level negative matrices.
+- Key updates:
+  - Extended JPEG2000 error-classifier `marker-corruption` branch to recognize:
+    - `Invalid SOT Psot: tile-part exceeds codestream`
+    - `Invalid SOT Psot: tile-part end precedes SOD data`
+  - Added codec-level negative tests for all `.90/.91/.92/.93` syntaxes:
+    - oversized `Psot` (`tile-part exceeds codestream`) => `class=marker-corruption`
+    - undersized `Psot` (`tile-part end precedes SOD data`) => `class=marker-corruption`
 - Main touched files:
   - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
   - `tests/imaging/DicomJpeg2000Codec.test.ts`

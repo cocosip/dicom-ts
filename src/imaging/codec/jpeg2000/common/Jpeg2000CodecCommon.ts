@@ -374,6 +374,9 @@ function classifyJpeg2000Failure(error: unknown): Jpeg2000FailureClass {
     || message.includes("unsupported jpeg2000 stream form")
     || message.includes("missing siz segment")
     || message.includes("missing required siz segment")
+    || message.includes("invalid sot psot")
+    || message.includes("tile-part exceeds codestream")
+    || message.includes("tile-part end precedes sod data")
     || message.includes("ended before sod marker")
     || message.includes("tile-part header ended before sod marker")
   ) {

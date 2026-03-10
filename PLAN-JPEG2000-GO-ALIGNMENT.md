@@ -195,6 +195,13 @@ Progress note:
   - Added `.90/.91/.92/.93` codec-level negative matrices for:
     - codestream missing `SIZ` => `class=marker-corruption`
     - JP2 container without `jp2c` codestream box => `class=marker-corruption`
+- P7.2 hardening update (2026-03-10, SOT/Psot structural error mapping):
+  - Extended `marker-corruption` classifier coverage for invalid tile-part length semantics:
+    - `Invalid SOT Psot: tile-part exceeds codestream`
+    - `Invalid SOT Psot: tile-part end precedes SOD data`
+  - Added `.90/.91/.92/.93` codec-level negative matrices for:
+    - oversized `Psot` (`tile-part exceeds codestream`) => `class=marker-corruption`
+    - undersized `Psot` (`tile-part end precedes SOD data`) => `class=marker-corruption`
 - Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
   - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,

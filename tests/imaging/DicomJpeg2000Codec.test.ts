@@ -560,6 +560,102 @@ describe("DicomJpeg2000Codec", () => {
     }
   });
 
+  it("classifies invalid SOT Psot (tile-part exceeds codestream) as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildInvalidSotPsotExceedsCodestream()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+      expect(message).toContain("Invalid SOT Psot: tile-part exceeds codestream");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
+  it("classifies invalid SOT Psot (tile-part end precedes SOD data) as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildInvalidSotPsotPrecedesSodData()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+      expect(message).toContain("Invalid SOT Psot: tile-part end precedes SOD data");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
   it("wraps encode validation errors with syntax/frame context for .90/.91/.92/.93", () => {
     const codecEntries = [
       {
@@ -804,6 +900,82 @@ function buildJp2WithoutCodestreamBox(): Uint8Array {
   pushU32(bytes, 0x6a703220); // "jp2 "
   pushU32(bytes, 0); // minor version
   pushU32(bytes, 0x6a703220); // compatibility list: "jp2 "
+
+  return new Uint8Array(bytes);
+}
+
+function buildInvalidSotPsotExceedsCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 41);
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 1);
+  bytes.push(7, 1, 1);
+  pushU16(bytes, 0xff52); // COD
+  pushU16(bytes, 12);
+  bytes.push(0, 0);
+  pushU16(bytes, 1);
+  bytes.push(0, 0, 2, 2, 0, 1);
+  pushU16(bytes, 0xff5c); // QCD
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+
+  // SOT declares tile-part end beyond codestream length.
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 4096); // invalid oversized psot
+  bytes.push(0, 1);
+  pushU16(bytes, 0xff93); // SOD
+  bytes.push(0x00);
+  pushU16(bytes, 0xffd9); // EOC
+
+  return new Uint8Array(bytes);
+}
+
+function buildInvalidSotPsotPrecedesSodData(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 41);
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 1);
+  bytes.push(7, 1, 1);
+  pushU16(bytes, 0xff52); // COD
+  pushU16(bytes, 12);
+  bytes.push(0, 0);
+  pushU16(bytes, 1);
+  bytes.push(0, 0, 2, 2, 0, 1);
+  pushU16(bytes, 0xff5c); // QCD
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+
+  // SOT with tiny Psot so tile-part end is before SOD payload start.
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 11); // invalid undersized psot
+  bytes.push(0, 1);
+  pushU16(bytes, 0xff93); // SOD
+  bytes.push(0x00);
+  pushU16(bytes, 0xffd9); // EOC
 
   return new Uint8Array(bytes);
 }
