@@ -464,6 +464,102 @@ describe("DicomJpeg2000Codec", () => {
     }
   });
 
+  it("classifies missing SIZ codestream as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildCodestreamMissingSiz()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+      expect(message).toContain("missing required SIZ segment");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
+  it("classifies JP2 without jp2c codestream box as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildJp2WithoutCodestreamBox()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+      expect(message).toContain("JP2 stream does not contain a jp2c codestream box");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
   it("wraps encode validation errors with syntax/frame context for .90/.91/.92/.93", () => {
     const codecEntries = [
       {
@@ -684,5 +780,30 @@ function buildTileHeaderOrderErrorCodestream(): Uint8Array {
   pushU32(bytes, 14);
   bytes.push(0, 1);
   pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildCodestreamMissingSiz(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildJp2WithoutCodestreamBox(): Uint8Array {
+  const bytes: number[] = [];
+
+  // JP2 Signature box
+  pushU32(bytes, 12);
+  pushU32(bytes, 0x6a502020); // "jP  "
+  bytes.push(0x0d, 0x0a, 0x87, 0x0a);
+
+  // JP2 File Type box
+  pushU32(bytes, 20);
+  pushU32(bytes, 0x66747970); // "ftyp"
+  pushU32(bytes, 0x6a703220); // "jp2 "
+  pushU32(bytes, 0); // minor version
+  pushU32(bytes, 0x6a703220); // compatibility list: "jp2 "
+
   return new Uint8Array(bytes);
 }

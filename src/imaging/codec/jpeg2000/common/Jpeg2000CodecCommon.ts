@@ -364,11 +364,16 @@ function classifyJpeg2000Failure(error: unknown): Jpeg2000FailureClass {
   if (
     message.includes("segment length")
     || message.includes("invalid jp2 box length")
+    || message.includes("invalid jp2 box header size")
     || message.includes("expected soc marker")
     || message.includes("unexpected marker")
     || message.includes("unexpected non-segment marker")
     || message.includes("invalid jp2 codestream box")
+    || message.includes("payload does not start with soc marker")
+    || message.includes("jp2 stream does not contain a jp2c codestream box")
     || message.includes("unsupported jpeg2000 stream form")
+    || message.includes("missing siz segment")
+    || message.includes("missing required siz segment")
     || message.includes("ended before sod marker")
     || message.includes("tile-part header ended before sod marker")
   ) {

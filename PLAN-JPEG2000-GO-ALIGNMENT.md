@@ -186,6 +186,15 @@ Progress note:
   - Added `.90/.91/.92/.93` codec-level negative matrices for:
     - invalid segment length codestream => `class=marker-corruption`
     - tile header marker sequence error (missing `SOD`) => `class=marker-corruption`
+- P7.2 hardening update (2026-03-10, malformed-marker/truncation corpus extension):
+  - Extended `marker-corruption` classifier coverage for additional malformed-container/codestream signals:
+    - `missing required SIZ segment`
+    - `payload does not start with SOC marker`
+    - `JP2 stream does not contain a jp2c codestream box`
+    - `invalid JP2 box header size`
+  - Added `.90/.91/.92/.93` codec-level negative matrices for:
+    - codestream missing `SIZ` => `class=marker-corruption`
+    - JP2 container without `jp2c` codestream box => `class=marker-corruption`
 - Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
   - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,
