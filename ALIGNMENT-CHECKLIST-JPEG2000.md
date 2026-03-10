@@ -43,9 +43,9 @@ Status legend:
 | `.91` encode | DONE | LRCP single/multi-layer path landed; TS->Go single/multi-frame fixture matrix green; lossy PSNR/MAE quality thresholds validated |
 | `.92` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green |
 | `.93` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green + lossy PSNR/MAE thresholds validated |
-| Photometric/Planar updates | WIP | Strict helper-level matrix now covers `.90/.91/.92/.93` encode/decode PI + planar semantics; end-to-end `.92/.93` encode path still pending |
+| Photometric/Planar updates | DONE | Helper-level + end-to-end matrices now cover `.90/.91/.92/.93` encode/decode PI + planar semantics (including Part 2 `.92/.93` transcode roundtrip assertions) |
 | Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage). Phase 4 follow-up added Part2 scalar normalization (`mctNormScale>0`, `mctMatrixElementType` range `0..3`) and explicit-binding `mcoPrecision` bit0 -> MCC reversible semantics; full-table audit still pending |
-| Error model parity | WIP | Four JPEG2000 codec classes now wrap encode/decode failures with standardized `JPEG2000 {encode|decode} failed [class=...]` prefix plus `syntax/frame/size/bits/samples` context; failure-class mapping now distinguishes `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` and extends marker-corruption coverage to invalid segment length + tile header marker sequence errors + codestream missing `SIZ` + JP2 missing `jp2c` box + invalid `SOT/Psot` tile-part length semantics with codec-level negative matrices for `.90/.91/.92/.93`. Remaining: broader malformed-marker/truncation corpus and Go-side failure-class table audit |
+| Error model parity | WIP | Four JPEG2000 codec classes now wrap encode/decode failures with standardized `JPEG2000 {encode|decode} failed [class=...]` prefix plus `syntax/frame/size/bits/samples` context; failure-class mapping now distinguishes `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` and extends marker-corruption coverage to invalid segment length + tile header marker sequence errors + codestream missing `SIZ` + JP2 missing `jp2c` box + invalid `SOT/Psot` tile-part length semantics, and extends truncation coverage to JP2 `XLBox` truncation + codestream premature-end cases with codec-level negative matrices for `.90/.91/.92/.93`. Remaining: broader malformed-marker/truncation corpus and Go-side failure-class table audit |
 
 ---
 
@@ -59,7 +59,7 @@ Status legend:
 | Lossless deterministic checks | TODO | Hash/byte exactness where expected |
 | Lossy threshold checks | DONE | `.91/.93` lossy quality threshold checks are stable via PSNR/MAE assertions against Go decode output |
 | Single-frame + multi-frame coverage | DONE | `.90/.91/.92/.93` single-frame and multi-frame encode->decode compatibility matrix is green |
-| Invalid codestream negative tests | WIP | Truncation + marker corruption + metadata mismatch baseline matrices are covered at codec level (including invalid segment length, tile header order, missing `SIZ`, JP2 missing `jp2c`, and invalid `SOT/Psot` tile-part length cases); broader corpus still pending |
+| Invalid codestream negative tests | WIP | Truncation + marker corruption + metadata mismatch baseline matrices are covered at codec level (including invalid segment length, tile header order, missing `SIZ`, JP2 missing `jp2c`, invalid `SOT/Psot` tile-part length cases, JP2 `XLBox` truncation, and codestream premature-end cases); broader corpus still pending |
 
 ---
 
@@ -80,6 +80,28 @@ Status legend:
 - [x] Commands run listed
 - [x] Row statuses updated (`TODO/WIP/DONE`)
 - Retention policy: this file keeps only recent session records; older detailed history is retained in Git history.
+
+### 2026-03-10 (Phase 6 completion / P6.1-P6.4 JPEG2000 metadata semantics closure)
+
+- Focus:
+  - Close Phase 6 by completing end-to-end metadata semantics coverage for JPEG2000 `.90/.91/.92/.93`, including PI/planar behavior and lossy metadata append semantics.
+- Key updates:
+  - Expanded `DicomJpeg2000ParamSemantics` table from `.90/.91` to `.90/.91/.92/.93`:
+    - `allowMct` + `updatePhotometricInterpretation` encode-side PI mapping now asserts Part 2 syntaxes,
+    - decode-side roundtrip normalization explicitly asserts PI -> `RGB` where expected,
+    - planar configuration remains interleaved (`0`) after both encode and decode.
+  - Added real encode-path lossy metadata assertions for `.91/.93`:
+    - `LossyImageCompression (0028,2110) = "01"`,
+    - `LossyImageCompressionMethod (0028,2112)` appends `ISO_15444_1` / `ISO_15444_2` while preserving existing method,
+    - `LossyImageCompressionRatio (0028,2114)` appends numeric ratio while preserving existing ratio entries.
+  - Marked Phase 6 checklist items and Photometric/Planar parity row as completed.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000ParamSemantics.test.ts tests/imaging/jpeg2000/Jpeg2000CodecCommonMetadata.test.ts tests/imaging/DicomTranscoder.test.ts`
+  - `npm run build`
 
 ### 2026-03-10 (Phase 7 follow-up / P7.2 malformed-marker corpus extension: missing SIZ + JP2 missing jp2c)
 
@@ -117,6 +139,23 @@ Status legend:
     - undersized `Psot` (`tile-part end precedes SOD data`) => `class=marker-corruption`
 - Main touched files:
   - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `npm run build`
+
+### 2026-03-10 (Phase 7 follow-up / P7.2 truncation corpus extension: JP2 XLBox + codestream premature-end)
+
+- Focus:
+  - Continue P7.2 by extending truncation classification coverage for container/codestream boundary failures and pinning class mapping for `.90/.91/.92/.93`.
+- Key updates:
+  - Added/validated codec-level truncation negative matrices for all `.90/.91/.92/.93` syntaxes:
+    - JP2 `XLBox` truncation (`Invalid JP2 box header: truncated XLBox`) => `class=truncation`
+    - codestream premature-end (EOC-removed fixture; parser emits `Unexpected end of codestream while peeking marker`) => `class=truncation`
+  - Increased codec negative-path matrix size in `DicomJpeg2000Codec.test.ts` from 17 to 19 tests.
+- Main touched files:
   - `tests/imaging/DicomJpeg2000Codec.test.ts`
   - `PLAN-JPEG2000-GO-ALIGNMENT.md`
   - `ALIGNMENT-CHECKLIST-JPEG2000.md`

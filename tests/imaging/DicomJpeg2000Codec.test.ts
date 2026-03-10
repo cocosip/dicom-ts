@@ -656,6 +656,102 @@ describe("DicomJpeg2000Codec", () => {
     }
   });
 
+  it("classifies JP2 truncated XLBox as truncation for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildJp2TruncatedXlbox()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=truncation]");
+      expect(message).toContain("truncated XLBox");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
+  it("classifies missing EOC marker as truncation for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildCodestreamMissingEoc()));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed [class=truncation]");
+      expect(message).toContain("Unexpected end of codestream while peeking marker");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
   it("wraps encode validation errors with syntax/frame context for .90/.91/.92/.93", () => {
     const codecEntries = [
       {
@@ -978,4 +1074,25 @@ function buildInvalidSotPsotPrecedesSodData(): Uint8Array {
   pushU16(bytes, 0xffd9); // EOC
 
   return new Uint8Array(bytes);
+}
+
+function buildJp2TruncatedXlbox(): Uint8Array {
+  const bytes: number[] = [];
+
+  // Valid JP2 signature box.
+  pushU32(bytes, 12);
+  pushU32(bytes, 0x6a502020); // "jP  "
+  bytes.push(0x0d, 0x0a, 0x87, 0x0a);
+
+  // Next box declares XLBox but payload is truncated (< 8 bytes of XLBox field).
+  pushU32(bytes, 1);
+  pushU32(bytes, 0x66747970); // "ftyp"
+  bytes.push(0x00, 0x00, 0x00, 0x00);
+
+  return new Uint8Array(bytes);
+}
+
+function buildCodestreamMissingEoc(): Uint8Array {
+  const codestream = buildMinimalJ2kCodestream();
+  return codestream.subarray(0, codestream.length - 2);
 }

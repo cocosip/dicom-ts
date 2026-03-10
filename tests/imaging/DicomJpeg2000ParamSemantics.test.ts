@@ -56,7 +56,7 @@ function sha256(data: Uint8Array): string {
 }
 
 describe("DicomJpeg2000ParamSemantics", () => {
-  it("enforces allowMct/updatePhotometricInterpretation semantics table on .90/.91", () => {
+  it("enforces allowMct/updatePhotometricInterpretation semantics table on .90/.91/.92/.93", () => {
     const rgb = new Uint8Array([
       10, 30, 50,
       20, 40, 60,
@@ -147,8 +147,76 @@ describe("DicomJpeg2000ParamSemantics", () => {
         expectedMctFlag: 0,
       },
       {
+        name: ".92 allowMct=true updatePI=true",
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        sourcePi: "RGB",
+        params: Object.assign(DicomJpeg2000Params.createLosslessDefaults(), {
+          allowMct: true,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedPi: PhotometricInterpretation.YBR_RCT,
+        expectedMctFlag: 1,
+      },
+      {
+        name: ".92 allowMct=false updatePI=true",
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        sourcePi: "RGB",
+        params: Object.assign(DicomJpeg2000Params.createLosslessDefaults(), {
+          allowMct: false,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedPi: PhotometricInterpretation.RGB,
+        expectedMctFlag: 0,
+      },
+      {
+        name: ".93 allowMct=true updatePI=true",
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        sourcePi: "RGB",
+        params: Object.assign(new DicomJpeg2000Params(), {
+          irreversible: true,
+          allowMct: true,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedPi: PhotometricInterpretation.YBR_ICT,
+        expectedMctFlag: 1,
+      },
+      {
+        name: ".93 allowMct=false updatePI=true",
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        sourcePi: "RGB",
+        params: Object.assign(new DicomJpeg2000Params(), {
+          irreversible: true,
+          allowMct: false,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedPi: PhotometricInterpretation.RGB,
+        expectedMctFlag: 0,
+      },
+      {
         name: ".91 mono source should stay MONOCHROME2",
         syntax: DicomTransferSyntax.JPEG2000Lossy,
+        sourcePi: "MONOCHROME2",
+        params: Object.assign(new DicomJpeg2000Params(), {
+          irreversible: true,
+          allowMct: true,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedPi: PhotometricInterpretation.MONOCHROME2,
+        expectedMctFlag: 0,
+      },
+      {
+        name: ".93 mono source should stay MONOCHROME2",
+        syntax: DicomTransferSyntax.JPEG2000MC,
         sourcePi: "MONOCHROME2",
         params: Object.assign(new DicomJpeg2000Params(), {
           irreversible: true,
@@ -204,6 +272,155 @@ describe("DicomJpeg2000ParamSemantics", () => {
       const codestream = encodedPixelData.getFrame(0).data;
       const parsed = parseJpeg2000Codestream(codestream);
       expect(parsed.cod?.multipleComponentTransform ?? 0, `${row.name} cod MCT`).toBe(row.expectedMctFlag);
+    }
+  });
+
+  it("normalizes decode PI/planar semantics on end-to-end transcode for .90/.91/.92/.93", () => {
+    const rgb = new Uint8Array([
+      10, 30, 50,
+      20, 40, 60,
+      70, 90, 110,
+      80, 100, 120,
+    ]);
+
+    const source = buildDataset(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      8,
+      8,
+      2,
+      2,
+      3,
+      "RGB",
+      rgb,
+    );
+
+    const table = [
+      {
+        name: ".90",
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        params: Object.assign(DicomJpeg2000Params.createLosslessDefaults(), {
+          allowMct: true,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedEncodedPi: PhotometricInterpretation.YBR_RCT,
+      },
+      {
+        name: ".91",
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        params: Object.assign(new DicomJpeg2000Params(), {
+          irreversible: true,
+          allowMct: true,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedEncodedPi: PhotometricInterpretation.YBR_ICT,
+      },
+      {
+        name: ".92",
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        params: Object.assign(DicomJpeg2000Params.createLosslessDefaults(), {
+          allowMct: true,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedEncodedPi: PhotometricInterpretation.YBR_RCT,
+      },
+      {
+        name: ".93",
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        params: Object.assign(new DicomJpeg2000Params(), {
+          irreversible: true,
+          allowMct: true,
+          updatePhotometricInterpretation: true,
+          numLevels: 1,
+          numLayers: 1,
+        }),
+        expectedEncodedPi: PhotometricInterpretation.YBR_ICT,
+      },
+    ] as const;
+
+    for (const row of table) {
+      const encoded = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        row.syntax,
+        null,
+        row.params,
+      ).transcode(source);
+      const encodedPixelData = DicomPixelData.create(encoded);
+      expect(encodedPixelData.photometricInterpretation, `${row.name} encoded PI`).toBe(row.expectedEncodedPi);
+      expect(encodedPixelData.planarConfiguration, `${row.name} encoded planar`).toBe(0);
+
+      const decoded = new DicomTranscoder(
+        row.syntax,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      ).transcode(encoded);
+      const decodedPixelData = DicomPixelData.create(decoded);
+      expect(decodedPixelData.photometricInterpretation, `${row.name} decoded PI`).toBe(PhotometricInterpretation.RGB);
+      expect(decodedPixelData.planarConfiguration, `${row.name} decoded planar`).toBe(0);
+    }
+  });
+
+  it("appends JPEG2000 lossy metadata for .91/.93 on real encode path", () => {
+    const rgb = new Uint8Array([
+      10, 30, 50,
+      20, 40, 60,
+      70, 90, 110,
+      80, 100, 120,
+    ]);
+
+    const table = [
+      {
+        name: ".91",
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        expectedMethod: "ISO_15444_1",
+      },
+      {
+        name: ".93",
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        expectedMethod: "ISO_15444_2",
+      },
+    ] as const;
+
+    for (const row of table) {
+      const source = buildDataset(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        8,
+        8,
+        2,
+        2,
+        3,
+        "RGB",
+        rgb,
+      );
+      source.addOrUpdateElement(DicomVR.CS, Tags.LossyImageCompressionMethod, "EXISTING_METHOD");
+      source.addOrUpdateElement(DicomVR.DS, Tags.LossyImageCompressionRatio, "1.500");
+
+      const params = new DicomJpeg2000Params();
+      params.irreversible = true;
+      params.numLevels = 1;
+      params.numLayers = 1;
+
+      const encoded = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        row.syntax,
+        null,
+        params,
+      ).transcode(source);
+
+      expect(encoded.getSingleValue<string>(Tags.LossyImageCompression), `${row.name} 2110`).toBe("01");
+      expect(encoded.getValues<string>(Tags.LossyImageCompressionMethod), `${row.name} 2112`).toEqual([
+        "EXISTING_METHOD",
+        row.expectedMethod,
+      ]);
+
+      const ratios = encoded.getValues<string>(Tags.LossyImageCompressionRatio);
+      expect(ratios.length, `${row.name} 2114 length`).toBe(2);
+      expect(ratios[0], `${row.name} 2114 keep existing`).toBe("1.500");
+      expect(Number.isFinite(Number(ratios[1])) && Number(ratios[1]) > 0, `${row.name} 2114 appended numeric`).toBe(true);
     }
   });
 

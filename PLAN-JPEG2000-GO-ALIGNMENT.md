@@ -202,6 +202,13 @@ Progress note:
   - Added `.90/.91/.92/.93` codec-level negative matrices for:
     - oversized `Psot` (`tile-part exceeds codestream`) => `class=marker-corruption`
     - undersized `Psot` (`tile-part end precedes SOD data`) => `class=marker-corruption`
+- P7.2 hardening update (2026-03-10, truncation corpus extension):
+  - Added truncation-oriented negative coverage for container/codestream boundary breakage:
+    - JP2 `XLBox` truncation (`Invalid JP2 box header: truncated XLBox`)
+    - codestream premature end before marker scan completion (`Unexpected end of codestream while peeking marker`)
+  - Added `.90/.91/.92/.93` codec-level negative matrices for:
+    - JP2 truncated `XLBox` => `class=truncation`
+    - missing trailing codestream bytes (EOC-removed fixture) => `class=truncation`
 - Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
   - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,
@@ -288,10 +295,10 @@ Exit criteria:
 
 ## Phase 6 - DICOM Metadata Semantics
 
-- [ ] P6.1 Align encode-side `PhotometricInterpretation` update rules
-- [ ] P6.2 Align decode-side normalization to RGB where expected
-- [ ] P6.3 Enforce planar configuration behavior after encode/decode
-- [ ] P6.4 Align lossy flags/ratio metadata updates where applicable
+- [x] P6.1 Align encode-side `PhotometricInterpretation` update rules
+- [x] P6.2 Align decode-side normalization to RGB where expected
+- [x] P6.3 Enforce planar configuration behavior after encode/decode
+- [x] P6.4 Align lossy flags/ratio metadata updates where applicable
 
 Progress note:
 
@@ -305,6 +312,15 @@ Progress note:
   - JPEG2000 Part 2 MC — `ISO_15444_2`
   - HT-J2K Lossy — `ISO_15444_15`
   - Test coverage includes preserving existing metadata when appending new entries.
+- Phase 6 completion update (2026-03-10):
+  - Expanded end-to-end JPEG2000 metadata semantics matrix from `.90/.91` to `.90/.91/.92/.93` in `DicomJpeg2000ParamSemantics`:
+    - encode-side PI update behavior (`allowMct` / `updatePhotometricInterpretation`) now asserted for Part 2 syntaxes as well,
+    - encode/decode roundtrip now explicitly asserts decode-side PI normalization to `RGB` where expected,
+    - planar configuration remains enforced as interleaved (`PlanarConfiguration=0`) after both encode and decode.
+  - Added explicit JPEG2000 lossy metadata append assertions on real encode path for `.91/.93`:
+    - `LossyImageCompression (0028,2110) = "01"`,
+    - `LossyImageCompressionMethod (0028,2112)` appends `ISO_15444_1` / `ISO_15444_2` while preserving existing values,
+    - `LossyImageCompressionRatio (0028,2114)` appends numeric ratio while preserving existing entries.
 
 Exit criteria:
 
