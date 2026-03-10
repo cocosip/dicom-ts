@@ -309,6 +309,8 @@ export function validateDecodedFrameResult(
 
 type Jpeg2000Operation = "encode" | "decode";
 
+type Jpeg2000FailureClass = "truncation" | "marker-corruption" | "metadata-mismatch" | "validation" | "unknown";
+
 function describeError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -324,14 +326,63 @@ function describeError(error: unknown): string {
   }
 }
 
+function classifyJpeg2000Failure(error: unknown): Jpeg2000FailureClass {
+  const message = describeError(error).toLowerCase();
+
+  if (
+    message.includes("decoded frame length mismatch")
+    || message.includes("decoded width mismatch")
+    || message.includes("decoded height mismatch")
+    || message.includes("decoded component mismatch")
+    || message.includes("decoded bitsstored mismatch")
+    || message.includes("decoded bitsallocated mismatch")
+  ) {
+    return "metadata-mismatch";
+  }
+
+  if (
+    message.includes("supports bitsallocated")
+    || message.includes("supports bitsstored")
+    || message.includes("supports samplesperpixel")
+    || message.includes("requires samplesperpixel")
+    || message.includes("encode produced empty frame")
+  ) {
+    return "validation";
+  }
+
+  if (
+    message.includes("unexpected end")
+    || message.includes("too short")
+    || message.includes("exceeds codestream length")
+    || message.includes("exceeds stream length")
+    || message.includes("missing eoc marker")
+    || message.includes("truncated")
+  ) {
+    return "truncation";
+  }
+
+  if (
+    message.includes("expected soc marker")
+    || message.includes("unexpected marker")
+    || message.includes("invalid jp2 codestream box")
+    || message.includes("unsupported jpeg2000 stream form")
+    || message.includes("ended before sod marker")
+  ) {
+    return "marker-corruption";
+  }
+
+  return "unknown";
+}
+
 export function buildJpeg2000OperationError(
   operation: Jpeg2000Operation,
   error: unknown,
   context: Jpeg2000ErrorContext,
 ): Error {
+  const failureClass = classifyJpeg2000Failure(error);
   return new Error(
     formatJpeg2000Error(
-      `JPEG2000 ${operation} failed: ${describeError(error)}`,
+      `JPEG2000 ${operation} failed [class=${failureClass}]: ${describeError(error)}`,
       context,
     ),
   );

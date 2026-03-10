@@ -166,9 +166,21 @@ Progress note:
   - Added shared JPEG2000 codec-level error wrapper helper that standardizes `JPEG2000 {encode|decode} failed` prefix and appends context (`syntax`, `frame`, `size`, `bitsAllocated`, `bitsStored`, `samples`).
   - Rewired `.90/.91/.92/.93` codec classes to wrap decode and encode exceptions through the shared error helper while retaining nested failure detail messages.
   - Added codec-level malformed-input negative matrix and encode validation negative matrix across all four syntaxes to harden error-path coverage.
+- P7.2 follow-up update (2026-03-10):
+  - Extended JPEG2000 operation error wrapper with failure-class classification and embedded class tag in message:
+    - `marker-corruption`
+    - `truncation`
+    - `metadata-mismatch`
+    - `validation`
+    - `unknown`
+  - Added assertions for class-level behavior on `.90/.91/.92/.93` codec tests:
+    - malformed decode input => `class=marker-corruption`
+    - truncated codestream => `class=truncation`
+    - metadata mismatch => `class=metadata-mismatch`
+    - encode input validation => `class=validation`
 - Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
-  - Broader malformed-marker/truncation corpus + failure-class mapping for JPEG2000 error model parity,
+  - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,
   - Part 2 (`.92/.93`) acceptance-corpus expansion + negative/error-path hardening.
 - P3.5/P5 kickoff update:
   - Added in-tree Part2 MCT builder module (`jpeg2000/core/mct`) for encode-side `MCT/MCC/MCO` marker construction (bindings + ordering + element-type serialization).
@@ -270,7 +282,7 @@ Exit criteria:
   - `syntax UID`
   - `frame index`
   - key dimensions/bit depth where relevant
-- [ ] P7.2 Align key failure modes with Go logic (invalid markers, truncation, mismatched metadata)
+- [-] P7.2 Align key failure modes with Go logic (invalid markers, truncation, mismatched metadata)
 - [x] P7.3 Add negative tests for malformed codestream and invalid parameter combinations
 
 Exit criteria:
