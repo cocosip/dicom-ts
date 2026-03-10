@@ -5,7 +5,8 @@ import type { DicomPixelData } from "../../../DicomPixelData.js";
 import type { DicomCodecParams } from "../../DicomCodecParams.js";
 import type { IDicomCodec } from "../../IDicomCodec.js";
 import { DicomJpeg2000Params } from "../DicomJpeg2000Params.js";
-import { decodeJpeg2000, encodeJpeg2000 } from "../common/Jpeg2000Core.js";
+import { decodeJpeg2000 } from "../common/Jpeg2000Core.js";
+import { Jpeg2000Encoder } from "../core/index.js";
 import {
   applyJpeg2000DecodePixelMetadata,
   applyJpeg2000EncodePixelMetadata,
@@ -23,6 +24,8 @@ import {
 export class DicomJpeg2000Part2MCLosslessCodec implements IDicomCodec {
   readonly name = "JPEG 2000 Part 2 Multi-component Lossless";
   readonly transferSyntax = DicomTransferSyntax.JPEG2000MCLossless;
+
+  private readonly encoder = new Jpeg2000Encoder();
 
   getDefaultParameters(): DicomJpeg2000Params {
     return DicomJpeg2000Params.createLosslessDefaults();
@@ -95,7 +98,8 @@ export class DicomJpeg2000Part2MCLosslessCodec implements IDicomCodec {
   ): IByteBuffer {
     validateJpeg2000EncodeInput(pixelData, frameIndex, this.transferSyntax.uid.uid, "multicomponent");
     const stripped = stripFramePaddingByte(rawFrame.data, pixelData);
-    const encoded = encodeJpeg2000(stripped, {
+    const encoded = this.encoder.encodeFrame({
+      frameData: stripped,
       width: pixelData.columns,
       height: pixelData.rows,
       components: pixelData.samplesPerPixel,

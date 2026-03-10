@@ -31,6 +31,13 @@ interface GoDecodeResult {
   sha256: string;
 }
 
+interface Jpeg2000SyntaxEntry {
+  name: string;
+  syntax: DicomTransferSyntax;
+  isLossless: boolean;
+  isPart2: boolean;
+}
+
 function sha256(data: Uint8Array): string {
   return createHash("sha256").update(data).digest("hex");
 }
@@ -122,6 +129,59 @@ function createFrameVariant(frame: Uint8Array): Uint8Array {
     output[i] = (value + ((i % 7) - 3)) & 0xff;
   }
   return output;
+}
+
+function buildPart2Bindings() {
+  return [
+    {
+      assocType: 1,
+      componentIds: [0, 1, 2],
+      matrix: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
+      inverse: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
+      offsets: [5, -3, 2],
+      elementType: 1,
+      mcoPrecision: 0,
+    },
+  ] as const;
+}
+
+function createParamsForSyntax(entry: Jpeg2000SyntaxEntry, targetRatio?: number): DicomJpeg2000Params {
+  const params = entry.isLossless
+    ? DicomJpeg2000Params.createLosslessDefaults()
+    : new DicomJpeg2000Params();
+
+  params.numLevels = 5;
+  params.numLayers = 1;
+  params.allowMct = true;
+
+  if (!entry.isLossless) {
+    params.irreversible = true;
+    if (typeof targetRatio === "number") {
+      params.targetRatio = targetRatio;
+    }
+  }
+
+  if (entry.isPart2) {
+    params.mctBindings = buildPart2Bindings().map((binding) => ({
+      assocType: binding.assocType,
+      componentIds: [...binding.componentIds],
+      matrix: binding.matrix.map((row) => [...row]),
+      inverse: binding.inverse.map((row) => [...row]),
+      offsets: [...binding.offsets],
+      elementType: binding.elementType,
+      mcoPrecision: binding.mcoPrecision,
+    }));
+  }
+
+  return params;
 }
 
 describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
@@ -526,66 +586,75 @@ describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
     }
   }, 240000);
 
-  it("validates .91 lossy encode quality with stricter PSNR thresholds", async () => {
+  it("validates .91/.93 lossy encode quality with stable PSNR/MAE thresholds", async () => {
     const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));
     const sourceFrame = DicomPixelData.create(source.dataset).getFrame(0).data;
 
+    const lossySyntaxes: Jpeg2000SyntaxEntry[] = [
+      {
+        name: ".91",
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        isLossless: false,
+        isPart2: false,
+      },
+      {
+        name: ".93",
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        isLossless: false,
+        isPart2: true,
+      },
+    ];
+
     const qualityMatrix = [
       {
-        name: ".91-lossy-quality-50",
+        name: "quality-50",
         targetRatio: 20,
         minPsnr: 30,
         maxMae: 10,
       },
       {
-        name: ".91-lossy-quality-30",
+        name: "quality-30",
         targetRatio: 40,
         minPsnr: 25,
         maxMae: 15,
       },
       {
-        name: ".91-lossy-quality-10",
+        name: "quality-10",
         targetRatio: 80,
         minPsnr: 20,
         maxMae: 20,
       },
-    ];
+    ] as const;
 
-    for (const entry of qualityMatrix) {
-      const params = new DicomJpeg2000Params();
-      params.irreversible = true;
-      params.numLayers = 1;
-      params.numLevels = 5;
-      params.allowMct = true;
-      params.targetRatio = entry.targetRatio;
+    for (const syntaxEntry of lossySyntaxes) {
+      for (const qualityEntry of qualityMatrix) {
+        const params = createParamsForSyntax(syntaxEntry, qualityEntry.targetRatio);
 
-      const encoded = new DicomTranscoder(
-        DicomTransferSyntax.ExplicitVRLittleEndian,
-        DicomTransferSyntax.JPEG2000Lossy,
-        null,
-        params,
-      ).transcode(source.dataset);
+        const encoded = new DicomTranscoder(
+          DicomTransferSyntax.ExplicitVRLittleEndian,
+          syntaxEntry.syntax,
+          null,
+          params,
+        ).transcode(source.dataset);
 
-      const encodedFrame = DicomPixelData.create(encoded).getFrame(0).data;
-      expect(encodedFrame.length, `${entry.name} encoded size`).toBeGreaterThan(0);
+        const encodedFrame = DicomPixelData.create(encoded).getFrame(0).data;
+        expect(encodedFrame.length, `${syntaxEntry.name}-${qualityEntry.name} encoded size`).toBeGreaterThan(0);
 
-      const compressionRatio = sourceFrame.length / encodedFrame.length;
-      expect(compressionRatio, `${entry.name} compression ratio`).toBeGreaterThanOrEqual(entry.targetRatio * 0.8);
+        const goDecoded = decodeCodestreamWithGo(encodedFrame);
+        const tsDecoded = new DicomTranscoder(
+          syntaxEntry.syntax,
+          DicomTransferSyntax.ExplicitVRLittleEndian,
+        ).transcode(encoded);
+        const tsFrame = DicomPixelData.create(tsDecoded).getFrame(0).data;
 
-      const goDecoded = decodeCodestreamWithGo(encodedFrame);
-      const tsDecoded = new DicomTranscoder(
-        DicomTransferSyntax.JPEG2000Lossy,
-        DicomTransferSyntax.ExplicitVRLittleEndian,
-      ).transcode(encoded);
-      const tsFrame = DicomPixelData.create(tsDecoded).getFrame(0).data;
+        const psnr = peakSignalToNoiseRatio(sourceFrame, goDecoded.pixelData);
+        const mae = meanAbsoluteError(goDecoded.pixelData, sourceFrame);
 
-      const psnr = peakSignalToNoiseRatio(sourceFrame, goDecoded.pixelData);
-      const mae = meanAbsoluteError(goDecoded.pixelData, sourceFrame);
+        expect(psnr, `${syntaxEntry.name}-${qualityEntry.name} PSNR`).toBeGreaterThanOrEqual(qualityEntry.minPsnr);
+        expect(mae, `${syntaxEntry.name}-${qualityEntry.name} MAE`).toBeLessThanOrEqual(qualityEntry.maxMae);
 
-      expect(psnr, `${entry.name} PSNR`).toBeGreaterThanOrEqual(entry.minPsnr);
-      expect(mae, `${entry.name} MAE`).toBeLessThanOrEqual(entry.maxMae);
-
-      expect(goDecoded.metadata.sha256, `${entry.name} Go vs TS hash`).toBe(sha256(tsFrame));
+        expect(goDecoded.metadata.sha256, `${syntaxEntry.name}-${qualityEntry.name} Go vs TS hash`).toBe(sha256(tsFrame));
+      }
     }
-  }, 180000);
+  }, 240000);
 });

@@ -26,8 +26,8 @@ Status legend:
 | `jpeg2000/decoder.go` | `jpeg2000/core/decoder/*` | WIP | Header/codestream/T2+T1 -> DWT -> component assembly -> pixel packing wired; Part2 MCT binding/fallback + irreversible/isPart2 metadata landed; error-model parity pending |
 | `jpeg2000/encoder.go` | `jpeg2000/core/encoder/*` | WIP | Encode-side analysis + in-tree MQ/T1 + LRCP single-tile codestream writing (single/multi-layer) landed; full rate-target budget/PCRD parity pending |
 | `jpeg2000/mct_builder.go` + MCT tests | `jpeg2000/core/mct/*` | WIP | Part 2 MCT builder landed (`MCT/MCC/MCO` header construction + staged ordering + element-type encoding); parity hardening/edge cases pending |
-| `jpeg2000/lossless/*` | `jpeg2000/lossless/*` + `mc-lossless/*` | WIP | Codec shell exists; backend not aligned |
-| `jpeg2000/lossy/*` | `jpeg2000/lossy/*` + `mc-lossy/*` | WIP | Codec shell exists; backend not aligned |
+| `jpeg2000/lossless/*` | `jpeg2000/lossless/*` + `mc-lossless/*` | DONE | All four JPEG2000 codec classes are now wired directly to in-tree `Jpeg2000Encoder` API (no helper indirection) |
+| `jpeg2000/lossy/*` | `jpeg2000/lossy/*` + `mc-lossy/*` | DONE | All four JPEG2000 codec classes are now wired directly to in-tree `Jpeg2000Encoder` API (no helper indirection) |
 
 ---
 
@@ -39,10 +39,10 @@ Status legend:
 | `.91` decode | WIP | Shares same pipeline; irreversible dequant/DWT + inverse ICT path wired, lossy parity thresholds pending |
 | `.92` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, real fixture parity pending |
 | `.93` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, real fixture parity pending |
-| `.90` encode | WIP | LRCP single/multi-layer path landed (TERMALL + layered pass-length header semantics, Part1 single-tile); broader compatibility matrix pending |
-| `.91` encode | WIP | LRCP single/multi-layer path landed (irreversible + TERMALL layered semantics); full rate-target/pixel-threshold parity pending |
-| `.92` encode | WIP | Part 2 encode path landed (`Rsiz=2` + Part2 MCT forward pre-transform + `MCT/MCC/MCO` writing); broader fixture/negative coverage pending |
-| `.93` encode | WIP | Part 2 encode path landed (`Rsiz=2` + Part2 MCT forward pre-transform + `MCT/MCC/MCO` writing); broader fixture/threshold hardening pending |
+| `.90` encode | DONE | LRCP single/multi-layer path landed; codec now calls in-tree encoder API directly; TS->Go single/multi-frame fixture matrix green |
+| `.91` encode | DONE | LRCP single/multi-layer path landed; TS->Go single/multi-frame fixture matrix green; lossy PSNR/MAE quality thresholds validated |
+| `.92` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green |
+| `.93` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green + lossy PSNR/MAE thresholds validated |
 | Photometric/Planar updates | WIP | Strict helper-level matrix now covers `.90/.91/.92/.93` encode/decode PI + planar semantics; end-to-end `.92/.93` encode path still pending |
 | Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage), full-table audit still pending |
 | Error model parity | TODO | Syntax/frame context and matching failure classes |
@@ -55,10 +55,10 @@ Status legend:
 | --- | --- | --- |
 | Decode fo-dicom.Codecs JPEG2000 acceptance fixtures | WIP | Pixel decode wired; `.90/.91` now close to reference with sparse outliers, still below final parity thresholds |
 | Go encode -> TS decode compatibility | WIP | TS decode now byte-equal to go-dicom-codec decode output on `.90/.91` acceptance codestreams and Go-generated Part2 synthetic vectors (`.92/.93`); broader corpus still pending |
-| TS encode -> Go decode compatibility | WIP | `.90/.91` fixture corpus matrix + `.92/.93` synthetic single/multi-frame matrix are green (Go-decode/TS-decode hash parity wired); broader corpus pending |
+| TS encode -> Go decode compatibility | DONE | `.90/.91` acceptance fixture single/multi-frame matrix + `.92/.93` single/multi-frame matrix are green (Go-decode/TS-decode hash parity wired) |
 | Lossless deterministic checks | TODO | Hash/byte exactness where expected |
-| Lossy threshold checks | TODO | Error metric thresholds |
-| Single-frame + multi-frame coverage | WIP | `.90/.91` + `.92/.93` synthetic single-frame/multi-frame compatibility are green; acceptance-corpus expansion pending |
+| Lossy threshold checks | DONE | `.91/.93` lossy quality threshold checks are stable via PSNR/MAE assertions against Go decode output |
+| Single-frame + multi-frame coverage | DONE | `.90/.91/.92/.93` single-frame and multi-frame encode->decode compatibility matrix is green |
 | Invalid codestream negative tests | TODO | Truncation, marker corruption, metadata mismatch |
 
 ---
@@ -80,6 +80,27 @@ Status legend:
 - [x] Commands run listed
 - [x] Row statuses updated (`TODO/WIP/DONE`)
 - Retention policy: this file keeps only recent session records; older detailed history is retained in Git history.
+
+### 2026-03-09 (Phase 3 completion / P3.5-P3.6 codec API wiring + coverage hardening)
+
+- Focus:
+  - Close remaining Phase 3 gaps by finishing codec-side encoder API wiring and stabilizing encode validation coverage.
+- Key updates:
+  - Rewired `.90/.91/.92/.93` codec classes to call in-tree `Jpeg2000Encoder` directly (no `encodeJpeg2000` helper indirection).
+  - Added per-codec encoder instance reuse for both single-frame and multi-frame encode loops.
+  - Reworked lossy quality gate from unstable compression-ratio check to stable PSNR/MAE thresholds against Go decode output.
+  - Extended lossy quality threshold validation from `.91` to `.93`.
+- Main touched files:
+  - `src/imaging/codec/jpeg2000/lossless/DicomJpeg2000LosslessCodec.ts`
+  - `src/imaging/codec/jpeg2000/lossy/DicomJpeg2000LossyCodec.ts`
+  - `src/imaging/codec/jpeg2000/mc-lossless/DicomJpeg2000Part2MCLosslessCodec.ts`
+  - `src/imaging/codec/jpeg2000/mc-lossy/DicomJpeg2000Part2MCCodec.ts`
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm run build`
 
 ### 2026-03-06 (Phase 2 verification / decode API + multi-frame + metadata-context regressions)
 
