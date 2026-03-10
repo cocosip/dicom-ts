@@ -10,9 +10,9 @@ import { Jpeg2000Encoder } from "../core/index.js";
 import {
   applyJpeg2000DecodePixelMetadata,
   applyJpeg2000EncodePixelMetadata,
+  buildJpeg2000OperationError,
   resolveJpeg2000Params,
   stripFramePaddingByte,
-  validateDecodedFrame,
   validateJpeg2000EncodeInput,
   validateDecodedFrameResult,
 } from "../common/Jpeg2000CodecCommon.js";
@@ -71,14 +71,26 @@ export class DicomJpeg2000LossyCodec implements IDicomCodec {
   }
 
   private decodeFrame(pixelData: DicomPixelData, frameIndex: number): IByteBuffer {
-    const decoded = decodeJpeg2000(pixelData.getFrame(frameIndex).data);
-    const normalized = validateDecodedFrameResult(
-      decoded,
-      pixelData,
-      frameIndex,
-      this.transferSyntax.uid.uid,
-    );
-    return new MemoryByteBuffer(normalized);
+    try {
+      const decoded = decodeJpeg2000(pixelData.getFrame(frameIndex).data);
+      const normalized = validateDecodedFrameResult(
+        decoded,
+        pixelData,
+        frameIndex,
+        this.transferSyntax.uid.uid,
+      );
+      return new MemoryByteBuffer(normalized);
+    } catch (error) {
+      throw buildJpeg2000OperationError("decode", error, {
+        syntaxUid: this.transferSyntax.uid.uid,
+        frameIndex,
+        width: pixelData.columns,
+        height: pixelData.rows,
+        bitsAllocated: pixelData.bitsAllocated,
+        bitsStored: pixelData.bitsStored,
+        samplesPerPixel: pixelData.samplesPerPixel,
+      });
+    }
   }
 
   private encodeFrame(
@@ -87,26 +99,36 @@ export class DicomJpeg2000LossyCodec implements IDicomCodec {
     rawFrame: IByteBuffer,
     parameters: DicomJpeg2000Params,
   ): IByteBuffer {
-    validateJpeg2000EncodeInput(pixelData, frameIndex, this.transferSyntax.uid.uid, "part1");
-    const stripped = stripFramePaddingByte(rawFrame.data, pixelData);
-    const encoded = this.encoder.encodeFrame({
-      frameData: stripped,
-      width: pixelData.columns,
-      height: pixelData.rows,
-      components: pixelData.samplesPerPixel,
-      bitsAllocated: pixelData.bitsAllocated,
-      bitsStored: pixelData.bitsStored,
-      pixelRepresentation: pixelData.pixelRepresentation,
-      parameters,
-      isPart2: false,
-    });
+    try {
+      validateJpeg2000EncodeInput(pixelData, frameIndex, this.transferSyntax.uid.uid, "part1");
+      const stripped = stripFramePaddingByte(rawFrame.data, pixelData);
+      const encoded = this.encoder.encodeFrame({
+        frameData: stripped,
+        width: pixelData.columns,
+        height: pixelData.rows,
+        components: pixelData.samplesPerPixel,
+        bitsAllocated: pixelData.bitsAllocated,
+        bitsStored: pixelData.bitsStored,
+        pixelRepresentation: pixelData.pixelRepresentation,
+        parameters,
+        isPart2: false,
+      });
 
-    if (!(encoded instanceof Uint8Array) || encoded.length === 0) {
-      throw new Error(
-        `JPEG2000 encode produced empty frame [frame=${frameIndex}, syntax=${this.transferSyntax.uid.uid}]`,
-      );
+      if (!(encoded instanceof Uint8Array) || encoded.length === 0) {
+        throw new Error("JPEG2000 encode produced empty frame");
+      }
+
+      return new MemoryByteBuffer(encoded);
+    } catch (error) {
+      throw buildJpeg2000OperationError("encode", error, {
+        syntaxUid: this.transferSyntax.uid.uid,
+        frameIndex,
+        width: pixelData.columns,
+        height: pixelData.rows,
+        bitsAllocated: pixelData.bitsAllocated,
+        bitsStored: pixelData.bitsStored,
+        samplesPerPixel: pixelData.samplesPerPixel,
+      });
     }
-
-    return new MemoryByteBuffer(encoded);
   }
 }

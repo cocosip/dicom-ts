@@ -270,9 +270,118 @@ describe("DicomJpeg2000Codec", () => {
 
     expect(thrown).toBeInstanceOf(Error);
     const message = (thrown as Error).message;
+    expect(message).toContain("JPEG2000 decode failed");
     expect(message).toContain("JPEG2000 decoded frame length mismatch");
     expect(message).toContain("syntax=1.2.840.10008.1.2.4.90");
     expect(message).toContain("frame=0");
+  });
+
+  it("wraps decode parser errors with syntax/frame context for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        8,
+        8,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+      DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(new Uint8Array([0x00])));
+
+      let thrown: unknown;
+      try {
+        entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 decode failed");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
+  });
+
+  it("wraps encode validation errors with syntax/frame context for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    for (const entry of codecEntries) {
+      const sourceDataset = buildDataset(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        12,
+        12,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+        new Uint16Array([1, 2, 3, 4]),
+      );
+      const encodedDataset = buildDataset(
+        entry.syntax,
+        12,
+        12,
+        2,
+        2,
+        1,
+        "MONOCHROME2",
+      );
+
+      let thrown: unknown;
+      try {
+        entry.codec.encode(
+          DicomPixelData.create(sourceDataset),
+          DicomPixelData.create(encodedDataset, true),
+          null,
+        );
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      const message = (thrown as Error).message;
+      expect(message).toContain("JPEG2000 encode failed");
+      expect(message).toContain("JPEG2000 supports BitsAllocated 8 or 16");
+      expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+      expect(message).toContain("frame=0");
+    }
   });
 
   it("derives lossless layering from rate/rateLevels when targetRatio is unset", () => {

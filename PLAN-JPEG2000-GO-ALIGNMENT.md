@@ -162,9 +162,13 @@ Progress note:
   - Added PSNR-based quality assertion test for `.91` with multiple target ratio scenarios (quality 50/30/10 thresholds),
   - Parameter normalization table audit completed with strict invalid/fallback tests,
   - Metadata semantics alignment completed for `.90/.91/.92/.93` (PI + planar configuration).
-- Next sub-goal (current): continue P4/P5/P6 hardening:
+- P7 kickoff update (2026-03-10):
+  - Added shared JPEG2000 codec-level error wrapper helper that standardizes `JPEG2000 {encode|decode} failed` prefix and appends context (`syntax`, `frame`, `size`, `bitsAllocated`, `bitsStored`, `samples`).
+  - Rewired `.90/.91/.92/.93` codec classes to wrap decode and encode exceptions through the shared error helper while retaining nested failure detail messages.
+  - Added codec-level malformed-input negative matrix and encode validation negative matrix across all four syntaxes to harden error-path coverage.
+- Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
-  - Error model parity with go-dicom-codec,
+  - Broader malformed-marker/truncation corpus + failure-class mapping for JPEG2000 error model parity,
   - Part 2 (`.92/.93`) acceptance-corpus expansion + negative/error-path hardening.
 - P3.5/P5 kickoff update:
   - Added in-tree Part2 MCT builder module (`jpeg2000/core/mct`) for encode-side `MCT/MCC/MCO` marker construction (bindings + ordering + element-type serialization).
@@ -262,12 +266,12 @@ Exit criteria:
 
 ## Phase 7 - Error Model Alignment
 
-- [ ] P7.1 Standardize error text schema with context:
+- [x] P7.1 Standardize error text schema with context:
   - `syntax UID`
   - `frame index`
   - key dimensions/bit depth where relevant
 - [ ] P7.2 Align key failure modes with Go logic (invalid markers, truncation, mismatched metadata)
-- [ ] P7.3 Add negative tests for malformed codestream and invalid parameter combinations
+- [x] P7.3 Add negative tests for malformed codestream and invalid parameter combinations
 
 Exit criteria:
 

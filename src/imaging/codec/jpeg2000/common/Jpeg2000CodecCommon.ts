@@ -6,7 +6,7 @@ import { PlanarConfiguration } from "../../../PlanarConfiguration.js";
 import type { DicomCodecParams } from "../../DicomCodecParams.js";
 import { DicomJpeg2000Params } from "../DicomJpeg2000Params.js";
 
-interface Jpeg2000ErrorContext {
+export interface Jpeg2000ErrorContext {
   syntaxUid?: string;
   frameIndex?: number;
   width?: number;
@@ -305,6 +305,36 @@ export function validateDecodedFrameResult(
   syntaxUid: string,
 ): Uint8Array {
   return validateDecodedFrame(decoded.pixelData, decoded.metadata, pixelData, frameIndex, syntaxUid);
+}
+
+type Jpeg2000Operation = "encode" | "decode";
+
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+export function buildJpeg2000OperationError(
+  operation: Jpeg2000Operation,
+  error: unknown,
+  context: Jpeg2000ErrorContext,
+): Error {
+  return new Error(
+    formatJpeg2000Error(
+      `JPEG2000 ${operation} failed: ${describeError(error)}`,
+      context,
+    ),
+  );
 }
 
 export function applyJpeg2000EncodePixelMetadata(
