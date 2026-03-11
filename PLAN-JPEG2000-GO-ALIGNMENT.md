@@ -248,6 +248,11 @@ Progress note:
   - Added `.90/.91/.92/.93` codec-level negative matrices for:
     - missing `COD` => `class=marker-corruption`
     - missing `QCD` => `class=marker-corruption`
+- P8.1 follow-up update (2026-03-11, Go->TS Part2 generated-vector compatibility):
+  - Extended `DicomJpeg2000TsEncodeGoDecode` with explicit Go-encode -> TS-decode assertions for `.92/.93` generated vectors:
+    - inputs: `tests/imaging/jpeg2000/fixtures/go-part2-lossless.j2k` / `go-part2-lossy.j2k`
+    - checks: `Go decode hash == TS decode hash` + decoded byte-length parity
+  - Reused existing Go decode tool path (`tools/decode_codestream`) for parity verification.
 - Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
   - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,

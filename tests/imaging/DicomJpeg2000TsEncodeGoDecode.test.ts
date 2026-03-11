@@ -185,6 +185,49 @@ function createParamsForSyntax(entry: Jpeg2000SyntaxEntry, targetRatio?: number)
 }
 
 describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
+  it("validates Go encode -> TS decode compatibility for .92/.93 generated vectors", () => {
+    const matrix = [
+      {
+        name: ".92-go-part2-lossless-generated-vector",
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        fixtureName: "go-part2-lossless.j2k",
+      },
+      {
+        name: ".93-go-part2-lossy-generated-vector",
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        fixtureName: "go-part2-lossy.j2k",
+      },
+    ] as const;
+
+    for (const entry of matrix) {
+      const codestream = new Uint8Array(readFileSync(join("tests/imaging/jpeg2000/fixtures", entry.fixtureName)));
+      const goDecoded = decodeCodestreamWithGo(codestream);
+
+      const dataset = new DicomDataset(entry.syntax);
+      dataset.addOrUpdateElement(DicomVR.US, Tags.Rows, goDecoded.metadata.height);
+      dataset.addOrUpdateElement(DicomVR.US, Tags.Columns, goDecoded.metadata.width);
+      dataset.addOrUpdateElement(DicomVR.US, Tags.BitsAllocated, 8);
+      dataset.addOrUpdateElement(DicomVR.US, Tags.BitsStored, 8);
+      dataset.addOrUpdateElement(DicomVR.US, Tags.HighBit, 7);
+      dataset.addOrUpdateElement(DicomVR.US, Tags.SamplesPerPixel, goDecoded.metadata.components);
+      dataset.addOrUpdateElement(DicomVR.US, Tags.PixelRepresentation, 0);
+      dataset.addOrUpdateElement(DicomVR.US, Tags.PlanarConfiguration, 0);
+      dataset.addOrUpdateElement(DicomVR.CS, Tags.PhotometricInterpretation, "RGB");
+      dataset.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, "1");
+      const pixelData = DicomPixelData.create(dataset, true);
+      pixelData.addFrame(new MemoryByteBuffer(codestream));
+
+      const tsDecoded = new DicomTranscoder(
+        entry.syntax,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      ).transcode(dataset);
+      const tsFrame = DicomPixelData.create(tsDecoded).getFrame(0).data;
+
+      expect(tsFrame.length, `${entry.name} decoded length`).toBe(goDecoded.pixelData.length);
+      expect(sha256(tsFrame), `${entry.name} Go-vs-TS hash parity`).toBe(goDecoded.metadata.sha256);
+    }
+  }, 180000);
+
   it("validates TS encode -> Go decode matrix on .90/.91 fixture corpus", async () => {
     const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));
     const sourceFrame = DicomPixelData.create(source.dataset).getFrame(0).data;
