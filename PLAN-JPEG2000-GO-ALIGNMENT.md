@@ -218,6 +218,36 @@ Progress note:
     - duplicate `SIZ` => `class=marker-corruption`
     - duplicate `COD` => `class=marker-corruption`
     - duplicate `QCD` => `class=marker-corruption`
+- P7.2 hardening update (2026-03-11, Part2 malformed-marker corpus extension):
+  - Extended `marker-corruption` classifier coverage to include malformed Part2 marker signals:
+    - `Unsupported MCT Zmct value`
+    - `Unsupported MCT Ymct value`
+    - `Unsupported MCC Zmcc value`
+    - `Unsupported MCC Ymcc value`
+    - `Invalid MCT segment payload length`
+    - `Invalid MCC segment payload length`
+    - `Invalid MCO segment payload length`
+    - `Invalid MCC payload: no collections`
+  - Added `.90/.91/.92/.93` codec-level negative matrices for:
+    - malformed `MCT` selector fields (`Zmct`/`Ymct`) => `class=marker-corruption`
+    - malformed `MCC` selector fields (`Zmcc`/`Ymcc`) => `class=marker-corruption`
+    - invalid Part2 marker payload lengths (`MCT/MCC/MCO`) => `class=marker-corruption`
+    - invalid `MCC` collection count (`Qmcc=0`) => `class=marker-corruption`
+- P8.4 kickoff update (2026-03-11, lossless deterministic checks for `.90/.92`):
+  - Added codec-level deterministic regression coverage for repeated lossless encode outputs:
+    - single-frame `.90/.92`: byte equality + SHA-256 parity across repeated encodes,
+    - multi-frame `.90/.92`: per-frame byte equality + SHA-256 parity across repeated encodes.
+  - Added deterministic test helpers for RGB frame generation and Part2 lossless parameter setup in codec tests.
+- P7.2 hardening update (2026-03-11, required main-header segments alignment):
+  - `Jpeg2000CodestreamParser` now enforces required main-header segment presence after parse:
+    - missing `COD` => `JPEG2000 codestream is missing required COD segment`
+    - missing `QCD` => `JPEG2000 codestream is missing required QCD segment`
+  - Extended codec failure classifier `marker-corruption` branch to include:
+    - `missing COD segment` / `missing required COD segment`
+    - `missing QCD segment` / `missing required QCD segment`
+  - Added `.90/.91/.92/.93` codec-level negative matrices for:
+    - missing `COD` => `class=marker-corruption`
+    - missing `QCD` => `class=marker-corruption`
 - Next sub-goal (current): continue P4/P7/P8 hardening:
   - Full parameter behavior table audit completion,
   - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,
@@ -357,7 +387,7 @@ Exit criteria:
 - [ ] P8.1 Add Go->TS compatibility tests (Go encoded sample decoded by TS)
 - [ ] P8.2 Add TS->Go compatibility tests (TS encoded sample decoded by Go)
 - [ ] P8.3 Validate against `fo-dicom.Codecs/Tests/Acceptance` fixture set
-- [ ] P8.4 Add deterministic checks:
+- [-] P8.4 Add deterministic checks:
   - lossless: byte/hash equivalence where feasible
   - lossy: pixel error thresholds
 

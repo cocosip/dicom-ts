@@ -47,6 +47,12 @@ export class Jpeg2000CodestreamParser {
     if (!codestream.siz) {
       throw new Error("JPEG2000 codestream is missing required SIZ segment");
     }
+    if (!codestream.cod) {
+      throw new Error("JPEG2000 codestream is missing required COD segment");
+    }
+    if (!codestream.qcd) {
+      throw new Error("JPEG2000 codestream is missing required QCD segment");
+    }
 
     return codestream;
   }

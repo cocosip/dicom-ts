@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import * as Tags from "../../src/core/DicomTag.generated.js";
@@ -54,6 +55,50 @@ function buildDataset(
   }
 
   return ds;
+}
+
+function sha256(data: Uint8Array): string {
+  return createHash("sha256").update(data).digest("hex");
+}
+
+function buildRgbFrame(width: number, height: number, seed: number): Uint8Array {
+  const frame = new Uint8Array(width * height * 3);
+  for (let i = 0; i < frame.length; i += 3) {
+    const pixel = Math.floor(i / 3);
+    const x = pixel % width;
+    const y = Math.floor(pixel / width);
+    frame[i] = (x * 11 + y * 7 + seed) & 0xff;
+    frame[i + 1] = (x * 5 + y * 13 + seed * 3) & 0xff;
+    frame[i + 2] = (x * 17 + y * 3 + seed * 5) & 0xff;
+  }
+  return frame;
+}
+
+function buildPart2LosslessParams(): DicomJpeg2000Params {
+  const parameters = DicomJpeg2000Params.createLosslessDefaults();
+  parameters.numLevels = 3;
+  parameters.numLayers = 1;
+  parameters.allowMct = true;
+  parameters.mctBindings = [
+    {
+      assocType: 1,
+      componentIds: [0, 1, 2],
+      matrix: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
+      inverse: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
+      offsets: [3, -2, 1],
+      elementType: 1,
+      mcoPrecision: 0,
+    },
+  ];
+  return parameters;
 }
 
 describe("DicomJpeg2000Codec", () => {
@@ -189,6 +234,142 @@ describe("DicomJpeg2000Codec", () => {
     ).transcode(source);
     expect(transcoded.internalTransferSyntax).toBe(DicomTransferSyntax.JPEG2000Lossy);
     expect(DicomPixelData.create(transcoded).numberOfFrames).toBe(1);
+  });
+
+  it("produces deterministic lossless codestream bytes for repeated .90/.92 single-frame encodes", () => {
+    const width = 16;
+    const height = 16;
+    const frame = buildRgbFrame(width, height, 19);
+
+    const matrix = [
+      {
+        name: ".90-lossless-singleframe-deterministic",
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        parameters: DicomJpeg2000Params.createLosslessDefaults(),
+      },
+      {
+        name: ".92-lossless-singleframe-deterministic",
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        parameters: buildPart2LosslessParams(),
+      },
+    ];
+
+    for (const entry of matrix) {
+      const sourceA = buildDataset(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        8,
+        8,
+        width,
+        height,
+        3,
+        "RGB",
+        frame,
+      );
+      const sourceB = buildDataset(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        8,
+        8,
+        width,
+        height,
+        3,
+        "RGB",
+        frame,
+      );
+
+      const encodedA = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        entry.syntax,
+        null,
+        entry.parameters,
+      ).transcode(sourceA);
+      const encodedB = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        entry.syntax,
+        null,
+        entry.parameters,
+      ).transcode(sourceB);
+
+      const frameA = DicomPixelData.create(encodedA).getFrame(0).data;
+      const frameB = DicomPixelData.create(encodedB).getFrame(0).data;
+
+      expect(frameA.length, `${entry.name} encoded size`).toBeGreaterThan(0);
+      expect(sha256(frameA), `${entry.name} hash parity`).toBe(sha256(frameB));
+      expect([...frameA], `${entry.name} byte parity`).toEqual([...frameB]);
+    }
+  });
+
+  it("produces deterministic lossless codestream bytes for repeated .90/.92 multi-frame encodes", () => {
+    const width = 16;
+    const height = 16;
+    const frameA = buildRgbFrame(width, height, 11);
+    const frameB = buildRgbFrame(width, height, 37);
+
+    const matrix = [
+      {
+        name: ".90-lossless-multiframe-deterministic",
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        parameters: DicomJpeg2000Params.createLosslessDefaults(),
+      },
+      {
+        name: ".92-lossless-multiframe-deterministic",
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        parameters: buildPart2LosslessParams(),
+      },
+    ];
+
+    for (const entry of matrix) {
+      const sourceA = buildDataset(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        8,
+        8,
+        width,
+        height,
+        3,
+        "RGB",
+      );
+      const sourceB = buildDataset(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        8,
+        8,
+        width,
+        height,
+        3,
+        "RGB",
+      );
+      const sourcePixelDataA = DicomPixelData.create(sourceA, true);
+      sourcePixelDataA.addFrame(new MemoryByteBuffer(frameA));
+      sourcePixelDataA.addFrame(new MemoryByteBuffer(frameB));
+      const sourcePixelDataB = DicomPixelData.create(sourceB, true);
+      sourcePixelDataB.addFrame(new MemoryByteBuffer(frameA));
+      sourcePixelDataB.addFrame(new MemoryByteBuffer(frameB));
+
+      const encodedA = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        entry.syntax,
+        null,
+        entry.parameters,
+      ).transcode(sourceA);
+      const encodedB = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        entry.syntax,
+        null,
+        entry.parameters,
+      ).transcode(sourceB);
+
+      const encodedPixelDataA = DicomPixelData.create(encodedA);
+      const encodedPixelDataB = DicomPixelData.create(encodedB);
+      expect(encodedPixelDataA.numberOfFrames, `${entry.name} frame count A`).toBe(2);
+      expect(encodedPixelDataB.numberOfFrames, `${entry.name} frame count B`).toBe(2);
+
+      for (let frameIndex = 0; frameIndex < 2; frameIndex++) {
+        const encodedFrameA = encodedPixelDataA.getFrame(frameIndex).data;
+        const encodedFrameB = encodedPixelDataB.getFrame(frameIndex).data;
+
+        expect(encodedFrameA.length, `${entry.name} frame ${frameIndex} encoded size`).toBeGreaterThan(0);
+        expect(sha256(encodedFrameA), `${entry.name} frame ${frameIndex} hash parity`).toBe(sha256(encodedFrameB));
+        expect([...encodedFrameA], `${entry.name} frame ${frameIndex} byte parity`).toEqual([...encodedFrameB]);
+      }
+    }
   });
 
   it("decodes multi-frame loops for .90/.91/.92/.93 codec classes", () => {
@@ -656,6 +837,69 @@ describe("DicomJpeg2000Codec", () => {
     }
   });
 
+  it("classifies missing COD/QCD required main-header segments as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "missing COD",
+        codestream: buildCodestreamMissingCod(),
+        detail: "missing required COD segment",
+      },
+      {
+        name: "missing QCD",
+        codestream: buildCodestreamMissingQcd(),
+        detail: "missing required QCD segment",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
+    }
+  });
+
   it("classifies JP2 truncated XLBox as truncation for .90/.91/.92/.93", () => {
     const codecEntries = [
       {
@@ -893,6 +1137,99 @@ describe("DicomJpeg2000Codec", () => {
       expect(message).toContain("Duplicate QCD segment in main header");
       expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
       expect(message).toContain("frame=0");
+    }
+  });
+
+  it("classifies malformed Part2 segment markers as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "unsupported MCT Zmct",
+        codestream: buildUnsupportedMctZmctCodestream(),
+        detail: "Unsupported MCT Zmct value",
+      },
+      {
+        name: "unsupported MCT Ymct",
+        codestream: buildUnsupportedMctYmctCodestream(),
+        detail: "Unsupported MCT Ymct value",
+      },
+      {
+        name: "unsupported MCC Zmcc",
+        codestream: buildUnsupportedMccZmccCodestream(),
+        detail: "Unsupported MCC Zmcc value",
+      },
+      {
+        name: "unsupported MCC Ymcc",
+        codestream: buildUnsupportedMccYmccCodestream(),
+        detail: "Unsupported MCC Ymcc value",
+      },
+      {
+        name: "invalid MCT payload length",
+        codestream: buildInvalidMctPayloadLengthCodestream(),
+        detail: "Invalid MCT segment payload length",
+      },
+      {
+        name: "invalid MCC payload length",
+        codestream: buildInvalidMccPayloadLengthCodestream(),
+        detail: "Invalid MCC segment payload length",
+      },
+      {
+        name: "invalid MCO payload length",
+        codestream: buildInvalidMcoPayloadLengthCodestream(),
+        detail: "Invalid MCO segment payload length",
+      },
+      {
+        name: "invalid MCC no collections",
+        codestream: buildInvalidMccNoCollectionsCodestream(),
+        detail: "Invalid MCC payload: no collections",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
     }
   });
 
@@ -1241,6 +1578,54 @@ function buildCodestreamMissingEoc(): Uint8Array {
   return codestream.subarray(0, codestream.length - 2);
 }
 
+function buildCodestreamMissingCod(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 41);
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 1);
+  bytes.push(7, 1, 1);
+  pushU16(bytes, 0xff5c); // QCD
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildCodestreamMissingQcd(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 41);
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 1);
+  bytes.push(7, 1, 1);
+  pushU16(bytes, 0xff52); // COD
+  pushU16(bytes, 12);
+  bytes.push(0, 0);
+  pushU16(bytes, 1);
+  bytes.push(0, 0, 2, 2, 0, 1);
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
 function buildDuplicateSizMainHeaderCodestream(): Uint8Array {
   const bytes = Array.from(buildMinimalJ2kCodestream());
   bytes.splice(bytes.length - 2, 0,
@@ -1281,4 +1666,91 @@ function buildDuplicateQcdMainHeaderCodestream(): Uint8Array {
     0x00, 0x00, 0x00,
   );
   return new Uint8Array(bytes);
+}
+
+function insertMainHeaderSegment(codestream: Uint8Array, segmentBytes: number[]): Uint8Array {
+  const bytes = Array.from(codestream);
+  bytes.splice(bytes.length - 2, 0, ...segmentBytes);
+  return new Uint8Array(bytes);
+}
+
+function buildUnsupportedMctZmctCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x74, // MCT
+    0x00, 0x08, // length=8 (payload=6)
+    0x00, 0x01, // Zmct=1 (unsupported)
+    0x00, 0x00, // Imct
+    0x00, 0x00, // Ymct
+  ]);
+}
+
+function buildUnsupportedMctYmctCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x74, // MCT
+    0x00, 0x08, // length=8 (payload=6)
+    0x00, 0x00, // Zmct
+    0x00, 0x00, // Imct
+    0x00, 0x01, // Ymct=1 (unsupported)
+  ]);
+}
+
+function buildUnsupportedMccZmccCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x75, // MCC
+    0x00, 0x09, // length=9 (payload=7)
+    0x00, 0x01, // Zmcc=1 (unsupported)
+    0x00, // Imcc
+    0x00, 0x00, // Ymcc
+    0x00, 0x01, // Qmcc
+  ]);
+}
+
+function buildUnsupportedMccYmccCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x75, // MCC
+    0x00, 0x09, // length=9 (payload=7)
+    0x00, 0x00, // Zmcc
+    0x00, // Imcc
+    0x00, 0x01, // Ymcc=1 (unsupported)
+    0x00, 0x01, // Qmcc
+  ]);
+}
+
+function buildInvalidMctPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x74, // MCT
+    0x00, 0x07, // length=7 (payload=5, invalid)
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00,
+  ]);
+}
+
+function buildInvalidMccPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x75, // MCC
+    0x00, 0x08, // length=8 (payload=6, invalid)
+    0x00, 0x00,
+    0x00,
+    0x00, 0x00,
+    0x00,
+  ]);
+}
+
+function buildInvalidMcoPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x77, // MCO
+    0x00, 0x02, // length=2 (payload=0, invalid)
+  ]);
+}
+
+function buildInvalidMccNoCollectionsCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x75, // MCC
+    0x00, 0x09, // length=9 (payload=7)
+    0x00, 0x00, // Zmcc
+    0x00, // Imcc
+    0x00, 0x00, // Ymcc
+    0x00, 0x00, // Qmcc=0 (invalid)
+  ]);
 }
