@@ -35,8 +35,8 @@ Status legend:
 
 | Item | Status | Notes |
 | --- | --- | --- |
-| `.90` decode | WIP | T2+MQ/T1 + inverse DWT + component reconstruction + inverse RCT/ICT + sample packing wired; full fixture parity and metadata semantics pending |
-| `.91` decode | WIP | Shares same pipeline; irreversible dequant/DWT + inverse ICT path wired, lossy parity thresholds pending |
+| `.90` decode | WIP | Go hash parity is green, but direct acceptance-fixture RGB parity still fails (`PM5644-960x540_JPEG2000-Lossless.dcm` currently shows 1458 mismatched bytes vs `PM5644-960x540_RGB.dcm`) |
+| `.91` decode | WIP | Go hash parity is green for `Lossy` and `Lossy50`, but direct RGB-threshold acceptance checks still fail (`Lossy` maxAbsDiff 255; `Lossy50` MAE 7.71 > 6 threshold) |
 | `.92` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, real fixture parity pending |
 | `.93` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, real fixture parity pending |
 | `.90` encode | DONE | LRCP single/multi-layer path landed; codec now calls in-tree encoder API directly; TS->Go single/multi-frame fixture matrix green |
@@ -53,7 +53,7 @@ Status legend:
 
 | Validation | Status | Notes |
 | --- | --- | --- |
-| Decode fo-dicom.Codecs JPEG2000 acceptance fixtures | WIP | Pixel decode wired; `.90/.91` now close to reference with sparse outliers, still below final parity thresholds |
+| Decode fo-dicom.Codecs JPEG2000 acceptance fixtures | WIP | Go parity is green for `.90/.91`, but direct RGB-reference acceptance checks still fail; `.92/.93` acceptance-fixture coverage remains unavailable/pending |
 | Go encode -> TS decode compatibility | WIP | `.90/.91` acceptance codestreams + `.92/.93` Go-generated Part2 vectors are green on hash parity; broader corpus still pending |
 | TS encode -> Go decode compatibility | DONE | `.90/.91` acceptance fixture single/multi-frame + `.92/.93` single/multi-frame matrix green |
 | Lossless deterministic checks | WIP | Codec-level deterministic hash/byte checks added for repeated `.90/.92` lossless encodes (single + multi-frame); acceptance-fixture deterministic matrix pending |
@@ -65,10 +65,9 @@ Status legend:
 
 ## 4) Known blockers / current reality
 
-- Current TS JPEG2000 backend is not a real J2K/JP2 implementation.
-- Custom pseudo-codestream backend has been removed and replaced with explicit "not implemented" errors.
-- Red baseline tests for real fixtures are now in:
-  - `tests/imaging/DicomJpeg2000AlignmentBaseline.test.ts` (`it.fails` cases)
+- Current TS JPEG2000 backend is an in-tree real J2K/JP2 implementation, but validation and hardening are still incomplete.
+- Custom pseudo-codestream backend has been removed.
+- Remaining fixture gap includes `.90/.91` divergence from direct RGB-reference acceptance checks and the absence of broad Part2 `.92/.93` real-fixture validation.
 
 ---
 
@@ -94,6 +93,21 @@ Status legend:
 - Commands:
   - `npm test -- --run tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
   - `npm run build`
+
+### 2026-03-17 (Phase 8 / acceptance-gap expansion for `.90/.91`)
+
+- Focus: verify whether stale red-baseline coverage could be promoted to green acceptance regression coverage.
+- Key updates:
+  - Verified that `.90/.91` still fail direct RGB-reference acceptance assertions despite green Go hash parity.
+  - Renamed the suite to `DicomJpeg2000AcceptanceGap.test.ts` to reflect its role as an expected-failure tracker.
+  - Added `PM5644-960x540_JPEG2000-Lossy50.dcm` expected-failure threshold coverage.
+  - Updated checklist rows to keep `.90/.91` decode in `WIP` with the observed divergence metrics.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000AcceptanceGap.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000AcceptanceGap.test.ts tests/imaging/DicomJpeg2000GoParity.test.ts`
 
 ### 2026-03-11 (Phase 8 / P8.4 lossless deterministic checks kickoff: `.90/.92`)
 

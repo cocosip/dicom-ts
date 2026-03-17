@@ -35,10 +35,10 @@ Alignment target:
 
 ## 3) Current Gap Summary
 
-- Existing TS JPEG2000 path is not real J2K/JP2-compatible (custom internal marker/profile).
-- Real JPEG2000 DICOM fixtures fail decode.
-- Go reference has full codec pipeline (codestream parser, T1/T2, wavelet, MQ, color transform, Part 2 hooks).
-- TS side currently lacks those equivalent internals.
+- TS side now has an in-tree real J2K/JP2-compatible pipeline (parser, T1/T2, wavelet, MQ, color transform, Part 2 hooks).
+- Go parity is green for `.90/.91`, but direct RGB-reference acceptance assertions still fail on current fixtures; remaining validation gap includes explaining or closing that divergence.
+- `.92/.93` still lack broad real-fixture acceptance validation; current confidence is based on synthetic and Go-generated parity coverage.
+- Go reference remains the behavioral source of truth for broader compatibility, failure classification, and performance-oriented edge cases.
 
 ---
 
@@ -389,12 +389,19 @@ Exit criteria:
 
 ## Phase 8 - Cross-Implementation Validation
 
-- [ ] P8.1 Add Go->TS compatibility tests (Go encoded sample decoded by TS)
-- [ ] P8.2 Add TS->Go compatibility tests (TS encoded sample decoded by Go)
-- [ ] P8.3 Validate against `fo-dicom.Codecs/Tests/Acceptance` fixture set
+- [-] P8.1 Add Go->TS compatibility tests (Go encoded sample decoded by TS)
+- [x] P8.2 Add TS->Go compatibility tests (TS encoded sample decoded by Go)
+- [-] P8.3 Validate against `fo-dicom.Codecs/Tests/Acceptance` fixture set
 - [-] P8.4 Add deterministic checks:
   - lossless: byte/hash equivalence where feasible
   - lossy: pixel error thresholds
+
+Progress note:
+
+- P8.1 partial: `.90/.91` acceptance codestreams and `.92/.93` Go-generated Part2 vectors are covered by Go->TS hash-parity tests; broader fixture corpus is still pending.
+- P8.2 complete: TS->Go compatibility matrix is green for `.90/.91` acceptance fixtures and `.92/.93` single/multi-frame synthetic vectors.
+- P8.3 partial: direct RGB-reference acceptance assertions for `.90/.91` remain red and are tracked in expected-failure regression tests; Part2 `.92/.93` acceptance-style fixture coverage is still pending.
+- P8.4 partial: deterministic lossless checks are green for repeated `.90/.92` encodes; broader deterministic fixture coverage remains open.
 
 Exit criteria:
 

@@ -48,10 +48,17 @@ export function encodePacketsSingleLayerLrcp(
   packetPlans: Jpeg2000PacketPlan[],
   contributions: Map<string, Jpeg2000PacketCodeBlockContribution>,
 ): Uint8Array {
-  return encodePacketsLrcp(packetPlans, contributions);
+  return encodePackets(packetPlans, contributions);
 }
 
 export function encodePacketsLrcp(
+  packetPlans: Jpeg2000PacketPlan[],
+  contributions: Map<string, Jpeg2000PacketCodeBlockContribution>,
+): Uint8Array {
+  return encodePackets(packetPlans, contributions);
+}
+
+export function encodePackets(
   packetPlans: Jpeg2000PacketPlan[],
   contributions: Map<string, Jpeg2000PacketCodeBlockContribution>,
 ): Uint8Array {
