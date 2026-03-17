@@ -1,53 +1,59 @@
-# AGENTS.md
+# Project Workflow
 
-<INSTRUCTIONS>
-## Skills
-A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and file path so you can open the source for full instructions when using a specific skill.
-### Available skills
-- skill-creator: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Codex's capabilities with specialized knowledge, workflows, or tool integrations. (file: C:/Users/11855/.codex/skills/.system/skill-creator/SKILL.md)
-- skill-installer: Install Codex skills into $CODEX_HOME/skills from a curated list or a GitHub repo path. Use when a user asks to list installable skills, install a curated skill, or install a skill from another repo (including private repos). (file: C:/Users/11855/.codex/skills/.system/skill-installer/SKILL.md)
-### How to use skills
-- Discovery: The list above is the skills available in this session (name + description + file path). Skill bodies live on disk at the listed paths.
-- Trigger rules: If the user names a skill (with `$SkillName` or plain text) OR the task clearly matches a skill's description shown above, you must use that skill for that turn. Multiple mentions mean use them all. Do not carry skills across turns unless re-mentioned.
-- Missing/blocked: If a named skill isn't in the list or the path can't be read, say so briefly and continue with the best fallback.
-- How to use a skill (progressive disclosure):
-  1) After deciding to use a skill, open its `SKILL.md`. Read only enough to follow the workflow.
-  2) When `SKILL.md` references relative paths (e.g., `scripts/foo.py`), resolve them relative to the skill directory listed above first, and only consider other paths if needed.
-  3) If `SKILL.md` points to extra folders such as `references/`, load only the specific files needed for the request; don't bulk-load everything.
-  4) If `scripts/` exist, prefer running or patching them instead of retyping large code blocks.
-  5) If `assets/` or templates exist, reuse them instead of recreating from scratch.
-- Coordination and sequencing:
-  - If multiple skills apply, choose the minimal set that covers the request and state the order you'll use them.
-  - Announce which skill(s) you're using and why (one short line). If you skip an obvious skill, say why.
-- Context hygiene:
-  - Keep context small: summarize long sections instead of pasting them; only load extra files when needed.
-  - Avoid deep reference-chasing: prefer opening only files directly linked from `SKILL.md` unless you're blocked.
-  - When variants exist (frameworks, providers, domains), pick only the relevant reference file(s) and note that choice.
-- Safety and fallback: If a skill can't be applied cleanly (missing files, unclear instructions), state the issue, pick the next-best approach, and continue.
-</INSTRUCTIONS>
+## Project Identity
+
+- Project name: dicom-ts
+- System name: codex-mem
+- Default memory scope: current project
+
+## Memory Rules
+
+- At the start of a fresh session in this repository, call `memory_bootstrap_session`.
+- Save a memory note when work produces a lasting decision, bugfix insight, reusable discovery, or durable implementation constraint.
+- Save a handoff before pausing, switching tasks, or ending the session.
+- Prefer notes for durable codec behavior, transfer syntax mapping, parser edge cases, fixture discoveries, and compatibility constraints.
+
+## Related Project Policy
+
+- Related-project memory is allowed only when the task clearly depends on another repository in the same system.
+- Typical examples include API contracts, schema changes, generated clients, deployment coordination, integration debugging, and codec compatibility work.
+- Do not pull memory from unrelated projects by default.
+
+## Preferred Tags
+
+- Use tags where useful, especially: dicom, codec, transcoding, transfer-syntax, imaging
+
+## Project-Specific Notes
+
+- `dicom-ts` is a pure TypeScript DICOM implementation for Node.js, ported from `fo-dicom`.
+- Keep the runtime dependency model unchanged unless the user explicitly requests otherwise: TypeScript/JavaScript packages plus Node built-ins only.
+- Do not add native or binary runtime dependencies for codec support.
+- Treat `dist/` as build output; prefer editing `src/`, `tests/`, `scripts/`, and `tools/`.
+- Run `npm test` for behavioral verification. Run `npm run build` when exports, generated output, or public typing may be affected.
+- Prefer explicit transfer syntax names and UIDs in notes, tests, plans, and handoffs to avoid ambiguity.
 
 ## Codec Reference Map (fo-dicom.Codecs)
 
-When working on image codec/transcoder tasks (Phase 10.5), use `source-code/fo-dicom.Codecs/` as an additional read-only reference.
+When working on image codec or transcoder tasks, especially Phase 10.5, use `source-code/fo-dicom.Codecs/` as an additional read-only reference.
 
 - `source-code/fo-dicom.Codecs/Codec/`
-  - C# codec manager + transfer syntax binding layer.
+  - C# codec manager and transfer syntax binding layer.
   - Maps each DICOM transfer syntax to one concrete `IDicomCodec` implementation.
-  - Key file: `NativeTranscoderManager.cs` (codec discovery/registration).
+  - Key file: `NativeTranscoderManager.cs` for codec discovery and registration behavior.
 - `source-code/fo-dicom.Codecs/Native/`
-  - Native C/C++ bridge code and third-party codec libraries used by fo-dicom.Codecs.
-  - Includes bindings/wrappers for `libijg*` (JPEG), `CharLS` (JPEG-LS), `OpenJPEG` (J2K), `OpenJPH` (HTJ2K).
-  - Treat as behavior reference only; do not add native runtime dependency to `dicom-ts`.
+  - Native C/C++ bridge code and third-party codec libraries used by `fo-dicom.Codecs`.
+  - Includes bindings and wrappers for `libijg*` (JPEG), `CharLS` (JPEG-LS), `OpenJPEG` (J2K), and `OpenJPH` (HTJ2K).
+  - Treat this as behavior reference only; do not add a native runtime dependency to `dicom-ts`.
 - `source-code/fo-dicom.Codecs/Tests/`
   - Acceptance and unit tests with real compressed DICOM fixtures.
-  - Use as compatibility and regression reference when creating `dicom-ts` codec tests.
+  - Use these as compatibility and regression references when creating `dicom-ts` codec tests.
 
 ## Codec Implementation Guardrails
 
-- Keep `dicom-ts` runtime dependency model unchanged: pure TypeScript + Node built-ins.
-- For Phase 10.5, use split strategy:
-  - In-tree pure TS: RLE + JPEG Lossless Process 14 family.
-  - Plugin-only (no built-in binary): JPEG baseline/extended, JPEG-LS, JPEG2000, HTJ2K.
+- Keep the `dicom-ts` runtime dependency model unchanged: pure TypeScript plus Node built-ins.
+- For Phase 10.5, use the split strategy:
+  - In-tree pure TypeScript: RLE plus JPEG Lossless Process 14 family.
+  - Plugin-only with no built-in binary: JPEG baseline and extended, JPEG-LS, JPEG 2000, and HTJ2K.
 - Align transfer syntax behavior with both references:
   - `source-code/fo-dicom/FO-DICOM.Core/Imaging/Codec/`
   - `source-code/fo-dicom.Codecs/Codec/`
@@ -58,7 +64,7 @@ The following transfer syntaxes are mandatory targets for codec planning and imp
 
 - JPEG Family
   - JPEG Baseline (Process 1), lossy 8-bit: `1.2.840.10008.1.2.4.50`
-  - JPEG Extended (Process 2 & 4), lossy 8/12-bit: `1.2.840.10008.1.2.4.51`
+  - JPEG Extended (Process 2 and 4), lossy 8/12-bit: `1.2.840.10008.1.2.4.51`
   - JPEG Lossless (Process 14), all predictors: `1.2.840.10008.1.2.4.57`
   - JPEG Lossless SV1 (Process 14, predictor 1): `1.2.840.10008.1.2.4.70`
 - JPEG-LS Family
@@ -69,3 +75,15 @@ The following transfer syntaxes are mandatory targets for codec planning and imp
   - JPEG 2000 (lossy/lossless): `1.2.840.10008.1.2.4.91`
   - JPEG 2000 Multi-component Lossless: `1.2.840.10008.1.2.4.92`
   - JPEG 2000 Multi-component: `1.2.840.10008.1.2.4.93`
+
+## System Relationships
+
+- This repository belongs to system: codex-mem
+- Related repositories may include: fo-dicom, fo-dicom.Codecs
+- Use related-project memory only when the current task depends on one of those repositories or on another clearly related repository in the same system.
+
+## Cross-Repo Memory Rules
+
+- Prefer current-project memory first.
+- Expand to related repositories only for integration-relevant or codec-compatibility work.
+- When using related-project memory, mention the source repository explicitly in your reasoning and outputs.
