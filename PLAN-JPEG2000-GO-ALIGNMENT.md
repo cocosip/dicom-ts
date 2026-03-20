@@ -248,15 +248,80 @@ Progress note:
   - Added `.90/.91/.92/.93` codec-level negative matrices for:
     - missing `COD` => `class=marker-corruption`
     - missing `QCD` => `class=marker-corruption`
+- P7.2 hardening update (2026-03-21, malformed required main-header payloads):
+  - Extended codec failure classification so malformed required main-header payloads map to `class=marker-corruption`:
+    - `Invalid SIZ segment payload length`
+    - `Invalid COD segment payload length`
+    - `Invalid COD precinct payload length`
+    - `Invalid QCD segment payload length`
+  - Added `.90/.91/.92/.93` codec-level negative matrices for:
+    - short/invalid `SIZ` payload,
+    - short `COD` payload,
+    - malformed `COD` precinct-length payload,
+    - empty `QCD` payload.
 - P8.1 follow-up update (2026-03-11, Go->TS Part2 generated-vector compatibility):
   - Extended `DicomJpeg2000TsEncodeGoDecode` with explicit Go-encode -> TS-decode assertions for `.92/.93` generated vectors:
     - inputs: `tests/imaging/jpeg2000/fixtures/go-part2-lossless.j2k` / `go-part2-lossy.j2k`
     - checks: `Go decode hash == TS decode hash` + decoded byte-length parity
   - Reused existing Go decode tool path (`tools/decode_codestream`) for parity verification.
-- Next sub-goal (current): continue P4/P7/P8 hardening:
-  - Full parameter behavior table audit completion,
-  - Broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,
-  - Part 2 (`.92/.93`) acceptance-corpus expansion + negative/error-path hardening.
+- P8.1 follow-up update (2026-03-21, Go->TS Part2 multi-frame DICOM loop coverage):
+  - Extended `DicomJpeg2000GoPart2Parity` so repeated Go-generated `.92/.93` codestreams are decoded through two-frame DICOM container loops.
+  - Added assertions for `numberOfFrames == 2`, per-frame decoded byte-length parity, and stable expected hashes on both frames.
+- P7.2 hardening update (2026-03-21, tile-part merge consistency):
+  - Aligned multi-tile-part parser merge semantics with Go for repeated tile-header sections.
+  - `Jpeg2000CodestreamParser` now rejects conflicting same-tile `COD/QCD/COC/QCC/POC` tile-part headers instead of silently overwriting/appending later sections.
+  - Added parser regression coverage for each conflicting marker family to lock the fail-fast behavior.
+- P7.2 hardening update (2026-03-21, tile-part ordering/TNsot validation):
+  - Aligned `SOT` tile-part sequencing checks with Go.
+  - TS parser now rejects:
+    - non-zero first tile-part index,
+    - non-sequential `TPsot`,
+    - mismatched `TNsot` across tile-parts,
+    - tile-part counts that exceed declared `TNsot`.
+  - Extended codec failure classification so these malformed tile-part sequences surface as `marker-corruption`.
+  - Added parser + codec regression coverage for the malformed tile-part sequence matrix.
+- P7.2 hardening update (2026-03-21, baseline RGN parser support):
+  - Added `RGN` parsing/storage in TS codestream main and tile headers.
+  - Extended same-tile tile-part merge validation so conflicting `RGN` sections fail fast like Go.
+  - Extended codec failure classification for invalid `RGN` payloads and conflicting tile-part `RGN` sections.
+  - Added parser + codec regression coverage for `RGN` parsing and malformed/conflicting `RGN` cases.
+- P2/P7 follow-up update (2026-03-21, decode-side RGN MaxShift alignment):
+  - Wired parsed main-header `RGN` component shift/style values into `Jpeg2000Decoder` code-block reconstruction.
+  - Aligned decode order with Go `t2/tile_decoder.go`: inverse MaxShift is applied before `T1_NMSEDEC_FRACBITS` normalization, not via T1 `roiShift`.
+  - Added decoder regression coverage proving MaxShift changes reconstructed code-block coefficients.
+  - Locked current Go behavior that `GeneralScaling` remains inert when no ROI geometry/masks are present.
+- P1/P7 follow-up update (2026-03-21, COM parser alignment):
+  - Added typed main-header `COM` parsing/storage to TS codestream metadata (`registration` + comment payload).
+  - Aligned parser failure behavior with Go for `COM encountered before SIZ` and invalid short `COM` payloads.
+  - Extended codec-level `marker-corruption` classification and regression coverage for malformed `COM` usage.
+- P2/P7 follow-up update (2026-03-21, decode-side `JP2ROI` geometry consumption):
+  - Added decoder-side parsing for `JP2ROI` COM payloads so ROI rectangles can be recovered from main-header `COM`.
+  - Combined parsed `JP2ROI` rectangles with per-component `RGN` shift/style state during code-block reconstruction.
+  - Applied inverse `GeneralScaling` after Tier-1 coefficient normalization for code-blocks intersecting parsed ROI geometry.
+  - Added decoder regression coverage that keeps `GeneralScaling` inert without ROI geometry and active once `JP2ROI` is present.
+- P2/P7 follow-up update (2026-03-21, ROI edge-parity hardening):
+  - Explicitly documented in TS decoder code that tile-header `RGN` remains decode-inert to match the current Go decoder path, which only consumes main-header `RGN`.
+  - Added decoder regression coverage proving tile-header `RGN` does not currently alter reconstructed coefficients.
+  - Added decoder regression coverage proving malformed or unknown-version `JP2ROI` COM payloads are ignored during automatic ROI reconstruction.
+- P5 progression-order update (2026-03-20):
+  - Added non-`LRCP` encode progression-order support for `RLCP/RPCL/PCRL/CPRL`.
+  - `Jpeg2000PacketEncoder` now orders packet emission by requested progression order instead of assuming LRCP.
+  - `Jpeg2000Encoder` now forwards `progressionOrder` into packet emission and the emitted COD segment.
+  - Added regression coverage for:
+    - T2 packet-body ordering across `RLCP/RPCL/PCRL/CPRL`,
+    - lossless TS encode/decode roundtrip with non-LRCP COD values,
+    - TS encode -> Go decode interoperability for non-LRCP `.90` multi-frame encodes.
+  - Current limitation remains the existing simplified single-tile/single-precinct-oriented TS encoder model; position-based progression is not yet a full geometry-parity reimplementation of the Go packet planner.
+- P5 hardening update (2026-03-21):
+  - Aligned Part 2 `mcoRecordOrder` handling with Go `validMCOOrder` semantics:
+    - only full valid MCC-stage permutations are honored,
+    - partial or invalid stage lists now fall back to natural MCC stage order.
+  - Added multi-stage Part 2 builder regression coverage for valid reordering and invalid-order fallback behavior.
+- Next sub-goal (current): resume P4/P7/P8 hardening:
+  - full parameter behavior table audit completion,
+  - broader malformed-marker/truncation corpus + Go parity table for failure-class mapping,
+  - Part 2 (`.92/.93`) acceptance-corpus expansion + negative/error-path hardening,
+  - ROI follow-up beyond current Go parity if needed: explicit ROI mask/polygon semantics and any remaining `JP2ROI` edge cases.
 - P3.5/P5 kickoff update:
   - Added in-tree Part2 MCT builder module (`jpeg2000/core/mct`) for encode-side `MCT/MCC/MCO` marker construction (bindings + ordering + element-type serialization).
   - `Jpeg2000Encoder` now supports Part2 encode path (no adapter):

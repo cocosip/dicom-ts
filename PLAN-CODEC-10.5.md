@@ -3,6 +3,13 @@
 This document is the execution plan for codec work in Phase 10.5.
 It is the baseline document for future implementation tasks.
 
+> Status note (2026-03-20):
+> This file is the phase-level baseline, not the most accurate row-by-row execution tracker.
+> Active JPEG2000 implementation status now lives in `PLAN-JPEG2000-GO-ALIGNMENT.md`
+> and `ALIGNMENT-CHECKLIST-JPEG2000.md`.
+> JPEG2000 codec scaffolding and baseline non-`LRCP` encode progression-order support are now in place.
+> The remaining work is primarily acceptance-fixture, parity, and hardening coverage.
+
 ## 1) Scope and Required Transfer Syntax Coverage
 
 Required syntax UIDs:
@@ -48,12 +55,16 @@ Current state in `dicom-ts`:
     - `src/imaging/codec/jpeg-ls/`
     - `src/imaging/codec/jpeg2000/`
     - `src/imaging/codec/common/`
+  - `DicomTransferSyntax` already exposes `.92` / `.93`
+  - All four JPEG2000 codec classes exist and are registered in `DefaultTranscoderManager`
+  - `DicomJpeg2000Params` and Part 2 MCT parameter path are implemented in-tree
 - Missing or incomplete:
   - JPEG Process 14 core decode chain is implemented (`codec/jpeg/common/JpegProcess14Common.ts`), conformance matrix still in progress
-  - `DicomTransferSyntax` does not fully expose `4.92` / `4.93` constants
   - No unified codec capability metadata (decode-only vs encode+decode)
   - No full acceptance matrix for all required transfer syntaxes
-  - No JPEG2000 `IDicomCodec` implementation classes yet
+  - JPEG2000 decode acceptance remains incomplete for `.90/.91/.92/.93`
+  - JPEG2000 decode acceptance remains incomplete for `.90/.91/.92/.93`
+  - JPEG2000 progression-order support is now implemented for `LRCP/RLCP/RPCL/PCRL/CPRL`, but broader parity and hardening work is still pending
 
 ## 4) Architecture and Boundaries
 
@@ -78,9 +89,9 @@ Current state in `dicom-ts`:
 ## 5) Work Breakdown Structure (WBS)
 
 ### A. Foundation (cross-family)
-- [ ] A1. Add missing transfer syntax constants and mapping
-  - [ ] Add `JPEG2000MCLossless` (`4.92`) and `JPEG2000MC` (`4.93`) in `DicomTransferSyntax`
-  - [ ] Add tests for syntax lookup and registration flow
+- [x] A1. Add missing transfer syntax constants and mapping
+  - [x] Add `JPEG2000MCLossless` (`4.92`) and `JPEG2000MC` (`4.93`) in `DicomTransferSyntax`
+  - [x] Add tests for syntax lookup and registration flow
 - [ ] A2. Extend codec capability model
   - [ ] Add capability metadata (decode, encode, lossy/lossless flags)
   - [ ] Add strict error messages for missing capability paths
@@ -115,29 +126,29 @@ Current state in `dicom-ts`:
 
 ### E. JPEG 2000 (`4.90`, `4.91`, `4.92`, `4.93`) - direct `IDicomCodec` implementations
 
-- [ ] E0. Class matrix and source structure
-  - [ ] `src/imaging/codec/jpeg2000/lossless/DicomJpeg2000LosslessCodec.ts` (`4.90`)
-  - [ ] `src/imaging/codec/jpeg2000/lossy/DicomJpeg2000LossyCodec.ts` (`4.91`)
-  - [ ] `src/imaging/codec/jpeg2000/mc-lossless/DicomJpeg2000Part2MCLosslessCodec.ts` (`4.92`)
-  - [ ] `src/imaging/codec/jpeg2000/mc-lossy/DicomJpeg2000Part2MCCodec.ts` (`4.93`)
-  - [ ] `src/imaging/codec/jpeg2000/index.ts` export wiring
+- [x] E0. Class matrix and source structure
+  - [x] `src/imaging/codec/jpeg2000/lossless/DicomJpeg2000LosslessCodec.ts` (`4.90`)
+  - [x] `src/imaging/codec/jpeg2000/lossy/DicomJpeg2000LossyCodec.ts` (`4.91`)
+  - [x] `src/imaging/codec/jpeg2000/mc-lossless/DicomJpeg2000Part2MCLosslessCodec.ts` (`4.92`)
+  - [x] `src/imaging/codec/jpeg2000/mc-lossy/DicomJpeg2000Part2MCCodec.ts` (`4.93`)
+  - [x] `src/imaging/codec/jpeg2000/index.ts` export wiring
 
 - [ ] E1. Transfer syntax routing and registry wiring (P0)
-  - [ ] Add `.92` / `.93` transfer syntax constants and lookup coverage
-  - [ ] Register all 4 JPEG2000 codecs in `DefaultTranscoderManager.loadCodecs()`
+  - [x] Add `.92` / `.93` transfer syntax constants and lookup coverage
+  - [x] Register all 4 JPEG2000 codecs in `DefaultTranscoderManager.loadCodecs()`
   - [ ] Add routing tests via `TranscoderManager.getCodec(...)`
 
-- [ ] E2. Parameter model (P0)
-  - [ ] Add `DicomJpeg2000Params` with baseline fields:
+- [x] E2. Parameter model (P0)
+  - [x] Add `DicomJpeg2000Params` with baseline fields:
     - `irreversible`, `rate`, `rateLevels`, `numLevels`
     - `numLayers`, `targetRatio`, `progressionOrder`
     - `allowMct`, `updatePhotometricInterpretation`
     - `encodeSignedPixelValuesAsUnsigned`
-  - [ ] Add Part 2 fields for `.92/.93`:
+  - [x] Add Part 2 fields for `.92/.93`:
     - `mctBindings`, `mctMatrix`, `inverseMctMatrix`
     - `mctOffsets`, `mctMatrixElementType`, `mctAssocType`
     - `mcoPrecision`, `mcoRecordOrder`
-  - [ ] Add normalization rules:
+  - [x] Add normalization rules:
     - `numLevels` in `0..6`
     - `progressionOrder` in `0..4`
     - `numLayers >= 1`
@@ -227,6 +238,12 @@ Minimum acceptance criteria:
 - M4 (P0): JPEG2000 P0 done (4 UIDs routing + base encode/decode + parameter model)
 - M5 (P1): JPEG2000 P1 done (Part 2 depth + quality layer/rate control)
 - M6 (P1): Full regression matrix and documentation closure
+
+Current next feature target after the completed P0/P1 encode progression slice:
+- JPEG2000 acceptance-fixture and hardening closure
+  - broader fo-dicom.Codecs acceptance validation for `.90/.91/.92/.93`
+  - failure-class parity table audit against `source-code/go-dicom-codec`
+  - deterministic lossless and malformed-codestream corpus expansion
 
 ## 9) Risks and Mitigation
 

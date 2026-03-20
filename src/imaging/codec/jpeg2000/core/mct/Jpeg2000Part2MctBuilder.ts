@@ -236,24 +236,26 @@ function resolveStageOrder(stageIndices: number[], requestedOrder: number[]): nu
     return [...stageIndices];
   }
 
-  const stageSet = new Set(stageIndices);
-  const ordered: number[] = [];
+  if (!isValidRequestedStageOrder(stageIndices, requestedOrder)) {
+    return [...stageIndices];
+  }
+
+  return requestedOrder.map((stage) => Math.trunc(stage));
+}
+
+function isValidRequestedStageOrder(stageIndices: number[], requestedOrder: number[]): boolean {
+  if (requestedOrder.length !== stageIndices.length) {
+    return false;
+  }
+
+  const allowed = new Set(stageIndices);
   for (const stage of requestedOrder) {
-    if (!Number.isInteger(stage) || !stageSet.has(stage)) {
-      continue;
-    }
-    if (!ordered.includes(stage)) {
-      ordered.push(stage);
+    if (!Number.isInteger(stage) || !allowed.has(stage)) {
+      return false;
     }
   }
 
-  for (const stage of stageIndices) {
-    if (!ordered.includes(stage)) {
-      ordered.push(stage);
-    }
-  }
-
-  return ordered;
+  return true;
 }
 
 function encodeMatrixData(matrix: number[][], elementType: 0 | 1 | 2 | 3): Uint8Array {

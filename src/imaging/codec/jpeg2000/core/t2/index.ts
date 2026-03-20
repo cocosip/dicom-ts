@@ -37,6 +37,7 @@ export {
   type Jpeg2000CodeBlockGridDimension,
 } from "./Jpeg2000PacketDecoder.js";
 export {
+  encodePackets,
   encodePacketsLrcp,
   encodePacketsSingleLayerLrcp,
   type Jpeg2000PacketCodeBlockContribution,

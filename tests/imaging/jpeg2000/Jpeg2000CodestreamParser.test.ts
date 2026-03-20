@@ -56,6 +56,86 @@ describe("Jpeg2000CodestreamParser", () => {
     expect(Array.from(codestream.tiles[0]!.data)).toEqual([0x01, 0x02, 0x03, 0x04, 0x05]);
   });
 
+  it("rejects conflicting COD/QCD/COC/QCC/POC tile-part headers for the same tile", () => {
+    const cases = [
+      {
+        name: "COD conflict",
+        data: buildTilePartConflictCodestream("cod"),
+        pattern: /tile 0: COD differs between tile-parts/,
+      },
+      {
+        name: "QCD conflict",
+        data: buildTilePartConflictCodestream("qcd"),
+        pattern: /tile 0: QCD differs between tile-parts/,
+      },
+      {
+        name: "COC conflict",
+        data: buildTilePartConflictCodestream("coc"),
+        pattern: /tile 0: COC differs for component 1/,
+      },
+      {
+        name: "QCC conflict",
+        data: buildTilePartConflictCodestream("qcc"),
+        pattern: /tile 0: QCC differs for component 1/,
+      },
+      {
+        name: "POC conflict",
+        data: buildTilePartConflictCodestream("poc"),
+        pattern: /tile 0: POC differs between tile-parts/,
+      },
+      {
+        name: "RGN conflict",
+        data: buildTilePartConflictCodestream("rgn"),
+        pattern: /tile 0: RGN differs between tile-parts/,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      expect(() => parseJpeg2000Codestream(testCase.data), testCase.name).toThrow(testCase.pattern);
+    }
+  });
+
+  it("rejects invalid tile-part ordering and TNsot consistency", () => {
+    const cases = [
+      {
+        name: "first tile-part index is not zero",
+        data: buildTilePartSequenceCodestream([
+          { tilePartIndex: 1, totalTileParts: 2, payload: [0x01] },
+        ]),
+        pattern: /tile 0: first tile-part index is 1/,
+      },
+      {
+        name: "unexpected tile-part index gap",
+        data: buildTilePartSequenceCodestream([
+          { tilePartIndex: 0, totalTileParts: 3, payload: [0x01] },
+          { tilePartIndex: 2, totalTileParts: 3, payload: [0x02] },
+        ]),
+        pattern: /tile 0: unexpected tile-part index 2 \(expected 1\)/,
+      },
+      {
+        name: "mismatched TNsot",
+        data: buildTilePartSequenceCodestream([
+          { tilePartIndex: 0, totalTileParts: 2, payload: [0x01] },
+          { tilePartIndex: 1, totalTileParts: 3, payload: [0x02] },
+        ]),
+        pattern: /tile 0: mismatched TNsot 3 \(expected 2\)/,
+      },
+      {
+        name: "tile-part count exceeded",
+        data: buildTilePartSequenceCodestream([
+          { tilePartIndex: 0, totalTileParts: 2, payload: [0x01] },
+          { tilePartIndex: 1, totalTileParts: 2, payload: [0x02] },
+          { tilePartIndex: 2, totalTileParts: 2, payload: [0x03] },
+        ]),
+        pattern: /tile 0: tile-part count exceeded \(TNsot=2\)/,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      expect(() => parseJpeg2000Codestream(testCase.data), testCase.name).toThrow(testCase.pattern);
+    }
+  });
+
   it("parses real JPEG2000 acceptance fixture main metadata", async () => {
     const file = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_JPEG2000-Lossless.dcm"));
     const frame = DicomPixelData.create(file.dataset).getFrame(0).data;
@@ -88,6 +168,106 @@ describe("Jpeg2000CodestreamParser", () => {
 
     expect(codestream.mco).toHaveLength(1);
     expect(codestream.mco[0]!.stageIndices).toEqual([1]);
+  });
+
+  it("parses RGN marker segments from main and tile headers", () => {
+    const codestream = parseJpeg2000Codestream(buildRgnCodestream());
+
+    expect(codestream.rgn).toHaveLength(1);
+    expect(codestream.rgn[0]).toEqual({
+      component: 0,
+      style: 0,
+      shift: 3,
+    });
+
+    expect(codestream.tiles).toHaveLength(1);
+    expect(codestream.tiles[0]!.rgn).toHaveLength(1);
+    expect(codestream.tiles[0]!.rgn[0]).toEqual({
+      component: 1,
+      style: 1,
+      shift: 2,
+    });
+  });
+
+  it("parses COM marker segments from the main header", () => {
+    const codestream = parseJpeg2000Codestream(buildComCodestream());
+
+    expect(codestream.com).toHaveLength(1);
+    expect(codestream.com[0]!.registration).toBe(0);
+    expect(new TextDecoder().decode(codestream.com[0]!.data)).toBe("JP2ROI\x01\x00\x00");
+  });
+
+  it("parses COC/QCC/POC marker segments from main header", () => {
+    const codestream = parseJpeg2000Codestream(buildCocQccPocCodestream());
+
+    expect(codestream.coc.size).toBe(1);
+    expect(codestream.qcc.size).toBe(1);
+    expect(codestream.poc).toHaveLength(1);
+
+    const coc = codestream.coc.get(1);
+    expect(coc).toBeDefined();
+    expect(coc!.component).toBe(1);
+    expect(coc!.numberOfDecompositionLevels).toBe(2);
+    expect(coc!.codeBlockWidth).toBe(3);
+    expect(coc!.codeBlockHeight).toBe(4);
+    expect(coc!.transformation).toBe(1);
+
+    const qcc = codestream.qcc.get(1);
+    expect(qcc).toBeDefined();
+    expect(qcc!.component).toBe(1);
+    expect(qcc!.sQcc).toBe(2);
+    expect(Array.from(qcc!.spQcc)).toEqual([0x12, 0x34]);
+
+    const poc = codestream.poc[0];
+    expect(poc).toBeDefined();
+    expect(poc!.entries).toHaveLength(1);
+    expect(poc!.entries[0]).toEqual({
+      rSpoc: 0,
+      cSpoc: 0,
+      lYEpoc: 1,
+      rEpoc: 1,
+      cEpoc: 2,
+      pPoc: 0,
+    });
+  });
+
+  it("rejects malformed codestream inputs", () => {
+    const cases = [
+      {
+        name: "empty data",
+        data: new Uint8Array(0),
+        pattern: /Unexpected end of codestream while peeking marker|Expected SOC marker/,
+      },
+      {
+        name: "only SOC",
+        data: new Uint8Array([0xff, 0x4f]),
+        pattern: /Unexpected end of codestream while peeking marker/,
+      },
+      {
+        name: "missing EOC",
+        data: buildIncompleteCodestream(),
+        pattern: /missing EOC marker|Unexpected end of codestream while peeking marker/,
+      },
+      {
+        name: "invalid marker after SOC",
+        data: new Uint8Array([0xff, 0x4f, 0xff, 0xff]),
+        pattern: /Unexpected marker in main header|Unexpected end of codestream while reading uint16/,
+      },
+      {
+        name: "truncated SIZ",
+        data: buildTruncatedSizCodestream(),
+        pattern: /SIZ segment exceeds codestream length|Unexpected end of codestream/,
+      },
+      {
+        name: "COM before SIZ",
+        data: buildComBeforeSizCodestream(),
+        pattern: /COM encountered before SIZ/,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      expect(() => parseJpeg2000Codestream(testCase.data), testCase.name).toThrow(testCase.pattern);
+    }
   });
 });
 
@@ -207,6 +387,277 @@ function buildPart2MarkerCodestream(): Uint8Array {
   return new Uint8Array(bytes);
 }
 
+function buildTilePartConflictCodestream(kind: "cod" | "qcd" | "coc" | "qcc" | "poc" | "rgn"): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+
+  pushU16(bytes, Jpeg2000Marker.SIZ);
+  pushU16(bytes, 44);
+  pushU16(bytes, 0);
+  pushU32(bytes, 256);
+  pushU32(bytes, 256);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 256);
+  pushU32(bytes, 256);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 2);
+  bytes.push(7, 1, 1);
+  bytes.push(7, 1, 1);
+
+  pushU16(bytes, Jpeg2000Marker.COD);
+  pushU16(bytes, 12);
+  bytes.push(0, 0);
+  pushU16(bytes, 1);
+  bytes.push(0, 1, 2, 2, 0, 1);
+
+  pushU16(bytes, Jpeg2000Marker.QCD);
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+
+  const firstHeader = new Uint8Array(buildConflictTileHeader(kind, false));
+  const secondHeader = new Uint8Array(buildConflictTileHeader(kind, true));
+  writeTilePartWithHeader(bytes, 0, 0, 2, firstHeader, new Uint8Array([0x01]));
+  writeTilePartWithHeader(bytes, 0, 1, 2, secondHeader, new Uint8Array([0x02]));
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
+function buildTilePartSequenceCodestream(
+  parts: readonly { tilePartIndex: number; totalTileParts: number; payload: readonly number[] }[],
+): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  bytes.push(...buildMinimalCodestream().subarray(2, buildMinimalCodestream().length - 2));
+
+  for (const part of parts) {
+    writeTilePart(bytes, 0, part.tilePartIndex, part.totalTileParts, new Uint8Array(part.payload));
+  }
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
+function buildRgnCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+
+  pushU16(bytes, Jpeg2000Marker.SIZ);
+  pushU16(bytes, 44);
+  pushU16(bytes, 0);
+  pushU32(bytes, 256);
+  pushU32(bytes, 256);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 256);
+  pushU32(bytes, 256);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 2);
+  bytes.push(7, 1, 1);
+  bytes.push(7, 1, 1);
+
+  pushU16(bytes, Jpeg2000Marker.COD);
+  pushU16(bytes, 12);
+  bytes.push(0, 0);
+  pushU16(bytes, 1);
+  bytes.push(0, 1, 2, 2, 0, 1);
+
+  pushU16(bytes, Jpeg2000Marker.QCD);
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+
+  pushU16(bytes, Jpeg2000Marker.RGN);
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 3);
+
+  const tileHeader = new Uint8Array([
+    0xff, 0x5e,
+    0x00, 0x05,
+    0x01, 0x01, 0x02,
+  ]);
+  writeTilePartWithHeader(bytes, 0, 0, 1, tileHeader, new Uint8Array([0x00]));
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
+function buildComCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  bytes.push(...buildMinimalCodestream().subarray(2, buildMinimalCodestream().length - 2));
+
+  pushU16(bytes, Jpeg2000Marker.COM);
+  pushU16(bytes, 13);
+  pushU16(bytes, 0);
+  bytes.push(
+    0x4a, 0x50, 0x32, 0x52, 0x4f, 0x49,
+    0x01,
+    0x00, 0x00,
+  );
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+
+  return new Uint8Array(bytes);
+}
+
+function buildCocQccPocCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+
+  pushU16(bytes, Jpeg2000Marker.SIZ);
+  pushU16(bytes, 44);
+  pushU16(bytes, 0);
+  pushU32(bytes, 256);
+  pushU32(bytes, 256);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 256);
+  pushU32(bytes, 256);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 2);
+  bytes.push(7, 1, 1);
+  bytes.push(7, 1, 1);
+
+  pushU16(bytes, Jpeg2000Marker.COD);
+  pushU16(bytes, 12);
+  bytes.push(0, 0);
+  pushU16(bytes, 1);
+  bytes.push(0, 1, 2, 2, 0, 1);
+
+  pushU16(bytes, Jpeg2000Marker.QCD);
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+
+  pushU16(bytes, Jpeg2000Marker.COC);
+  pushU16(bytes, 9);
+  bytes.push(
+    1, // component
+    0, // Scoc
+    2, // levels
+    3, // cblk width exp
+    4, // cblk height exp
+    0, // cblk style
+    1, // transform
+  );
+
+  pushU16(bytes, Jpeg2000Marker.QCC);
+  pushU16(bytes, 6);
+  bytes.push(
+    1, // component
+    2, // Sqcc
+    0x12,
+    0x34,
+  );
+
+  pushU16(bytes, Jpeg2000Marker.POC);
+  pushU16(bytes, 9);
+  bytes.push(
+    0, // RSpoc
+    0, // CSpoc
+    0x00, 0x01, // LYEpoc
+    1, // REpoc
+    2, // CEpoc
+    0, // PPoc
+  );
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
+function buildConflictTileHeader(kind: "cod" | "qcd" | "coc" | "qcc" | "poc" | "rgn", conflicting: boolean): number[] {
+  const bytes: number[] = [];
+
+  switch (kind) {
+    case "cod":
+      pushU16(bytes, Jpeg2000Marker.COD);
+      pushU16(bytes, 12);
+      bytes.push(0, 0);
+      pushU16(bytes, conflicting ? 2 : 1);
+      bytes.push(0, 1, 2, 2, 0, 1);
+      break;
+    case "qcd":
+      pushU16(bytes, Jpeg2000Marker.QCD);
+      pushU16(bytes, 5);
+      bytes.push(0, 0, conflicting ? 1 : 0);
+      break;
+    case "coc":
+      pushU16(bytes, Jpeg2000Marker.COC);
+      pushU16(bytes, 9);
+      bytes.push(
+        1,
+        0,
+        2,
+        conflicting ? 4 : 3,
+        4,
+        0,
+        1,
+      );
+      break;
+    case "qcc":
+      pushU16(bytes, Jpeg2000Marker.QCC);
+      pushU16(bytes, 6);
+      bytes.push(
+        1,
+        2,
+        0x12,
+        conflicting ? 0x35 : 0x34,
+      );
+      break;
+    case "poc":
+      pushU16(bytes, Jpeg2000Marker.POC);
+      pushU16(bytes, 9);
+      bytes.push(
+        0,
+        0,
+        0x00, 0x01,
+        1,
+        2,
+        conflicting ? 1 : 0,
+      );
+      break;
+    case "rgn":
+      pushU16(bytes, Jpeg2000Marker.RGN);
+      pushU16(bytes, 5);
+      bytes.push(
+        1,
+        0,
+        conflicting ? 4 : 3,
+      );
+      break;
+  }
+
+  return bytes;
+}
+
+function buildIncompleteCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  bytes.push(...buildMinimalCodestream().subarray(2, buildMinimalCodestream().length - 2));
+  return new Uint8Array(bytes);
+}
+
+function buildTruncatedSizCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  pushU16(bytes, Jpeg2000Marker.SIZ);
+  pushU16(bytes, 10);
+  return new Uint8Array(bytes);
+}
+
+function buildComBeforeSizCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  pushU16(bytes, Jpeg2000Marker.COM);
+  pushU16(bytes, 4);
+  pushU16(bytes, 0);
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
 function writeTilePart(
   target: number[],
   tileIndex: number,
@@ -219,6 +670,24 @@ function writeTilePart(
   pushU16(target, tileIndex);
   pushU32(target, 14 + payload.length); // Psot = SOT segment + SOD marker + payload
   target.push(tilePartIndex & 0xff, totalTileParts & 0xff);
+  pushU16(target, Jpeg2000Marker.SOD);
+  target.push(...payload);
+}
+
+function writeTilePartWithHeader(
+  target: number[],
+  tileIndex: number,
+  tilePartIndex: number,
+  totalTileParts: number,
+  header: Uint8Array,
+  payload: Uint8Array,
+): void {
+  pushU16(target, Jpeg2000Marker.SOT);
+  pushU16(target, 10);
+  pushU16(target, tileIndex);
+  pushU32(target, 14 + header.length + payload.length);
+  target.push(tilePartIndex & 0xff, totalTileParts & 0xff);
+  target.push(...header);
   pushU16(target, Jpeg2000Marker.SOD);
   target.push(...payload);
 }

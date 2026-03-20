@@ -67,6 +67,11 @@ export interface Jpeg2000QcdSegment {
   spQcd: Uint8Array;
 }
 
+export interface Jpeg2000ComSegment {
+  registration: number;
+  data: Uint8Array;
+}
+
 export interface Jpeg2000CocSegment {
   component: number;
   sCoc: number;
@@ -95,6 +100,12 @@ export interface Jpeg2000PocEntry {
 
 export interface Jpeg2000PocSegment {
   entries: Jpeg2000PocEntry[];
+}
+
+export interface Jpeg2000RgnSegment {
+  component: number;
+  style: number;
+  shift: number;
 }
 
 export type Jpeg2000MctArrayType = 0 | 1 | 2;
@@ -138,6 +149,7 @@ export interface Jpeg2000Tile {
   coc: Map<number, Jpeg2000CocSegment>;
   qcc: Map<number, Jpeg2000QccSegment>;
   poc: Jpeg2000PocSegment[];
+  rgn: Jpeg2000RgnSegment[];
   data: Uint8Array;
 }
 
@@ -148,9 +160,11 @@ export interface Jpeg2000Codestream {
   siz?: Jpeg2000SizSegment;
   cod?: Jpeg2000CodSegment;
   qcd?: Jpeg2000QcdSegment;
+  com: Jpeg2000ComSegment[];
   coc: Map<number, Jpeg2000CocSegment>;
   qcc: Map<number, Jpeg2000QccSegment>;
   poc: Jpeg2000PocSegment[];
+  rgn: Jpeg2000RgnSegment[];
   mct: Jpeg2000MctSegment[];
   mcc: Jpeg2000MccSegment[];
   mco: Jpeg2000McoSegment[];

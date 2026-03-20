@@ -4,7 +4,14 @@ import { writeJpeg2000SingleTileCodestream } from "../codestream/index.js";
 import { forwardIct, forwardRct } from "../colorspace/index.js";
 import { buildPart2MctMainHeaderSegments } from "../mct/index.js";
 import { CBLK_STYLE_TERMALL, Jpeg2000T1Encoder } from "../t1/index.js";
-import { bandInfosForResolution, encodePacketsLrcp, type Jpeg2000PacketBandPlan, type Jpeg2000PacketCodeBlockContribution, type Jpeg2000PacketPlan } from "../t2/index.js";
+import {
+  Jpeg2000ProgressionOrder,
+  bandInfosForResolution,
+  encodePackets,
+  type Jpeg2000PacketBandPlan,
+  type Jpeg2000PacketCodeBlockContribution,
+  type Jpeg2000PacketPlan,
+} from "../t2/index.js";
 import {
   forwardMultilevel53WithParity,
   forwardMultilevel97WithParity,
@@ -152,9 +159,7 @@ export class Jpeg2000Encoder {
 
   encodeFrame(options: Jpeg2000EncoderAnalyzeOptions): Uint8Array {
     const analyzed = this.analyzeFrame(options);
-    if (options.parameters.progressionOrder !== 0) {
-      throw new Error(`JPEG2000 encode currently supports LRCP only; got progressionOrder=${options.parameters.progressionOrder}`);
-    }
+    const progressionOrder = options.parameters.progressionOrder as Jpeg2000ProgressionOrder;
 
     const layerConfig = resolveLayerConfig(options.parameters);
     const numberOfLayers = layerConfig.numberOfLayers;
@@ -256,13 +261,13 @@ export class Jpeg2000Encoder {
       }
     }
 
-    const packetPlans = buildLrcpPacketPlanList(
+    const packetPlans = buildPacketPlanList(
       packetPlansByComponent,
       analyzed.components,
       analyzed.numLevels,
       numberOfLayers,
     );
-    const tileData = encodePacketsLrcp(packetPlans, contributions);
+    const tileData = encodePackets(packetPlans, contributions, progressionOrder);
 
     const part2Segments = analyzed.isPart2
       ? buildPart2MctMainHeaderSegments(options.parameters, analyzed.components, analyzed.irreversible)
@@ -279,7 +284,7 @@ export class Jpeg2000Encoder {
       isSigned: options.pixelRepresentation === PixelRepresentation.Signed,
       rSiz: analyzed.isPart2 ? 2 : 0,
       numLevels: analyzed.numLevels,
-      progressionOrder: 0,
+      progressionOrder,
       numberOfLayers,
       multipleComponentTransform: analyzed.isPart2
         ? (part2CodMctEnabled ? 1 : 0)
@@ -701,7 +706,7 @@ function buildComponentCodeBlockPlan(
   };
 }
 
-function buildLrcpPacketPlanList(
+function buildPacketPlanList(
   packetsByComponent: Map<number, Map<number, Jpeg2000PacketPlan>>,
   components: number,
   numLevels: number,

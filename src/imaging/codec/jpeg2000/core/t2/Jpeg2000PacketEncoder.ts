@@ -1,6 +1,10 @@
 import { Jpeg2000PacketHeaderBitWriter, floorLog2 } from "./Jpeg2000PacketHeaderBitIo.js";
 import { Jpeg2000TagTree } from "./Jpeg2000TagTree.js";
-import { createCodeBlockStates, type Jpeg2000CodeBlockState } from "./Jpeg2000PacketTypes.js";
+import {
+  Jpeg2000ProgressionOrder,
+  createCodeBlockStates,
+  type Jpeg2000CodeBlockState,
+} from "./Jpeg2000PacketTypes.js";
 
 export interface Jpeg2000PacketCodeBlockContribution {
   layerIndex?: number;
@@ -48,30 +52,91 @@ export function encodePacketsSingleLayerLrcp(
   packetPlans: Jpeg2000PacketPlan[],
   contributions: Map<string, Jpeg2000PacketCodeBlockContribution>,
 ): Uint8Array {
-  return encodePackets(packetPlans, contributions);
+  return encodePackets(packetPlans, contributions, Jpeg2000ProgressionOrder.LRCP);
 }
 
 export function encodePacketsLrcp(
   packetPlans: Jpeg2000PacketPlan[],
   contributions: Map<string, Jpeg2000PacketCodeBlockContribution>,
 ): Uint8Array {
-  return encodePackets(packetPlans, contributions);
+  return encodePackets(packetPlans, contributions, Jpeg2000ProgressionOrder.LRCP);
 }
 
 export function encodePackets(
   packetPlans: Jpeg2000PacketPlan[],
   contributions: Map<string, Jpeg2000PacketCodeBlockContribution>,
+  progressionOrder: Jpeg2000ProgressionOrder = Jpeg2000ProgressionOrder.LRCP,
 ): Uint8Array {
   const bytes: number[] = [];
   const bandContexts = new Map<string, Jpeg2000PacketBandContext>();
+  const orderedPlans = orderPacketPlans(packetPlans, progressionOrder);
 
-  for (const packet of packetPlans) {
+  for (const packet of orderedPlans) {
     const encoded = encodeSinglePacket(packet, contributions, bandContexts);
     append(bytes, encoded.header);
     append(bytes, encoded.body);
   }
 
   return Uint8Array.from(bytes);
+}
+
+function orderPacketPlans(
+  packetPlans: Jpeg2000PacketPlan[],
+  progressionOrder: Jpeg2000ProgressionOrder,
+): Jpeg2000PacketPlan[] {
+  const ordered = packetPlans.slice();
+  ordered.sort((a, b) => comparePacketPlans(a, b, progressionOrder));
+  return ordered;
+}
+
+function comparePacketPlans(
+  left: Jpeg2000PacketPlan,
+  right: Jpeg2000PacketPlan,
+  progressionOrder: Jpeg2000ProgressionOrder,
+): number {
+  switch (progressionOrder) {
+    case Jpeg2000ProgressionOrder.LRCP:
+      return comparePlanDimensions(left, right, ["layer", "resolution", "component", "precinct"]);
+    case Jpeg2000ProgressionOrder.RLCP:
+      return comparePlanDimensions(left, right, ["resolution", "layer", "component", "precinct"]);
+    case Jpeg2000ProgressionOrder.RPCL:
+      return comparePlanDimensions(left, right, ["resolution", "precinct", "component", "layer"]);
+    case Jpeg2000ProgressionOrder.PCRL:
+      return comparePlanDimensions(left, right, ["precinct", "component", "resolution", "layer"]);
+    case Jpeg2000ProgressionOrder.CPRL:
+      return comparePlanDimensions(left, right, ["component", "precinct", "resolution", "layer"]);
+    default:
+      throw new Error(`unsupported progression order: ${progressionOrder}`);
+  }
+}
+
+function comparePlanDimensions(
+  left: Jpeg2000PacketPlan,
+  right: Jpeg2000PacketPlan,
+  order: Array<"layer" | "resolution" | "component" | "precinct">,
+): number {
+  for (let i = 0; i < order.length; i++) {
+    const dimension = order[i]!;
+    const delta = planDimensionValue(left, dimension) - planDimensionValue(right, dimension);
+    if (delta !== 0) {
+      return delta;
+    }
+  }
+
+  return 0;
+}
+
+function planDimensionValue(plan: Jpeg2000PacketPlan, dimension: "layer" | "resolution" | "component" | "precinct"): number {
+  switch (dimension) {
+    case "layer":
+      return plan.layerIndex;
+    case "resolution":
+      return plan.resolutionLevel;
+    case "component":
+      return plan.componentIndex;
+    case "precinct":
+      return plan.precinctIndex;
+  }
 }
 
 function encodeSinglePacket(

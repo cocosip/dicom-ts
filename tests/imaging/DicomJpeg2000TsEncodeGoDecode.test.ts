@@ -12,6 +12,7 @@ import { DicomDataset } from "../../src/dataset/DicomDataset.js";
 import { DicomPixelData } from "../../src/imaging/DicomPixelData.js";
 import { DicomTranscoder } from "../../src/imaging/codec/DicomTranscoder.js";
 import { DicomJpeg2000Params } from "../../src/imaging/codec/jpeg2000/DicomJpeg2000Params.js";
+import { parseJpeg2000Codestream } from "../../src/imaging/codec/jpeg2000/core/index.js";
 import { MemoryByteBuffer } from "../../src/io/buffer/MemoryByteBuffer.js";
 
 const ACCEPTANCE_DIR = "source-code/fo-dicom.Codecs/Tests/Acceptance";
@@ -185,6 +186,70 @@ function createParamsForSyntax(entry: Jpeg2000SyntaxEntry, targetRatio?: number)
 }
 
 describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
+  it("validates TS encode -> Go decode for non-LRCP .90 progression orders", () => {
+    const width = 16;
+    const height = 16;
+
+    const frameA = new Uint8Array(width * height * 3);
+    for (let i = 0; i < frameA.length; i += 3) {
+      const pixel = Math.floor(i / 3);
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      frameA[i] = (x * 11 + y * 7) & 0xff;
+      frameA[i + 1] = (x * 3 + y * 13 + 17) & 0xff;
+      frameA[i + 2] = (x * 5 + y * 9 + 29) & 0xff;
+    }
+    const frameB = createFrameVariant(frameA);
+    const source = createTwoFrameRgbDataset(width, height, frameA, frameB);
+    const sourceFrames = [frameA, frameB];
+
+    const progressionOrders = [1, 2, 3, 4] as const;
+    for (const progressionOrder of progressionOrders) {
+      const params = DicomJpeg2000Params.createLosslessDefaults();
+      params.numLevels = 3;
+      params.numLayers = 2;
+      params.allowMct = true;
+      params.progressionOrder = progressionOrder;
+
+      const encoded = new DicomTranscoder(
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+        DicomTransferSyntax.JPEG2000Lossless,
+        null,
+        params,
+      ).transcode(source);
+
+      const encodedPixelData = DicomPixelData.create(encoded);
+      expect(encodedPixelData.numberOfFrames, `progression=${progressionOrder} frame count`).toBe(2);
+
+      const firstCodestream = encodedPixelData.getFrame(0).data;
+      const parsed = parseJpeg2000Codestream(firstCodestream);
+      expect(parsed.cod?.progressionOrder, `progression=${progressionOrder} COD`).toBe(progressionOrder);
+
+      const tsDecoded = new DicomTranscoder(
+        DicomTransferSyntax.JPEG2000Lossless,
+        DicomTransferSyntax.ExplicitVRLittleEndian,
+      ).transcode(encoded);
+      const tsDecodedPixelData = DicomPixelData.create(tsDecoded);
+
+      for (let frameIndex = 0; frameIndex < sourceFrames.length; frameIndex++) {
+        const codestream = encodedPixelData.getFrame(frameIndex).data;
+        const goDecoded = decodeCodestreamWithGo(codestream);
+        const tsFrame = tsDecodedPixelData.getFrame(frameIndex).data;
+        const sourceFrame = sourceFrames[frameIndex]!;
+
+        expect(goDecoded.metadata.width, `progression=${progressionOrder} frame=${frameIndex} width`).toBe(width);
+        expect(goDecoded.metadata.height, `progression=${progressionOrder} frame=${frameIndex} height`).toBe(height);
+        expect(goDecoded.metadata.components, `progression=${progressionOrder} frame=${frameIndex} components`).toBe(3);
+        expect(goDecoded.metadata.sha256, `progression=${progressionOrder} frame=${frameIndex} Go vs TS hash`).toBe(
+          sha256(tsFrame),
+        );
+        expect(goDecoded.metadata.sha256, `progression=${progressionOrder} frame=${frameIndex} lossless hash`).toBe(
+          sha256(sourceFrame),
+        );
+      }
+    }
+  }, 180000);
+
   it("validates Go encode -> TS decode compatibility for .92/.93 generated vectors", () => {
     const matrix = [
       {

@@ -2,6 +2,7 @@ import { Jpeg2000Marker, markerHasLength, markerName } from "./Jpeg2000Markers.j
 import type {
   Jpeg2000CocSegment,
   Jpeg2000CodSegment,
+  Jpeg2000ComSegment,
   Jpeg2000Codestream,
   Jpeg2000MccSegment,
   Jpeg2000McoSegment,
@@ -9,6 +10,7 @@ import type {
   Jpeg2000MarkerSegment,
   Jpeg2000PocEntry,
   Jpeg2000PocSegment,
+  Jpeg2000RgnSegment,
   Jpeg2000QccSegment,
   Jpeg2000QcdSegment,
   Jpeg2000SizSegment,
@@ -27,9 +29,11 @@ export class Jpeg2000CodestreamParser {
       data: this.data,
       mainHeaderSegments: [],
       tileHeaderSegments: [],
+      com: [],
       coc: new Map(),
       qcc: new Map(),
       poc: [],
+      rgn: [],
       mct: [],
       mcc: [],
       mco: [],
@@ -96,6 +100,12 @@ export class Jpeg2000CodestreamParser {
         }
         codestream.qcd = parseQcdSegment(payload);
         return;
+      case Jpeg2000Marker.COM:
+        if (!codestream.siz) {
+          throw new Error("COM encountered before SIZ");
+        }
+        codestream.com.push(parseComSegment(payload));
+        return;
       case Jpeg2000Marker.COC: {
         const coc = parseCocSegment(payload, codestream.siz?.cSiz);
         codestream.coc.set(coc.component, coc);
@@ -108,6 +118,9 @@ export class Jpeg2000CodestreamParser {
       }
       case Jpeg2000Marker.POC:
         codestream.poc.push(parsePocSegment(payload, codestream.siz?.cSiz));
+        return;
+      case Jpeg2000Marker.RGN:
+        codestream.rgn.push(parseRgnSegment(payload, codestream.siz?.cSiz));
         return;
       case Jpeg2000Marker.MCT:
         codestream.mct.push(parseMctSegment(payload));
@@ -126,6 +139,7 @@ export class Jpeg2000CodestreamParser {
 
   private parseTiles(codestream: Jpeg2000Codestream): void {
     const tilesByIndex = new Map<number, Jpeg2000Tile>();
+    const tilePartStates = new Map<number, TilePartState>();
 
     while (this.offset < this.data.length) {
       const marker = this.peekMarker();
@@ -142,7 +156,7 @@ export class Jpeg2000CodestreamParser {
 
       const sotMarker = this.readMarker();
       const tilePart = this.parseTilePart(codestream, sotMarker.markerOffset);
-      mergeTilePart(tilesByIndex, tilePart);
+      mergeTilePart(tilesByIndex, tilePartStates, tilePart);
     }
 
     throw new Error("JPEG2000 codestream is missing EOC marker");
@@ -165,6 +179,7 @@ export class Jpeg2000CodestreamParser {
       coc: new Map(),
       qcc: new Map(),
       poc: [],
+      rgn: [],
       data: new Uint8Array(0),
     };
 
@@ -232,6 +247,9 @@ export class Jpeg2000CodestreamParser {
       }
       case Jpeg2000Marker.POC:
         tile.poc.push(parsePocSegment(payload, cSiz));
+        return;
+      case Jpeg2000Marker.RGN:
+        tile.rgn.push(parseRgnSegment(payload, cSiz));
         return;
       case Jpeg2000Marker.MCT:
         codestream.mct.push(parseMctSegment(payload));
@@ -322,6 +340,11 @@ export class Jpeg2000CodestreamParser {
 
 export function parseJpeg2000Codestream(data: Uint8Array): Jpeg2000Codestream {
   return new Jpeg2000CodestreamParser(data).parse();
+}
+
+interface TilePartState {
+  nextTilePartIndex: number;
+  totalTileParts: number;
 }
 
 function parseSizSegment(payload: Uint8Array): Jpeg2000SizSegment {
@@ -428,6 +451,17 @@ function parseQcdSegment(payload: Uint8Array): Jpeg2000QcdSegment {
   return {
     sQcd: payload[0]!,
     spQcd: payload.slice(1),
+  };
+}
+
+function parseComSegment(payload: Uint8Array): Jpeg2000ComSegment {
+  if (payload.length < 2) {
+    throw new Error(`Invalid COM segment payload length: ${payload.length}`);
+  }
+
+  return {
+    registration: readU16(payload, 0),
+    data: payload.slice(2),
   };
 }
 
@@ -541,6 +575,28 @@ function parsePocSegment(payload: Uint8Array, cSiz: number | undefined): Jpeg200
   }
 
   return { entries };
+}
+
+function parseRgnSegment(payload: Uint8Array, cSiz: number | undefined): Jpeg2000RgnSegment {
+  const useTwoByteComponent = (cSiz ?? 0) > 256;
+  const componentLength = useTwoByteComponent ? 2 : 1;
+  const minLength = componentLength + 2;
+  if (payload.length < minLength) {
+    throw new Error(`Invalid RGN segment payload length: ${payload.length}`);
+  }
+
+  let p = 0;
+  const component = useTwoByteComponent ? readU16(payload, p) : payload[p]!;
+  p += componentLength;
+  const style = payload[p]!;
+  p++;
+  const shift = payload[p]!;
+
+  return {
+    component,
+    style,
+    shift,
+  };
 }
 
 function parseSotSegment(payload: Uint8Array): Jpeg2000SotSegment {
@@ -685,7 +741,42 @@ function resolveTileDataEndFromPsot(
   return tilePartEnd;
 }
 
-function mergeTilePart(tilesByIndex: Map<number, Jpeg2000Tile>, tilePart: Jpeg2000Tile): void {
+function mergeTilePart(
+  tilesByIndex: Map<number, Jpeg2000Tile>,
+  tilePartStates: Map<number, TilePartState>,
+  tilePart: Jpeg2000Tile,
+): void {
+  const existingState = tilePartStates.get(tilePart.index);
+  if (!existingState) {
+    if (tilePart.sot.tPSot !== 0) {
+      throw new Error(`tile ${tilePart.index}: first tile-part index is ${tilePart.sot.tPSot}`);
+    }
+    tilePartStates.set(tilePart.index, {
+      nextTilePartIndex: tilePart.sot.tPSot + 1,
+      totalTileParts: tilePart.sot.tNsot,
+    });
+  } else {
+    if (tilePart.sot.tPSot !== existingState.nextTilePartIndex) {
+      throw new Error(
+        `tile ${tilePart.index}: unexpected tile-part index ${tilePart.sot.tPSot} (expected ${existingState.nextTilePartIndex})`,
+      );
+    }
+    if (existingState.totalTileParts !== 0
+      && tilePart.sot.tNsot !== 0
+      && tilePart.sot.tNsot !== existingState.totalTileParts) {
+      throw new Error(`tile ${tilePart.index}: mismatched TNsot ${tilePart.sot.tNsot} (expected ${existingState.totalTileParts})`);
+    }
+    if (existingState.totalTileParts === 0 && tilePart.sot.tNsot !== 0) {
+      existingState.totalTileParts = tilePart.sot.tNsot;
+    }
+    existingState.nextTilePartIndex++;
+  }
+
+  const state = tilePartStates.get(tilePart.index)!;
+  if (state.totalTileParts !== 0 && state.nextTilePartIndex > state.totalTileParts) {
+    throw new Error(`tile ${tilePart.index}: tile-part count exceeded (TNsot=${state.totalTileParts})`);
+  }
+
   const existing = tilesByIndex.get(tilePart.index);
   if (!existing) {
     tilesByIndex.set(tilePart.index, tilePart);
@@ -693,19 +784,48 @@ function mergeTilePart(tilesByIndex: Map<number, Jpeg2000Tile>, tilePart: Jpeg20
   }
 
   if (tilePart.cod) {
-    existing.cod = tilePart.cod;
+    if (!existing.cod) {
+      existing.cod = tilePart.cod;
+    } else if (!codSegmentsEqual(existing.cod, tilePart.cod)) {
+      throw new Error(`tile ${tilePart.index}: COD differs between tile-parts`);
+    }
   }
   if (tilePart.qcd) {
-    existing.qcd = tilePart.qcd;
+    if (!existing.qcd) {
+      existing.qcd = tilePart.qcd;
+    } else if (!qcdSegmentsEqual(existing.qcd, tilePart.qcd)) {
+      throw new Error(`tile ${tilePart.index}: QCD differs between tile-parts`);
+    }
   }
   for (const [key, value] of tilePart.coc) {
-    existing.coc.set(key, value);
+    const prior = existing.coc.get(key);
+    if (!prior) {
+      existing.coc.set(key, value);
+    } else if (!cocSegmentsEqual(prior, value)) {
+      throw new Error(`tile ${tilePart.index}: COC differs for component ${key}`);
+    }
   }
   for (const [key, value] of tilePart.qcc) {
-    existing.qcc.set(key, value);
+    const prior = existing.qcc.get(key);
+    if (!prior) {
+      existing.qcc.set(key, value);
+    } else if (!qccSegmentsEqual(prior, value)) {
+      throw new Error(`tile ${tilePart.index}: QCC differs for component ${key}`);
+    }
   }
   if (tilePart.poc.length > 0) {
-    existing.poc.push(...tilePart.poc);
+    if (existing.poc.length === 0) {
+      existing.poc.push(...tilePart.poc);
+    } else if (!pocSegmentsEqual(existing.poc, tilePart.poc)) {
+      throw new Error(`tile ${tilePart.index}: POC differs between tile-parts`);
+    }
+  }
+  if (tilePart.rgn.length > 0) {
+    if (existing.rgn.length === 0) {
+      existing.rgn.push(...tilePart.rgn);
+    } else if (!rgnSegmentsEqual(existing.rgn, tilePart.rgn)) {
+      throw new Error(`tile ${tilePart.index}: RGN differs between tile-parts`);
+    }
   }
   if (tilePart.data.length > 0) {
     const merged = new Uint8Array(existing.data.length + tilePart.data.length);
@@ -720,6 +840,118 @@ function mergeTilePart(tilesByIndex: Map<number, Jpeg2000Tile>, tilePart: Jpeg20
   if (tilePart.sot.tPSot > existing.sot.tPSot) {
     existing.sot.tPSot = tilePart.sot.tPSot;
   }
+}
+
+function codSegmentsEqual(a: Jpeg2000CodSegment, b: Jpeg2000CodSegment): boolean {
+  return a.sCod === b.sCod
+    && a.progressionOrder === b.progressionOrder
+    && a.numberOfLayers === b.numberOfLayers
+    && a.multipleComponentTransform === b.multipleComponentTransform
+    && a.numberOfDecompositionLevels === b.numberOfDecompositionLevels
+    && a.codeBlockWidth === b.codeBlockWidth
+    && a.codeBlockHeight === b.codeBlockHeight
+    && a.codeBlockStyle === b.codeBlockStyle
+    && a.transformation === b.transformation
+    && precinctSizesEqual(a.precinctSizes, b.precinctSizes);
+}
+
+function qcdSegmentsEqual(a: Jpeg2000QcdSegment, b: Jpeg2000QcdSegment): boolean {
+  return a.sQcd === b.sQcd && byteArraysEqual(a.spQcd, b.spQcd);
+}
+
+function cocSegmentsEqual(a: Jpeg2000CocSegment, b: Jpeg2000CocSegment): boolean {
+  return a.component === b.component
+    && a.sCoc === b.sCoc
+    && a.numberOfDecompositionLevels === b.numberOfDecompositionLevels
+    && a.codeBlockWidth === b.codeBlockWidth
+    && a.codeBlockHeight === b.codeBlockHeight
+    && a.codeBlockStyle === b.codeBlockStyle
+    && a.transformation === b.transformation
+    && precinctSizesEqual(a.precinctSizes, b.precinctSizes);
+}
+
+function qccSegmentsEqual(a: Jpeg2000QccSegment, b: Jpeg2000QccSegment): boolean {
+  return a.component === b.component
+    && a.sQcc === b.sQcc
+    && byteArraysEqual(a.spQcc, b.spQcc);
+}
+
+function pocSegmentsEqual(a: readonly Jpeg2000PocSegment[], b: readonly Jpeg2000PocSegment[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (left.entries.length !== right.entries.length) {
+      return false;
+    }
+
+    for (let j = 0; j < left.entries.length; j++) {
+      if (!pocEntriesEqual(left.entries[j]!, right.entries[j]!)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function pocEntriesEqual(a: Jpeg2000PocEntry, b: Jpeg2000PocEntry): boolean {
+  return a.rSpoc === b.rSpoc
+    && a.cSpoc === b.cSpoc
+    && a.lYEpoc === b.lYEpoc
+    && a.rEpoc === b.rEpoc
+    && a.cEpoc === b.cEpoc
+    && a.pPoc === b.pPoc;
+}
+
+function rgnSegmentsEqual(a: readonly Jpeg2000RgnSegment[], b: readonly Jpeg2000RgnSegment[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (left.component !== right.component || left.style !== right.style || left.shift !== right.shift) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function precinctSizesEqual(
+  a: readonly { pPx: number; pPy: number }[],
+  b: readonly { pPx: number; pPy: number }[],
+): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]!.pPx !== b[i]!.pPx || a[i]!.pPy !== b[i]!.pPy) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function byteArraysEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function ensurePayloadRemaining(data: Uint8Array, offset: number, needed: number, context: string): void {

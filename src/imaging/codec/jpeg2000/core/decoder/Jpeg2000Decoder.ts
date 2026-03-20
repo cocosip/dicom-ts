@@ -164,6 +164,24 @@ interface Jpeg2000CodeBlockPacketData {
   byteLength: number;
 }
 
+interface Jpeg2000RoiComponentParameters {
+  shift: number;
+  style: number;
+  rects?: Jpeg2000RoiRect[];
+}
+
+interface Jpeg2000RoiRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+interface Jpeg2000ComRoiRegion {
+  components: number[];
+  rect: Jpeg2000RoiRect;
+}
+
 interface Jpeg2000TileComponentGeometry {
   componentIndex: number;
   x0: number;
@@ -393,9 +411,10 @@ function summarizeSingleTilePackets(
 
 function decodeTileCodeBlocks(codestream: Jpeg2000Codestream, siz: Jpeg2000SizSegment): Jpeg2000CodeBlockDecodeSummary {
   const tiles: Jpeg2000TileCodeBlockSummary[] = [];
+  const roiParameters = buildCodestreamRoiParameters(codestream, siz.cSiz);
 
   for (const tile of codestream.tiles) {
-    tiles.push(decodeSingleTileCodeBlocks(tile, codestream, siz));
+    tiles.push(decodeSingleTileCodeBlocks(tile, codestream, siz, roiParameters));
   }
 
   let totalPackets = 0;
@@ -545,6 +564,7 @@ function decodeSingleTileCodeBlocks(
   tile: Jpeg2000Tile,
   codestream: Jpeg2000Codestream,
   siz: Jpeg2000SizSegment,
+  roiParameters: readonly Jpeg2000RoiComponentParameters[],
 ): Jpeg2000TileCodeBlockSummary {
   const cod = resolveTileCod(codestream, tile);
   if (!cod) {
@@ -611,7 +631,14 @@ function decodeSingleTileCodeBlocks(
       }
 
       const compressedData = joinChunks(blockData.chunks, blockData.byteLength);
-      const decoded = decodeSingleCodeBlock(descriptor, cod, blockData, compressedData, maxBitplane);
+      const decoded = decodeSingleCodeBlock(
+        descriptor,
+        cod,
+        blockData,
+        compressedData,
+        maxBitplane,
+        roiParameters[descriptor.componentIndex],
+      );
       decodedBlocks.push(decoded);
     }
 
@@ -651,10 +678,12 @@ function decodeSingleCodeBlock(
   blockData: Jpeg2000CodeBlockPacketData,
   compressedData: Uint8Array,
   maxBitplane: number,
+  roiParameters: Jpeg2000RoiComponentParameters | undefined,
 ): Jpeg2000DecodedCodeBlock {
   try {
     const decoder = new Jpeg2000T1Decoder(descriptor.width, descriptor.height, cod.codeBlockStyle);
     decoder.setOrientation(descriptor.band);
+    const roiContext = resolveRoiContext(descriptor, roiParameters);
 
     if (blockData.useTermAll && blockData.passLengths.length > 0) {
       decoder.decodeLayeredWithMode(
@@ -669,6 +698,11 @@ function decodeSingleCodeBlock(
       decoder.decodeWithBitplane(compressedData, blockData.totalPasses, maxBitplane, 0);
     }
 
+    const coefficients = decoder.getData();
+    applyInverseRoiBeforeNormalization(coefficients, roiContext);
+    const normalizedCoefficients = normalizeT1Coefficients(coefficients);
+    applyInverseGeneralScalingAfterNormalization(normalizedCoefficients, roiContext);
+
     return {
       componentIndex: descriptor.componentIndex,
       resolutionLevel: descriptor.resolutionLevel,
@@ -682,7 +716,7 @@ function decodeSingleCodeBlock(
       height: descriptor.height,
       numPasses: blockData.totalPasses,
       maxBitplane,
-      coefficients: normalizeT1Coefficients(decoder.getData()),
+      coefficients: normalizedCoefficients,
     };
   } catch (error) {
     return {
@@ -710,6 +744,288 @@ function normalizeT1Coefficients(coefficients: Int32Array): Int32Array {
     normalized[i] = (coefficients[i] ?? 0) >> T1_NMSEDEC_FRACBITS;
   }
   return normalized;
+}
+
+function buildCodestreamRoiParameters(
+  codestream: Jpeg2000Codestream,
+  componentCount: number,
+): Jpeg2000RoiComponentParameters[] {
+  const parameters = Array.from({ length: Math.max(0, componentCount) }, (): Jpeg2000RoiComponentParameters => ({
+    shift: 0,
+    style: 0,
+  }));
+
+  // Match the current Go decoder path: only main-header RGN contributes
+  // decode-side shift/style state. Tile-header RGN is parsed but ignored.
+  for (const segment of codestream.rgn) {
+    if (segment.component < 0 || segment.component >= parameters.length) {
+      continue;
+    }
+
+    parameters[segment.component] = {
+      shift: Math.max(0, Math.floor(segment.shift)),
+      style: segment.style & 0xff,
+    };
+  }
+
+  const roiRegions = extractJp2RoiRegions(codestream.com);
+  for (const region of roiRegions) {
+    const targetComponents = region.components.length > 0
+      ? region.components
+      : Array.from({ length: parameters.length }, (_, index) => index);
+
+    for (const component of targetComponents) {
+      if (component < 0 || component >= parameters.length) {
+        continue;
+      }
+
+      const current = parameters[component]!;
+      if (current.rects) {
+        current.rects.push(region.rect);
+      } else {
+        current.rects = [region.rect];
+      }
+    }
+  }
+
+  return parameters;
+}
+
+function applyInverseRoiBeforeNormalization(
+  coefficients: Int32Array,
+  roiContext: Jpeg2000ResolvedRoiContext,
+): void {
+  if (roiContext.shift <= 0) {
+    return;
+  }
+
+  if (roiContext.style === 0) {
+    applyInverseMaxShift(coefficients, roiContext.shift);
+  }
+}
+
+function applyInverseGeneralScalingAfterNormalization(
+  coefficients: Int32Array,
+  roiContext: Jpeg2000ResolvedRoiContext,
+): void {
+  if (roiContext.style !== 1 || roiContext.shift <= 0 || !roiContext.inside) {
+    return;
+  }
+
+  if (roiContext.shift >= 31) {
+    coefficients.fill(0);
+    return;
+  }
+
+  const factor = 1 << roiContext.shift;
+  for (let i = 0; i < coefficients.length; i++) {
+    coefficients[i] = Math.trunc((coefficients[i] ?? 0) / factor);
+  }
+}
+
+function applyInverseMaxShift(coefficients: Int32Array, shift: number): void {
+  if (shift <= 0) {
+    return;
+  }
+
+  if (shift >= 31) {
+    coefficients.fill(0);
+    return;
+  }
+
+  const threshold = 1 << shift;
+  for (let i = 0; i < coefficients.length; i++) {
+    const value = coefficients[i] ?? 0;
+    const magnitude = Math.abs(value);
+    if (magnitude < threshold) {
+      continue;
+    }
+
+    const scaledMagnitude = magnitude >> shift;
+    coefficients[i] = value < 0 ? -scaledMagnitude : scaledMagnitude;
+  }
+}
+
+interface Jpeg2000ResolvedRoiContext {
+  shift: number;
+  style: number;
+  inside: boolean;
+}
+
+function resolveRoiContext(
+  descriptor: Jpeg2000CodeBlockDescriptor,
+  roiParameters: Jpeg2000RoiComponentParameters | undefined,
+): Jpeg2000ResolvedRoiContext {
+  if (!roiParameters || roiParameters.shift <= 0) {
+    return {
+      shift: 0,
+      style: 0,
+      inside: false,
+    };
+  }
+
+  const rects = roiParameters.rects ?? [];
+  if (rects.length === 0) {
+    return {
+      shift: roiParameters.shift,
+      style: roiParameters.style,
+      inside: false,
+    };
+  }
+
+  return {
+    shift: roiParameters.shift,
+    style: roiParameters.style,
+    inside: rects.some((rect) => intersectsRoiRect(rect, descriptor.x0, descriptor.y0, descriptor.x1, descriptor.y1)),
+  };
+}
+
+function intersectsRoiRect(rect: Jpeg2000RoiRect, x0: number, y0: number, x1: number, y1: number): boolean {
+  return rect.x0 < x1 && x0 < rect.x1 && rect.y0 < y1 && y0 < rect.y1;
+}
+
+function extractJp2RoiRegions(segments: readonly Jpeg2000Codestream["com"][number][]): Jpeg2000ComRoiRegion[] {
+  for (const segment of segments) {
+    if (segment.data.length < 7) {
+      continue;
+    }
+    if (!matchesAsciiPrefix(segment.data, "JP2ROI")) {
+      continue;
+    }
+    if (segment.data[6] !== 1) {
+      continue;
+    }
+
+    try {
+      return parseJp2RoiComData(segment.data.subarray(7));
+    } catch {
+      continue;
+    }
+  }
+
+  return [];
+}
+
+function parseJp2RoiComData(data: Uint8Array): Jpeg2000ComRoiRegion[] {
+  if (data.length < 2) {
+    throw new Error("COM data too short");
+  }
+
+  let offset = 0;
+  const regionCount = readUint16BigEndian(data, offset);
+  offset += 2;
+
+  const regions: Jpeg2000ComRoiRegion[] = [];
+  for (let regionIndex = 0; regionIndex < regionCount; regionIndex++) {
+    if (offset >= data.length) {
+      throw new Error("unexpected end of COM data");
+    }
+
+    const shapeType = data[offset]!;
+    offset += 1;
+    if (offset >= data.length) {
+      throw new Error("unexpected end of COM data");
+    }
+
+    const componentCount = data[offset]!;
+    offset += 1;
+    if (offset + componentCount > data.length) {
+      throw new Error("unexpected end of COM data");
+    }
+
+    const components = new Array<number>(componentCount);
+    for (let componentIndex = 0; componentIndex < componentCount; componentIndex++) {
+      components[componentIndex] = data[offset]!;
+      offset += 1;
+    }
+
+    let rect: Jpeg2000RoiRect;
+    switch (shapeType) {
+      case 0: {
+        if (offset + 16 > data.length) {
+          throw new Error("unexpected end of COM data");
+        }
+
+        const x0 = readInt32BigEndian(data, offset);
+        const y0 = readInt32BigEndian(data, offset + 4);
+        const x1 = readInt32BigEndian(data, offset + 8);
+        const y1 = readInt32BigEndian(data, offset + 12);
+        offset += 16;
+        rect = { x0, y0, x1, y1 };
+        break;
+      }
+      case 1: {
+        if (offset + 2 > data.length) {
+          throw new Error("unexpected end of COM data");
+        }
+
+        const pointCount = readUint16BigEndian(data, offset);
+        offset += 2;
+        if (pointCount <= 0 || offset + (pointCount * 8) > data.length) {
+          throw new Error("unexpected end of COM data");
+        }
+
+        let x0 = Number.POSITIVE_INFINITY;
+        let y0 = Number.POSITIVE_INFINITY;
+        let x1 = Number.NEGATIVE_INFINITY;
+        let y1 = Number.NEGATIVE_INFINITY;
+        for (let pointIndex = 0; pointIndex < pointCount; pointIndex++) {
+          const x = readInt32BigEndian(data, offset);
+          const y = readInt32BigEndian(data, offset + 4);
+          offset += 8;
+          x0 = Math.min(x0, x);
+          y0 = Math.min(y0, y);
+          x1 = Math.max(x1, x);
+          y1 = Math.max(y1, y);
+        }
+
+        rect = { x0, y0, x1, y1 };
+        break;
+      }
+      case 2: {
+        if (offset + 8 > data.length) {
+          throw new Error("unexpected end of COM data");
+        }
+
+        const width = readInt32BigEndian(data, offset);
+        const height = readInt32BigEndian(data, offset + 4);
+        offset += 8;
+        rect = { x0: 0, y0: 0, x1: width, y1: height };
+        break;
+      }
+      default:
+        throw new Error(`unknown shape type: ${shapeType}`);
+    }
+
+    regions.push({
+      components,
+      rect,
+    });
+  }
+
+  return regions;
+}
+
+function matchesAsciiPrefix(data: Uint8Array, prefix: string): boolean {
+  if (data.length < prefix.length) {
+    return false;
+  }
+
+  for (let i = 0; i < prefix.length; i++) {
+    if (data[i] !== prefix.charCodeAt(i)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function readUint16BigEndian(data: Uint8Array, offset: number): number {
+  return (data[offset]! << 8) | data[offset + 1]!;
+}
+
+function readInt32BigEndian(data: Uint8Array, offset: number): number {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength).getInt32(offset, false);
 }
 
 function createPacketDecoderForTile(

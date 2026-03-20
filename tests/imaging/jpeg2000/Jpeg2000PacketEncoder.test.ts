@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   Jpeg2000PacketDecoder,
   Jpeg2000ProgressionOrder,
+  encodePackets,
   encodePacketsLrcp,
   encodePacketsSingleLayerLrcp,
   type Jpeg2000PacketPlan,
@@ -141,4 +142,134 @@ describe("Jpeg2000PacketEncoder", () => {
     expect([...packets[0]!.body]).toEqual([0xaa, 0xbb]);
     expect([...packets[1]!.body]).toEqual([0xcc, 0xdd]);
   });
+
+  it("encodes packet bodies in the requested progression order", () => {
+    const packetPlans: Jpeg2000PacketPlan[] = [];
+    const contributions = new Map();
+
+    for (let layerIndex = 0; layerIndex < 2; layerIndex++) {
+      for (let resolutionLevel = 0; resolutionLevel < 2; resolutionLevel++) {
+        for (let componentIndex = 0; componentIndex < 2; componentIndex++) {
+          const band = resolutionLevel === 0 ? 0 : 1;
+          packetPlans.push({
+            layerIndex,
+            resolutionLevel,
+            componentIndex,
+            precinctIndex: 0,
+            bands: [
+              {
+                band,
+                numCodeBlocksX: 1,
+                numCodeBlocksY: 1,
+                entries: [{ cbx: 0, cby: 0, globalCodeBlockIndex: 0 }],
+              },
+            ],
+          });
+
+          const id = packetId(layerIndex, resolutionLevel, componentIndex);
+          contributions.set(`${layerIndex}:${componentIndex}:${resolutionLevel}:0`, {
+            layerIndex,
+            componentIndex,
+            resolutionLevel,
+            band,
+            globalCodeBlockIndex: 0,
+            numPasses: 1,
+            zeroBitplanes: 0,
+            data: new Uint8Array([id]),
+          });
+        }
+      }
+    }
+
+    const cases = [
+      {
+        order: Jpeg2000ProgressionOrder.RLCP,
+        expected: [
+          [0, 0, 0],
+          [0, 0, 1],
+          [1, 0, 0],
+          [1, 0, 1],
+          [0, 1, 0],
+          [0, 1, 1],
+          [1, 1, 0],
+          [1, 1, 1],
+        ],
+      },
+      {
+        order: Jpeg2000ProgressionOrder.RPCL,
+        expected: [
+          [0, 0, 0],
+          [1, 0, 0],
+          [0, 0, 1],
+          [1, 0, 1],
+          [0, 1, 0],
+          [1, 1, 0],
+          [0, 1, 1],
+          [1, 1, 1],
+        ],
+      },
+      {
+        order: Jpeg2000ProgressionOrder.PCRL,
+        expected: [
+          [0, 0, 0],
+          [1, 0, 0],
+          [0, 1, 0],
+          [1, 1, 0],
+          [0, 0, 1],
+          [1, 0, 1],
+          [0, 1, 1],
+          [1, 1, 1],
+        ],
+      },
+      {
+        order: Jpeg2000ProgressionOrder.CPRL,
+        expected: [
+          [0, 0, 0],
+          [1, 0, 0],
+          [0, 1, 0],
+          [1, 1, 0],
+          [0, 0, 1],
+          [1, 0, 1],
+          [0, 1, 1],
+          [1, 1, 1],
+        ],
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const encoded = encodePackets(packetPlans, contributions, testCase.order);
+      const decoder = new Jpeg2000PacketDecoder(
+        encoded,
+        2,
+        2,
+        2,
+        testCase.order,
+        0,
+      );
+      decoder.setBandCodeBlockGrid(0, 0, 0, 0, 1, 1);
+      decoder.setBandCodeBlockGrid(1, 0, 0, 0, 1, 1);
+      decoder.setBandCodeBlockGrid(0, 1, 0, 1, 1, 1);
+      decoder.setBandCodeBlockGrid(1, 1, 0, 1, 1, 1);
+
+      const packets = decoder.decodePackets();
+      expect(packets).toHaveLength(testCase.expected.length);
+
+      const actual = packets.map((packet) => [
+        packet.layerIndex,
+        packet.resolutionLevel,
+        packet.componentIndex,
+      ]);
+      expect(actual, `progression=${testCase.order} packet order`).toEqual(testCase.expected);
+
+      for (const packet of packets) {
+        expect(packet.body[0], `progression=${testCase.order} body id`).toBe(
+          packetId(packet.layerIndex, packet.resolutionLevel, packet.componentIndex),
+        );
+      }
+    }
+  });
 });
+
+function packetId(layerIndex: number, resolutionLevel: number, componentIndex: number): number {
+  return (layerIndex * 16) + (resolutionLevel * 4) + componentIndex;
+}

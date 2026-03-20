@@ -900,6 +900,79 @@ describe("DicomJpeg2000Codec", () => {
     }
   });
 
+  it("classifies malformed SIZ/COD/QCD main-header payloads as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "invalid SIZ payload",
+        codestream: buildInvalidSizPayloadLengthCodestream(),
+        detail: "Invalid SIZ segment payload length",
+      },
+      {
+        name: "invalid COD payload",
+        codestream: buildInvalidCodPayloadLengthCodestream(),
+        detail: "Invalid COD segment payload length",
+      },
+      {
+        name: "invalid COD precinct payload",
+        codestream: buildInvalidCodPrecinctPayloadLengthCodestream(),
+        detail: "Invalid COD precinct payload length",
+      },
+      {
+        name: "invalid QCD payload",
+        codestream: buildInvalidQcdPayloadLengthCodestream(),
+        detail: "Invalid QCD segment payload length",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message, malformed.name).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message, malformed.name).toContain(malformed.detail);
+        expect(message, malformed.name).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message, malformed.name).toContain("frame=0");
+      }
+    }
+  });
+
   it("classifies JP2 truncated XLBox as truncation for .90/.91/.92/.93", () => {
     const codecEntries = [
       {
@@ -1200,6 +1273,290 @@ describe("DicomJpeg2000Codec", () => {
         name: "invalid MCC no collections",
         codestream: buildInvalidMccNoCollectionsCodestream(),
         detail: "Invalid MCC payload: no collections",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
+    }
+  });
+
+  it("classifies malformed COC/QCC/POC segment markers as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "invalid COC payload length",
+        codestream: buildInvalidCocPayloadLengthCodestream(),
+        detail: "Invalid COC segment payload length",
+      },
+      {
+        name: "invalid COC precinct payload length",
+        codestream: buildInvalidCocPrecinctPayloadLengthCodestream(),
+        detail: "Invalid COC precinct payload length",
+      },
+      {
+        name: "invalid QCC payload length",
+        codestream: buildInvalidQccPayloadLengthCodestream(),
+        detail: "Invalid QCC segment payload length",
+      },
+      {
+        name: "invalid POC payload length",
+        codestream: buildInvalidPocPayloadLengthCodestream(),
+        detail: "Invalid POC segment payload length",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
+    }
+  });
+
+  it("classifies malformed COM marker usage as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "invalid COM payload length",
+        codestream: buildInvalidComPayloadLengthCodestream(),
+        detail: "Invalid COM segment payload length",
+      },
+      {
+        name: "COM before SIZ",
+        codestream: buildComBeforeSizCodestream(),
+        detail: "COM encountered before SIZ",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
+    }
+  });
+
+  it("classifies malformed/conflicting RGN markers as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "invalid RGN payload length",
+        codestream: buildInvalidRgnPayloadLengthCodestream(),
+        detail: "Invalid RGN segment payload length",
+      },
+      {
+        name: "conflicting tile-part RGN",
+        codestream: buildConflictingTileRgnCodestream(),
+        detail: "RGN differs between tile-parts",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
+    }
+  });
+
+  it("classifies invalid tile-part ordering and TNsot mismatches as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "first tile-part index is not zero",
+        codestream: buildTilePartSequenceCodestream([
+          { tilePartIndex: 1, totalTileParts: 2, payload: [0x01] },
+        ]),
+        detail: "first tile-part index is 1",
+      },
+      {
+        name: "unexpected tile-part index gap",
+        codestream: buildTilePartSequenceCodestream([
+          { tilePartIndex: 0, totalTileParts: 3, payload: [0x01] },
+          { tilePartIndex: 2, totalTileParts: 3, payload: [0x02] },
+        ]),
+        detail: "unexpected tile-part index 2 (expected 1)",
+      },
+      {
+        name: "mismatched TNsot",
+        codestream: buildTilePartSequenceCodestream([
+          { tilePartIndex: 0, totalTileParts: 2, payload: [0x01] },
+          { tilePartIndex: 1, totalTileParts: 3, payload: [0x02] },
+        ]),
+        detail: "mismatched TNsot 3 (expected 2)",
+      },
+      {
+        name: "tile-part count exceeded",
+        codestream: buildTilePartSequenceCodestream([
+          { tilePartIndex: 0, totalTileParts: 2, payload: [0x01] },
+          { tilePartIndex: 1, totalTileParts: 2, payload: [0x02] },
+          { tilePartIndex: 2, totalTileParts: 2, payload: [0x03] },
+        ]),
+        detail: "tile-part count exceeded (TNsot=2)",
       },
     ] as const;
 
@@ -1626,6 +1983,92 @@ function buildCodestreamMissingQcd(): Uint8Array {
   return new Uint8Array(bytes);
 }
 
+function buildInvalidSizPayloadLengthCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 10); // payload=8, invalid (<36)
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildInvalidCodPayloadLengthCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 41);
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 1);
+  bytes.push(7, 1, 1);
+  pushU16(bytes, 0xff52); // COD
+  pushU16(bytes, 8); // payload=6, invalid (<10)
+  bytes.push(0, 0, 0, 1, 0, 0);
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildInvalidCodPrecinctPayloadLengthCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 41);
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 1);
+  bytes.push(7, 1, 1);
+  pushU16(bytes, 0xff52); // COD
+  pushU16(bytes, 12); // payload=10 but Scod says precincts => should be 11
+  bytes.push(0x01, 0x00);
+  pushU16(bytes, 1);
+  bytes.push(0, 0, 2, 2, 0, 1);
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildInvalidQcdPayloadLengthCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 41);
+  pushU16(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 2);
+  pushU32(bytes, 2);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 1);
+  bytes.push(7, 1, 1);
+  pushU16(bytes, 0xff52); // COD
+  pushU16(bytes, 12);
+  bytes.push(0, 0);
+  pushU16(bytes, 1);
+  bytes.push(0, 0, 2, 2, 0, 1);
+  pushU16(bytes, 0xff5c); // QCD
+  pushU16(bytes, 2); // payload=0, invalid
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
 function buildDuplicateSizMainHeaderCodestream(): Uint8Array {
   const bytes = Array.from(buildMinimalJ2kCodestream());
   bytes.splice(bytes.length - 2, 0,
@@ -1753,4 +2196,127 @@ function buildInvalidMccNoCollectionsCodestream(): Uint8Array {
     0x00, 0x00, // Ymcc
     0x00, 0x00, // Qmcc=0 (invalid)
   ]);
+}
+
+function buildInvalidCocPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x53, // COC
+    0x00, 0x06, // length=6 (payload=4, invalid)
+    0x00, // component
+    0x00, // Scoc
+    0x02, // levels
+    0x03, // cb width
+  ]);
+}
+
+function buildInvalidCocPrecinctPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x53, // COC
+    0x00, 0x09, // length=9 (payload=7, missing 3 precinct bytes for 2 levels)
+    0x00, // component
+    0x01, // Scoc with precincts present
+    0x02, // levels
+    0x03, // cb width
+    0x03, // cb height
+    0x00, // cb style
+    0x01, // transform
+  ]);
+}
+
+function buildInvalidQccPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x5d, // QCC
+    0x00, 0x03, // length=3 (payload=1, invalid)
+    0x00, // truncated component only
+  ]);
+}
+
+function buildInvalidPocPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x5f, // POC
+    0x00, 0x08, // length=8 (payload=6, invalid for 1-byte component case)
+    0x00, // RSpoc
+    0x00, // CSpoc
+    0x00, 0x01, // LYEpoc
+    0x01, // REpoc
+    0x02, // CEpoc
+  ]);
+}
+
+function buildInvalidComPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x64, // COM
+    0x00, 0x03, // length=3 (payload=1, invalid)
+    0x00,
+  ]);
+}
+
+function buildInvalidRgnPayloadLengthCodestream(): Uint8Array {
+  return insertMainHeaderSegment(buildMinimalJ2kCodestream(), [
+    0xff, 0x5e, // RGN
+    0x00, 0x04, // length=4 (payload=2, invalid for 1-byte component case)
+    0x00,
+    0x00,
+  ]);
+}
+
+function buildComBeforeSizCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff64); // COM
+  pushU16(bytes, 0x0004); // length=4 (payload=2)
+  pushU16(bytes, 0x0000); // Rcom
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildConflictingTileRgnCodestream(): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  bytes.push(...buildMinimalJ2kCodestream().subarray(2, buildMinimalJ2kCodestream().length - 2));
+
+  const header1 = [0xff, 0x5e, 0x00, 0x05, 0x00, 0x00, 0x03];
+  const header2 = [0xff, 0x5e, 0x00, 0x05, 0x00, 0x00, 0x04];
+
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14 + header1.length + 1);
+  bytes.push(0, 2);
+  bytes.push(...header1);
+  pushU16(bytes, 0xff93); // SOD
+  bytes.push(0x01);
+
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14 + header2.length + 1);
+  bytes.push(1, 2);
+  bytes.push(...header2);
+  pushU16(bytes, 0xff93); // SOD
+  bytes.push(0x02);
+
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildTilePartSequenceCodestream(
+  parts: readonly { tilePartIndex: number; totalTileParts: number; payload: readonly number[] }[],
+): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  bytes.push(...buildMinimalJ2kCodestream().subarray(2, buildMinimalJ2kCodestream().length - 2));
+
+  for (const part of parts) {
+    pushU16(bytes, 0xff90); // SOT
+    pushU16(bytes, 10);
+    pushU16(bytes, 0);
+    pushU32(bytes, 14 + part.payload.length);
+    bytes.push(part.tilePartIndex & 0xff, part.totalTileParts & 0xff);
+    pushU16(bytes, 0xff93); // SOD
+    bytes.push(...part.payload);
+  }
+
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
 }

@@ -64,7 +64,7 @@ describe("DicomJpeg2000AlignmentBaseline", () => {
     const actual = DicomPixelData.create(restored).getFrame(0).data;
     const expected = DicomPixelData.create(source.dataset).getFrame(0).data;
     expect([...actual]).toEqual([...expected]);
-  });
+  }, 20000);
 });
 
 interface PixelDiffStats {

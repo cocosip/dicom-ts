@@ -384,4 +384,40 @@ describe("Jpeg2000Encoder", () => {
     expect(parsed.cod?.numberOfLayers).toBe(3);
     expect((parsed.cod?.codeBlockStyle ?? 0) & 0x04).toBe(0x04);
   });
+
+  for (const progressionOrder of [1, 2, 3, 4] as const) {
+    it(`encodes lossless codestream with progressionOrder=${progressionOrder} and decodes it back`, () => {
+      const params = DicomJpeg2000Params.createLosslessDefaults();
+      params.allowMct = false;
+      params.numLevels = 1;
+      params.numLayers = 2;
+      params.progressionOrder = progressionOrder;
+
+      const frame = new Uint8Array([
+        10, 20, 30, 40,
+        50, 60, 70, 80,
+        90, 100, 110, 120,
+        130, 140, 150, 160,
+      ]);
+
+      const codestream = new Jpeg2000Encoder().encodeFrame({
+        frameData: frame,
+        width: 4,
+        height: 4,
+        components: 1,
+        bitsAllocated: 8,
+        bitsStored: 8,
+        pixelRepresentation: PixelRepresentation.Unsigned,
+        parameters: params,
+        isPart2: false,
+      });
+
+      const parsed = parseJpeg2000Codestream(codestream);
+      expect(parsed.cod?.progressionOrder).toBe(progressionOrder);
+      expect(parsed.cod?.numberOfLayers).toBe(2);
+
+      const decoded = new Jpeg2000Decoder().decode(codestream);
+      expect(Array.from(decoded.pixelData)).toEqual(Array.from(frame));
+    });
+  }
 });

@@ -204,4 +204,77 @@ describe("Jpeg2000Part2MctBuilder", () => {
     const segments = buildPart2MctMainHeaderSegments(params, 3, false);
     expect(segments).toHaveLength(0);
   });
+
+  it("honors valid mcoRecordOrder when multiple MCC stages are present", () => {
+    const params = createMultiStageParams();
+    params.mcoRecordOrder = [2, 1];
+
+    const parsed = parseJpeg2000Codestream(encodePart2Codestream(params));
+    expect(parsed.mcc).toHaveLength(2);
+    expect(parsed.mco).toHaveLength(1);
+    expect(parsed.mco[0]?.stageIndices).toEqual([2, 1]);
+  });
+
+  it("ignores partial or invalid mcoRecordOrder values and keeps natural MCC stage order", () => {
+    const params = createMultiStageParams();
+    params.mcoRecordOrder = [2];
+
+    const parsedPartial = parseJpeg2000Codestream(encodePart2Codestream(params));
+    expect(parsedPartial.mco[0]?.stageIndices).toEqual([1, 2]);
+
+    params.mcoRecordOrder = [2, 9];
+    const parsedInvalid = parseJpeg2000Codestream(encodePart2Codestream(params));
+    expect(parsedInvalid.mco[0]?.stageIndices).toEqual([1, 2]);
+  });
 });
+
+function createMultiStageParams(): DicomJpeg2000Params {
+  const params = DicomJpeg2000Params.createLosslessDefaults();
+  params.allowMct = true;
+  params.numLevels = 1;
+  params.numLayers = 1;
+  params.mctBindings = [
+    {
+      componentIds: [0, 1, 2],
+      matrix: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
+      offsets: [5, -3, 2],
+      elementType: 1,
+      mcoPrecision: 1,
+    },
+    {
+      componentIds: [0, 1, 2],
+      matrix: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
+      offsets: [1, 2, 3],
+      elementType: 1,
+      mcoPrecision: 1,
+    },
+  ];
+  return params;
+}
+
+function encodePart2Codestream(params: DicomJpeg2000Params): Uint8Array {
+  return new Jpeg2000Encoder().encodeFrame({
+    frameData: new Uint8Array([
+      10, 20, 30,
+      40, 50, 60,
+      70, 80, 90,
+      100, 110, 120,
+    ]),
+    width: 2,
+    height: 2,
+    components: 3,
+    bitsAllocated: 8,
+    bitsStored: 8,
+    pixelRepresentation: PixelRepresentation.Unsigned,
+    parameters: params,
+    isPart2: true,
+  });
+}

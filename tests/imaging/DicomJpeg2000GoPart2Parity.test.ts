@@ -35,6 +35,26 @@ describe("DicomJpeg2000GoPart2Parity", () => {
     expect(sha256(frame)).toBe("16467ce85c08bf2b9472eaf996585c1eddb739ba87f98c94db6de51d1e1d3366");
   });
 
+  it("decodes go-generated Part2 lossless codestream (.92) through multi-frame DICOM loop", () => {
+    const codestream = readFixture("go-part2-lossless.j2k");
+    const dataset = buildPart2Dataset(DicomTransferSyntax.JPEG2000MCLossless, [codestream, codestream]);
+    const decoded = new DicomTranscoder(
+      DicomTransferSyntax.JPEG2000MCLossless,
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+    ).transcode(dataset);
+
+    const pixelData = DicomPixelData.create(decoded);
+    expect(pixelData.numberOfFrames).toBe(2);
+
+    const frame0 = pixelData.getFrame(0).data;
+    const frame1 = pixelData.getFrame(1).data;
+    expect(frame0.length).toBe(16 * 16 * 3);
+    expect(frame1.length).toBe(16 * 16 * 3);
+    expect(sha256(frame0)).toBe("16467ce85c08bf2b9472eaf996585c1eddb739ba87f98c94db6de51d1e1d3366");
+    expect(sha256(frame1)).toBe("16467ce85c08bf2b9472eaf996585c1eddb739ba87f98c94db6de51d1e1d3366");
+    expect([...frame0]).toEqual([...frame1]);
+  });
+
   it("decodes go-generated Part2 lossy codestream (.93) with hash parity", () => {
     const codestream = readFixture("go-part2-lossy.j2k");
     const parsed = parseJpeg2000Codestream(codestream);
@@ -51,13 +71,34 @@ describe("DicomJpeg2000GoPart2Parity", () => {
     expect(frame.length).toBe(16 * 16 * 3);
     expect(sha256(frame)).toBe("56f74db68f68a40464cc152bc35c9ce49151dbb41802acc805e926050af3a1cc");
   });
+
+  it("decodes go-generated Part2 lossy codestream (.93) through multi-frame DICOM loop", () => {
+    const codestream = readFixture("go-part2-lossy.j2k");
+    const dataset = buildPart2Dataset(DicomTransferSyntax.JPEG2000MC, [codestream, codestream]);
+    const decoded = new DicomTranscoder(
+      DicomTransferSyntax.JPEG2000MC,
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+    ).transcode(dataset);
+
+    const pixelData = DicomPixelData.create(decoded);
+    expect(pixelData.numberOfFrames).toBe(2);
+
+    const frame0 = pixelData.getFrame(0).data;
+    const frame1 = pixelData.getFrame(1).data;
+    expect(frame0.length).toBe(16 * 16 * 3);
+    expect(frame1.length).toBe(16 * 16 * 3);
+    expect(sha256(frame0)).toBe("56f74db68f68a40464cc152bc35c9ce49151dbb41802acc805e926050af3a1cc");
+    expect(sha256(frame1)).toBe("56f74db68f68a40464cc152bc35c9ce49151dbb41802acc805e926050af3a1cc");
+    expect([...frame0]).toEqual([...frame1]);
+  });
 });
 
 function readFixture(name: string): Uint8Array {
   return new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
 }
 
-function buildPart2Dataset(syntax: DicomTransferSyntax, codestream: Uint8Array): DicomDataset {
+function buildPart2Dataset(syntax: DicomTransferSyntax, codestreams: Uint8Array | Uint8Array[]): DicomDataset {
+  const frames = Array.isArray(codestreams) ? codestreams : [codestreams];
   const dataset = new DicomDataset(syntax);
   dataset.addOrUpdateElement(DicomVR.US, Tags.Rows, 16);
   dataset.addOrUpdateElement(DicomVR.US, Tags.Columns, 16);
@@ -68,9 +109,11 @@ function buildPart2Dataset(syntax: DicomTransferSyntax, codestream: Uint8Array):
   dataset.addOrUpdateElement(DicomVR.US, Tags.PixelRepresentation, 0);
   dataset.addOrUpdateElement(DicomVR.US, Tags.PlanarConfiguration, 0);
   dataset.addOrUpdateElement(DicomVR.CS, Tags.PhotometricInterpretation, "RGB");
-  dataset.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, "1");
+  dataset.addOrUpdateElement(DicomVR.IS, Tags.NumberOfFrames, String(frames.length));
 
   const pixelData = DicomPixelData.create(dataset, true);
-  pixelData.addFrame(new MemoryByteBuffer(codestream));
+  for (const frame of frames) {
+    pixelData.addFrame(new MemoryByteBuffer(frame));
+  }
   return dataset;
 }
