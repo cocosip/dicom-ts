@@ -17,13 +17,13 @@ Status legend:
 
 | Go module | TS target | Status | Notes |
 | --- | --- | --- | --- |
-| `jpeg2000/codestream/*` | `jpeg2000/core/codestream/*` | DONE | Marker/types/parser baseline + fixture metadata parsing (+ Part2 `MCT/MCC/MCO` segment parsing). Multi-tile-part merge now rejects conflicting tile-header `COD/QCD/COC/QCC/POC/RGN` sections like Go instead of silently overwriting/appending, `SOT` tile-part ordering/`TNsot` consistency now fail fast on invalid sequences, baseline `RGN` parsing/storage is wired in main + tile headers, and main-header `COM` segments are now parsed/stored with Go-aligned `COM before SIZ` / invalid-payload handling |
+| `jpeg2000/codestream/*` | `jpeg2000/core/codestream/*` | DONE | Marker/types/parser baseline + fixture metadata parsing (+ Part2 `MCT/MCC/MCO` segment parsing). Multi-tile-part merge now rejects conflicting tile-header `COD/QCD/COC/QCC/POC/RGN` sections like Go instead of silently overwriting/appending, `SOT` tile-part ordering/`TNsot` consistency now fail fast on invalid sequences, baseline `RGN` parsing/storage is wired in main + tile headers, main-header `COM` segments are now parsed/stored with Go-aligned `COM before SIZ` / invalid-payload handling, main-header ordering/duplicate semantics now match Go for `COD/QCD/COC/QCC/POC/RGN/MCT/MCC/MCO` (`COC before COD`, `QCC before QCD`, duplicate conflicting `COC/QCC` component records), and tile-header duplicate `COC/QCC` component semantics are now regression-locked to Go (`duplicate tile COC/QCC for component ...` on conflicting duplicates, identical duplicates accepted) |
 | `jpeg2000/colorspace/*` | `jpeg2000/core/colorspace/*` | WIP | Inverse RCT/ICT landed; Part2 inverse MCT binding/fallback path wired. Forward path + parity matrix pending |
 | `jpeg2000/mqc/*` | `jpeg2000/core/mqc/*` | WIP | MQ decoder + RAW bypass + baseline encoder landed; packetization integration/perf parity pending |
 | `jpeg2000/t1/*` | `jpeg2000/core/t1/*` | WIP | T1 decoder + context model + baseline encoder landed; packetization integration/full parity pending |
 | `jpeg2000/t2/*` | `jpeg2000/core/t2/*` | WIP | P2.1 packet header decode foundation + P3.3/P3.4 LRCP packet encoder landed; baseline non-LRCP encode traversal (`RLCP/RPCL/PCRL/CPRL`) is now wired and covered by ordering tests, but position/precinct geometry parity is still simplified |
 | `jpeg2000/wavelet/*` | `jpeg2000/core/wavelet/*` | WIP | Inverse + forward 5/3 & 9/7 multilevel/parity path landed with roundtrip tests; fixture-level parity/perf validation pending |
-| `jpeg2000/decoder.go` | `jpeg2000/core/decoder/*` | WIP | Header/codestream/T2+T1 -> DWT -> component assembly -> pixel packing wired; Part2 MCT binding/fallback + irreversible/isPart2 metadata landed; main-header `RGN` MaxShift inverse scaling is now applied during code-block reconstruction, `JP2ROI` COM rectangles now enable decode-side `GeneralScaling` application for intersecting code-blocks, tile-header `RGN` remains intentionally ignored to match the current Go decoder path, and malformed/unknown-version `JP2ROI` COM payloads are skipped without affecting decode; error-model parity pending |
+| `jpeg2000/decoder.go` | `jpeg2000/core/decoder/*` | WIP | Header/codestream/T2+T1 -> DWT -> component assembly -> pixel packing wired; Part2 MCT binding/fallback + irreversible/isPart2 metadata landed; main-header `RGN` MaxShift inverse scaling is now applied during code-block reconstruction, `JP2ROI` COM rectangles now enable decode-side `GeneralScaling` application for intersecting code-blocks, tile-header `RGN` remains intentionally ignored to match the current Go decoder path, malformed/unknown-version `JP2ROI` COM payloads are skipped without affecting decode, decoder regression coverage now explicitly locks 12-bit signed/unsigned `SIZ` metadata plus 16-bit-packed storage semantics for empty-packet decode output, and the direct `decode()` path now fails fast on unusable tile state (`no tiles found`, unsupported progression order, tile-level decode errors) instead of silently returning zero-filled images |
 | `jpeg2000/encoder.go` | `jpeg2000/core/encoder/*` | WIP | Encode-side analysis + in-tree MQ/T1 + single-tile codestream writing now support `LRCP/RLCP/RPCL/PCRL/CPRL` with COD propagation; full rate-target budget/PCRD parity and full geometry parity are still pending |
 | `jpeg2000/mct_builder.go` + MCT tests | `jpeg2000/core/mct/*` | WIP | Part 2 MCT builder landed (`MCT/MCC/MCO` header construction + staged ordering + element-type encoding); `mcoRecordOrder` now honors only full valid MCC permutations like Go, but broader parity hardening/edge cases remain |
 | `jpeg2000/lossless/*` | `jpeg2000/lossless/*` + `mc-lossless/*` | DONE | All four JPEG2000 codec classes are now wired directly to in-tree `Jpeg2000Encoder` API (no helper indirection) |
@@ -45,7 +45,7 @@ Status legend:
 | `.93` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green + lossy PSNR/MAE thresholds validated |
 | Photometric/Planar updates | DONE | Helper-level + end-to-end matrices now cover `.90/.91/.92/.93` encode/decode PI + planar semantics (including Part 2 `.92/.93` transcode roundtrip assertions) |
 | Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage). Part2 scalar normalization + MCC reversible semantics aligned; full-table audit still pending |
-| Error model parity | WIP | Standardized `JPEG2000 {encode|decode} failed [class=...]` wrapping + `syntax/frame/size/bits/samples` context landed. Failure classes include `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` with broad malformed-codestream coverage, including malformed main-header payloads for `SIZ/COD/QCD`; Go-side full failure-class table audit pending |
+| Error model parity | WIP | Standardized `JPEG2000 {encode|decode} failed [class=...]` wrapping + `syntax/frame/size/bits/samples` context landed. Failure classes include `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` with broad malformed-codestream coverage, including malformed main-header payloads for `SIZ/COD/QCD`, Go-aligned main-header ordering failures (`COD/QCD/COC/QCC/POC/RGN/MCT/MCC/MCO before required predecessors`), duplicate conflicting main-header `COC/QCC` component markers, duplicate conflicting tile-header `COC/QCC` component markers, and strict decoder tile-state failures such as `no tiles found in codestream` and `unsupported progression order`; Go-side full failure-class table audit pending |
 
 ---
 
@@ -246,6 +246,74 @@ Status legend:
 - Commands:
   - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts tests/imaging/DicomJpeg2000Codec.test.ts`
   - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `npm run build`
+
+### 2026-03-22 (Phase 7 / main-header ordering and duplicate component-marker alignment)
+
+- Focus: align TS codestream parser and codec failure classification with Go for main-header marker ordering constraints and duplicate component marker semantics.
+- Key updates:
+  - `Jpeg2000CodestreamParser` now rejects `COD/QCD/COC/QCC/POC/RGN/MCT/MCC/MCO` when they appear before required predecessor markers, matching Go main-header sequencing.
+  - `COC` and `QCC` now allow byte-equivalent duplicate component records but reject conflicting duplicates in the main header, matching Go.
+  - Extended codec-level `marker-corruption` classification and regression coverage for these ordering/conflict failures across `.90/.91/.92/.93`.
+- Main touched files:
+  - `src/imaging/codec/jpeg2000/core/codestream/Jpeg2000CodestreamParser.ts`
+  - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
+  - `tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+- Commands:
+  - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts`
+  - `npm test -- --run tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `npm run build`
+
+### 2026-03-22 (Phase 7 / tile-header duplicate component-marker regression lock)
+
+- Focus: lock Go-aligned tile-header duplicate `COC/QCC` component semantics with parser and codec regression coverage.
+- Key updates:
+  - Added parser regression coverage for duplicate tile-header `COC/QCC` component records:
+    - conflicting duplicates fail with `duplicate tile COC/QCC for component ...`,
+    - byte-equivalent duplicates are accepted.
+  - Added codec-level `marker-corruption` regression coverage for conflicting duplicate tile-header `COC/QCC` markers across `.90/.91/.92/.93`.
+- Main touched files:
+  - `tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+- Commands:
+  - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts`
+  - `npm test -- --run tests/imaging/DicomJpeg2000Codec.test.ts`
+
+### 2026-03-22 (Phase 7 / decoder precision metadata and storage semantics)
+
+- Focus: lock decoder high-bit-depth metadata and packed-output semantics with direct unit coverage.
+- Key updates:
+  - Added decoder regression coverage for 12-bit unsigned and 12-bit signed `SIZ` metadata reporting.
+  - Added decoder regression coverage for empty-packet 12-bit output packing:
+    - unsigned samples pack to 16-bit midpoint values (`2048`),
+    - signed samples pack to 16-bit zero values.
+- Main touched files:
+  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
+- Commands:
+  - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
+  - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts tests/imaging/DicomJpeg2000Codec.test.ts`
+
+### 2026-03-22 (Phase 7 / strict decoder fail-fast for unusable tile state)
+
+- Focus: align direct TS decoder behavior more closely with Go by failing early when tile decode state is unusable.
+- Key updates:
+  - `Jpeg2000Decoder.decode()` now throws instead of silently returning assembled zero data when:
+    - the codestream has no tiles,
+    - a tile reports an unsupported progression order,
+    - a tile-level decode error or failed code-block count is present.
+  - Added decoder regression coverage for:
+    - `no tiles found in codestream`,
+    - `failed to decode tile 0: unsupported progression order: 99`.
+  - Added codec-level `marker-corruption` coverage for the new strict decoder tile-state failures across `.90/.91/.92/.93`.
+- Main touched files:
+  - `src/imaging/codec/jpeg2000/core/decoder/Jpeg2000Decoder.ts`
+  - `src/imaging/codec/jpeg2000/common/Jpeg2000CodecCommon.ts`
+  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+- Commands:
+  - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
+  - `npm test -- --run tests/imaging/DicomJpeg2000Codec.test.ts`
   - `npm run build`
 
 ### 2026-03-21 (Phase 7 / decode-side JP2ROI COM geometry consumption)

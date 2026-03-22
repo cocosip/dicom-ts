@@ -203,7 +203,7 @@ describe("DicomJpeg2000Codec", () => {
         )).toThrow(/Part2 encode is not implemented yet/i);
       }
 
-      DicomPixelData.create(decodeInputDataset, true).addFrame(new MemoryByteBuffer(buildMinimalJ2kCodestream()));
+      DicomPixelData.create(decodeInputDataset, true).addFrame(new MemoryByteBuffer(buildSingleTileMinimalJ2kCodestream()));
       const decoded = codec.decode(
         DicomPixelData.create(decodeInputDataset),
         0,
@@ -403,8 +403,8 @@ describe("DicomJpeg2000Codec", () => {
         "MONOCHROME2",
       );
       const encodedPixelData = DicomPixelData.create(encodedDataset, true);
-      encodedPixelData.addFrame(new MemoryByteBuffer(buildMinimalJ2kCodestream()));
-      encodedPixelData.addFrame(new MemoryByteBuffer(buildMinimalJ2kCodestream()));
+      encodedPixelData.addFrame(new MemoryByteBuffer(buildSingleTileMinimalJ2kCodestream()));
+      encodedPixelData.addFrame(new MemoryByteBuffer(buildSingleTileMinimalJ2kCodestream()));
 
       const decodedDataset = buildDataset(
         DicomTransferSyntax.ExplicitVRLittleEndian,
@@ -440,7 +440,7 @@ describe("DicomJpeg2000Codec", () => {
       "MONOCHROME2",
     );
 
-    DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildMinimalJ2kCodestream()));
+    DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(buildSingleTileMinimalJ2kCodestream()));
 
     let thrown: unknown;
     try {
@@ -1379,6 +1379,240 @@ describe("DicomJpeg2000Codec", () => {
     }
   });
 
+  it("classifies main-header marker ordering and duplicate component marker conflicts as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "COD before SIZ",
+        codestream: buildCodecMainHeaderOrderingCodestream("cod-before-siz"),
+        detail: "COD encountered before SIZ",
+      },
+      {
+        name: "QCD before SIZ",
+        codestream: buildCodecMainHeaderOrderingCodestream("qcd-before-siz"),
+        detail: "QCD encountered before SIZ",
+      },
+      {
+        name: "COC before COD",
+        codestream: buildCodecMainHeaderOrderingCodestream("coc-before-cod"),
+        detail: "COC encountered before COD",
+      },
+      {
+        name: "QCC before QCD",
+        codestream: buildCodecMainHeaderOrderingCodestream("qcc-before-qcd"),
+        detail: "QCC encountered before QCD",
+      },
+      {
+        name: "POC before COD",
+        codestream: buildCodecMainHeaderOrderingCodestream("poc-before-cod"),
+        detail: "POC encountered before COD",
+      },
+      {
+        name: "RGN before SIZ",
+        codestream: buildCodecMainHeaderOrderingCodestream("rgn-before-siz"),
+        detail: "RGN encountered before SIZ",
+      },
+      {
+        name: "MCT before SIZ",
+        codestream: buildCodecMainHeaderOrderingCodestream("mct-before-siz"),
+        detail: "MCT encountered before SIZ",
+      },
+      {
+        name: "MCC before SIZ",
+        codestream: buildCodecMainHeaderOrderingCodestream("mcc-before-siz"),
+        detail: "MCC encountered before SIZ",
+      },
+      {
+        name: "MCO before SIZ",
+        codestream: buildCodecMainHeaderOrderingCodestream("mco-before-siz"),
+        detail: "MCO encountered before SIZ",
+      },
+      {
+        name: "duplicate COC for component",
+        codestream: buildDuplicateCodecMainHeaderComponentSegmentCodestream("coc"),
+        detail: "Duplicate COC for component 0",
+      },
+      {
+        name: "duplicate QCC for component",
+        codestream: buildDuplicateCodecMainHeaderComponentSegmentCodestream("qcc"),
+        detail: "Duplicate QCC for component 0",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
+    }
+  });
+
+  it("classifies conflicting duplicate tile-header COC/QCC segments as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "duplicate tile COC",
+        codestream: buildDuplicateTileHeaderComponentConflictCodestream("coc"),
+        detail: "duplicate tile COC for component 0",
+      },
+      {
+        name: "duplicate tile QCC",
+        codestream: buildDuplicateTileHeaderComponentConflictCodestream("qcc"),
+        detail: "duplicate tile QCC for component 0",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
+    }
+  });
+
+  it("classifies strict decoder tile-state failures as marker-corruption for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const malformedMatrix = [
+      {
+        name: "no tiles found",
+        codestream: buildMinimalJ2kCodestream(),
+        detail: "no tiles found in codestream",
+      },
+      {
+        name: "unsupported progression order",
+        codestream: buildUnsupportedProgressionOrderTileCodestream(),
+        detail: "unsupported progression order: 99",
+      },
+    ] as const;
+
+    for (const malformed of malformedMatrix) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(malformed.codestream));
+
+        let thrown: unknown;
+        try {
+          entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toContain("JPEG2000 decode failed [class=marker-corruption]");
+        expect(message).toContain(malformed.detail);
+        expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
+        expect(message).toContain("frame=0");
+      }
+    }
+  });
+
   it("classifies malformed COM marker usage as marker-corruption for .90/.91/.92/.93", () => {
     const codecEntries = [
       {
@@ -1753,6 +1987,18 @@ function buildMinimalJ2kCodestream(): Uint8Array {
   pushU16(bytes, 0xff5c); // QCD
   pushU16(bytes, 5);
   bytes.push(0, 0, 0);
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildSingleTileMinimalJ2kCodestream(): Uint8Array {
+  const bytes = Array.from(buildMinimalJ2kCodestream().subarray(0, buildMinimalJ2kCodestream().length - 2));
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14);
+  bytes.push(0, 1);
+  pushU16(bytes, 0xff93); // SOD
   pushU16(bytes, 0xffd9); // EOC
   return new Uint8Array(bytes);
 }
@@ -2268,6 +2514,246 @@ function buildComBeforeSizCodestream(): Uint8Array {
   pushU16(bytes, 0x0000); // Rcom
   pushU16(bytes, 0xffd9); // EOC
   return new Uint8Array(bytes);
+}
+
+function buildDuplicateTileHeaderComponentConflictCodestream(kind: "coc" | "qcc"): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  bytes.push(...buildMinimalJ2kCodestream().subarray(2, buildMinimalJ2kCodestream().length - 2));
+
+  const header = kind === "coc"
+    ? [
+        0xff, 0x53, 0x00, 0x09, 0x00, 0x00, 0x02, 0x03, 0x04, 0x00, 0x01,
+        0xff, 0x53, 0x00, 0x09, 0x00, 0x00, 0x02, 0x04, 0x04, 0x00, 0x01,
+      ]
+    : [
+        0xff, 0x5d, 0x00, 0x06, 0x00, 0x02, 0x12, 0x34,
+        0xff, 0x5d, 0x00, 0x06, 0x00, 0x02, 0x12, 0x35,
+      ];
+
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14 + header.length + 1);
+  bytes.push(0, 1);
+  bytes.push(...header);
+  pushU16(bytes, 0xff93); // SOD
+  bytes.push(0x00);
+
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildUnsupportedProgressionOrderTileCodestream(): Uint8Array {
+  const bytes = Array.from(buildMinimalJ2kCodestream().subarray(0, buildMinimalJ2kCodestream().length - 2));
+  bytes[50] = 99;
+
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14);
+  bytes.push(0, 1);
+  pushU16(bytes, 0xff93); // SOD
+
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildCodecMainHeaderOrderingCodestream(
+  kind:
+    | "cod-before-siz"
+    | "qcd-before-siz"
+    | "coc-before-cod"
+    | "qcc-before-qcd"
+    | "poc-before-cod"
+    | "rgn-before-siz"
+    | "mct-before-siz"
+    | "mcc-before-siz"
+    | "mco-before-siz",
+): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+
+  switch (kind) {
+    case "cod-before-siz":
+      appendCodecCodSegment(bytes);
+      appendCodecSizSegment(bytes);
+      appendCodecQcdSegment(bytes);
+      break;
+    case "qcd-before-siz":
+      appendCodecQcdSegment(bytes);
+      appendCodecSizSegment(bytes);
+      appendCodecCodSegment(bytes);
+      break;
+    case "coc-before-cod":
+      appendCodecSizSegment(bytes);
+      appendCodecCocSegment(bytes, false);
+      appendCodecCodSegment(bytes);
+      appendCodecQcdSegment(bytes);
+      break;
+    case "qcc-before-qcd":
+      appendCodecSizSegment(bytes);
+      appendCodecCodSegment(bytes);
+      appendCodecQccSegment(bytes, false);
+      appendCodecQcdSegment(bytes);
+      break;
+    case "poc-before-cod":
+      appendCodecSizSegment(bytes);
+      appendCodecPocSegment(bytes);
+      appendCodecCodSegment(bytes);
+      appendCodecQcdSegment(bytes);
+      break;
+    case "rgn-before-siz":
+      appendCodecRgnSegment(bytes);
+      appendCodecSizSegment(bytes);
+      appendCodecCodSegment(bytes);
+      appendCodecQcdSegment(bytes);
+      break;
+    case "mct-before-siz":
+      appendCodecMctSegment(bytes);
+      appendCodecSizSegment(bytes);
+      appendCodecCodSegment(bytes);
+      appendCodecQcdSegment(bytes);
+      break;
+    case "mcc-before-siz":
+      appendCodecMccSegment(bytes);
+      appendCodecSizSegment(bytes);
+      appendCodecCodSegment(bytes);
+      appendCodecQcdSegment(bytes);
+      break;
+    case "mco-before-siz":
+      appendCodecMcoSegment(bytes);
+      appendCodecSizSegment(bytes);
+      appendCodecCodSegment(bytes);
+      appendCodecQcdSegment(bytes);
+      break;
+  }
+
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildDuplicateCodecMainHeaderComponentSegmentCodestream(kind: "coc" | "qcc"): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  appendCodecSizSegment(bytes);
+  appendCodecCodSegment(bytes);
+  appendCodecQcdSegment(bytes);
+
+  if (kind === "coc") {
+    appendCodecCocSegment(bytes, false);
+    appendCodecCocSegment(bytes, true);
+  } else {
+    appendCodecQccSegment(bytes, false);
+    appendCodecQccSegment(bytes, true);
+  }
+
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function appendCodecSizSegment(target: number[]): void {
+  pushU16(target, 0xff51); // SIZ
+  pushU16(target, 41);
+  pushU16(target, 0);
+  pushU32(target, 2);
+  pushU32(target, 2);
+  pushU32(target, 0);
+  pushU32(target, 0);
+  pushU32(target, 2);
+  pushU32(target, 2);
+  pushU32(target, 0);
+  pushU32(target, 0);
+  pushU16(target, 1);
+  target.push(7, 1, 1);
+}
+
+function appendCodecCodSegment(target: number[]): void {
+  pushU16(target, 0xff52); // COD
+  pushU16(target, 12);
+  target.push(0, 0);
+  pushU16(target, 1);
+  target.push(0, 0, 2, 2, 0, 1);
+}
+
+function appendCodecQcdSegment(target: number[]): void {
+  pushU16(target, 0xff5c); // QCD
+  pushU16(target, 5);
+  target.push(0, 0, 0);
+}
+
+function appendCodecCocSegment(target: number[], conflicting: boolean): void {
+  pushU16(target, 0xff53); // COC
+  pushU16(target, 9);
+  target.push(
+    0,
+    0,
+    2,
+    conflicting ? 4 : 3,
+    4,
+    0,
+    1,
+  );
+}
+
+function appendCodecQccSegment(target: number[], conflicting: boolean): void {
+  pushU16(target, 0xff5d); // QCC
+  pushU16(target, 6);
+  target.push(
+    0,
+    2,
+    0x12,
+    conflicting ? 0x35 : 0x34,
+  );
+}
+
+function appendCodecPocSegment(target: number[]): void {
+  pushU16(target, 0xff5f); // POC
+  pushU16(target, 9);
+  target.push(
+    0,
+    0,
+    0x00, 0x01,
+    1,
+    1,
+    0,
+  );
+}
+
+function appendCodecRgnSegment(target: number[]): void {
+  pushU16(target, 0xff5e); // RGN
+  pushU16(target, 5);
+  target.push(0, 0, 3);
+}
+
+function appendCodecMctSegment(target: number[]): void {
+  pushU16(target, 0xff74); // MCT
+  pushU16(target, 12);
+  pushU16(target, 0);
+  pushU16(target, 0x0501);
+  pushU16(target, 0);
+  target.push(0x00, 0x00, 0x00, 0x01);
+}
+
+function appendCodecMccSegment(target: number[]): void {
+  pushU16(target, 0xff75); // MCC
+  pushU16(target, 17);
+  pushU16(target, 0);
+  target.push(1);
+  pushU16(target, 0);
+  pushU16(target, 1);
+  target.push(0);
+  pushU16(target, 1);
+  target.push(0);
+  pushU16(target, 1);
+  target.push(0);
+  target.push(0x01, 0x00, 0x00);
+}
+
+function appendCodecMcoSegment(target: number[]): void {
+  pushU16(target, 0xff77); // MCO
+  pushU16(target, 4);
+  target.push(1, 1);
 }
 
 function buildConflictingTileRgnCodestream(): Uint8Array {

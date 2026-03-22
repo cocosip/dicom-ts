@@ -189,6 +189,37 @@ describe("Jpeg2000CodestreamParser", () => {
     });
   });
 
+  it("rejects conflicting duplicate tile-header COC/QCC segments for the same component", () => {
+    const cases = [
+      {
+        name: "tile COC conflict",
+        data: buildDuplicateTileHeaderComponentSegmentCodestream("coc", true),
+        pattern: /duplicate tile COC for component 1/,
+      },
+      {
+        name: "tile QCC conflict",
+        data: buildDuplicateTileHeaderComponentSegmentCodestream("qcc", true),
+        pattern: /duplicate tile QCC for component 1/,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      expect(() => parseJpeg2000Codestream(testCase.data), testCase.name).toThrow(testCase.pattern);
+    }
+  });
+
+  it("allows byte-equivalent duplicate tile-header COC/QCC segments for the same component", () => {
+    const cocCodestream = parseJpeg2000Codestream(buildDuplicateTileHeaderComponentSegmentCodestream("coc", false));
+    expect(cocCodestream.tiles).toHaveLength(1);
+    expect(cocCodestream.tiles[0]!.coc.size).toBe(1);
+    expect(cocCodestream.tiles[0]!.coc.get(1)?.codeBlockWidth).toBe(3);
+
+    const qccCodestream = parseJpeg2000Codestream(buildDuplicateTileHeaderComponentSegmentCodestream("qcc", false));
+    expect(qccCodestream.tiles).toHaveLength(1);
+    expect(qccCodestream.tiles[0]!.qcc.size).toBe(1);
+    expect(Array.from(qccCodestream.tiles[0]!.qcc.get(1)?.spQcc ?? [])).toEqual([0x12, 0x34]);
+  });
+
   it("parses COM marker segments from the main header", () => {
     const codestream = parseJpeg2000Codestream(buildComCodestream());
 
@@ -229,6 +260,104 @@ describe("Jpeg2000CodestreamParser", () => {
       cEpoc: 2,
       pPoc: 0,
     });
+  });
+
+  it("enforces Go-aligned main-header marker ordering", () => {
+    const cases = [
+      {
+        name: "COD before SIZ",
+        data: buildMainHeaderOrderingCodestream("cod-before-siz"),
+        pattern: /COD encountered before SIZ/,
+      },
+      {
+        name: "QCD before SIZ",
+        data: buildMainHeaderOrderingCodestream("qcd-before-siz"),
+        pattern: /QCD encountered before SIZ/,
+      },
+      {
+        name: "COC before SIZ",
+        data: buildMainHeaderOrderingCodestream("coc-before-siz"),
+        pattern: /COC encountered before SIZ/,
+      },
+      {
+        name: "COC before COD",
+        data: buildMainHeaderOrderingCodestream("coc-before-cod"),
+        pattern: /COC encountered before COD/,
+      },
+      {
+        name: "QCC before SIZ",
+        data: buildMainHeaderOrderingCodestream("qcc-before-siz"),
+        pattern: /QCC encountered before SIZ/,
+      },
+      {
+        name: "QCC before QCD",
+        data: buildMainHeaderOrderingCodestream("qcc-before-qcd"),
+        pattern: /QCC encountered before QCD/,
+      },
+      {
+        name: "POC before SIZ",
+        data: buildMainHeaderOrderingCodestream("poc-before-siz"),
+        pattern: /POC encountered before SIZ/,
+      },
+      {
+        name: "POC before COD",
+        data: buildMainHeaderOrderingCodestream("poc-before-cod"),
+        pattern: /POC encountered before COD/,
+      },
+      {
+        name: "RGN before SIZ",
+        data: buildMainHeaderOrderingCodestream("rgn-before-siz"),
+        pattern: /RGN encountered before SIZ/,
+      },
+      {
+        name: "MCT before SIZ",
+        data: buildMainHeaderOrderingCodestream("mct-before-siz"),
+        pattern: /MCT encountered before SIZ/,
+      },
+      {
+        name: "MCC before SIZ",
+        data: buildMainHeaderOrderingCodestream("mcc-before-siz"),
+        pattern: /MCC encountered before SIZ/,
+      },
+      {
+        name: "MCO before SIZ",
+        data: buildMainHeaderOrderingCodestream("mco-before-siz"),
+        pattern: /MCO encountered before SIZ/,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      expect(() => parseJpeg2000Codestream(testCase.data), testCase.name).toThrow(testCase.pattern);
+    }
+  });
+
+  it("rejects conflicting duplicate main-header COC/QCC segments for the same component", () => {
+    const cases = [
+      {
+        name: "COC conflict",
+        data: buildDuplicateMainHeaderComponentSegmentCodestream("coc", true),
+        pattern: /Duplicate COC for component 1/,
+      },
+      {
+        name: "QCC conflict",
+        data: buildDuplicateMainHeaderComponentSegmentCodestream("qcc", true),
+        pattern: /Duplicate QCC for component 1/,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      expect(() => parseJpeg2000Codestream(testCase.data), testCase.name).toThrow(testCase.pattern);
+    }
+  });
+
+  it("allows byte-equivalent duplicate main-header COC/QCC segments for the same component", () => {
+    const cocCodestream = parseJpeg2000Codestream(buildDuplicateMainHeaderComponentSegmentCodestream("coc", false));
+    expect(cocCodestream.coc.size).toBe(1);
+    expect(cocCodestream.coc.get(1)?.codeBlockWidth).toBe(3);
+
+    const qccCodestream = parseJpeg2000Codestream(buildDuplicateMainHeaderComponentSegmentCodestream("qcc", false));
+    expect(qccCodestream.qcc.size).toBe(1);
+    expect(Array.from(qccCodestream.qcc.get(1)?.spQcc ?? [])).toEqual([0x12, 0x34]);
   });
 
   it("rejects malformed codestream inputs", () => {
@@ -656,6 +785,248 @@ function buildComBeforeSizCodestream(): Uint8Array {
   pushU16(bytes, 0);
   pushU16(bytes, Jpeg2000Marker.EOC);
   return new Uint8Array(bytes);
+}
+
+function buildDuplicateTileHeaderComponentSegmentCodestream(
+  kind: "coc" | "qcc",
+  conflicting: boolean,
+): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  appendTwoComponentSizSegment(bytes);
+  appendCodSegment(bytes);
+  appendQcdSegment(bytes);
+
+  const tileHeader = new Uint8Array([
+    ...buildConflictTileHeader(kind, false),
+    ...buildConflictTileHeader(kind, conflicting),
+  ]);
+  writeTilePartWithHeader(bytes, 0, 0, 1, tileHeader, new Uint8Array([0x00]));
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
+function buildMainHeaderOrderingCodestream(
+  kind:
+    | "cod-before-siz"
+    | "qcd-before-siz"
+    | "coc-before-siz"
+    | "coc-before-cod"
+    | "qcc-before-siz"
+    | "qcc-before-qcd"
+    | "poc-before-siz"
+    | "poc-before-cod"
+    | "rgn-before-siz"
+    | "mct-before-siz"
+    | "mcc-before-siz"
+    | "mco-before-siz",
+): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+
+  switch (kind) {
+    case "cod-before-siz":
+      appendCodSegment(bytes);
+      appendTwoComponentSizSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "qcd-before-siz":
+      appendQcdSegment(bytes);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      break;
+    case "coc-before-siz":
+      appendCocSegment(bytes, false);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "coc-before-cod":
+      appendTwoComponentSizSegment(bytes);
+      appendCocSegment(bytes, false);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "qcc-before-siz":
+      appendQccSegment(bytes, false);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "qcc-before-qcd":
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQccSegment(bytes, false);
+      appendQcdSegment(bytes);
+      break;
+    case "poc-before-siz":
+      appendPocSegment(bytes);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "poc-before-cod":
+      appendTwoComponentSizSegment(bytes);
+      appendPocSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "rgn-before-siz":
+      appendRgnSegment(bytes);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "mct-before-siz":
+      appendMctSegment(bytes);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "mcc-before-siz":
+      appendMccSegment(bytes);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "mco-before-siz":
+      appendMcoSegment(bytes);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+  }
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
+function buildDuplicateMainHeaderComponentSegmentCodestream(
+  kind: "coc" | "qcc",
+  conflicting: boolean,
+): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  appendTwoComponentSizSegment(bytes);
+  appendCodSegment(bytes);
+  appendQcdSegment(bytes);
+
+  if (kind === "coc") {
+    appendCocSegment(bytes, false);
+    appendCocSegment(bytes, conflicting);
+  } else {
+    appendQccSegment(bytes, false);
+    appendQccSegment(bytes, conflicting);
+  }
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
+function appendTwoComponentSizSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.SIZ);
+  pushU16(target, 44);
+  pushU16(target, 0);
+  pushU32(target, 256);
+  pushU32(target, 256);
+  pushU32(target, 0);
+  pushU32(target, 0);
+  pushU32(target, 256);
+  pushU32(target, 256);
+  pushU32(target, 0);
+  pushU32(target, 0);
+  pushU16(target, 2);
+  target.push(7, 1, 1);
+  target.push(7, 1, 1);
+}
+
+function appendCodSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.COD);
+  pushU16(target, 12);
+  target.push(0, 0);
+  pushU16(target, 1);
+  target.push(0, 1, 2, 2, 0, 1);
+}
+
+function appendQcdSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.QCD);
+  pushU16(target, 5);
+  target.push(0, 0, 0);
+}
+
+function appendCocSegment(target: number[], conflicting: boolean): void {
+  pushU16(target, Jpeg2000Marker.COC);
+  pushU16(target, 9);
+  target.push(
+    1,
+    0,
+    2,
+    conflicting ? 4 : 3,
+    4,
+    0,
+    1,
+  );
+}
+
+function appendQccSegment(target: number[], conflicting: boolean): void {
+  pushU16(target, Jpeg2000Marker.QCC);
+  pushU16(target, 6);
+  target.push(
+    1,
+    2,
+    0x12,
+    conflicting ? 0x35 : 0x34,
+  );
+}
+
+function appendPocSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.POC);
+  pushU16(target, 9);
+  target.push(
+    0,
+    0,
+    0x00, 0x01,
+    1,
+    2,
+    0,
+  );
+}
+
+function appendRgnSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.RGN);
+  pushU16(target, 5);
+  target.push(0, 0, 3);
+}
+
+function appendMctSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.MCT);
+  pushU16(target, 12);
+  pushU16(target, 0);
+  pushU16(target, 0x0501);
+  pushU16(target, 0);
+  target.push(0x00, 0x00, 0x00, 0x01);
+}
+
+function appendMccSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.MCC);
+  pushU16(target, 23);
+  pushU16(target, 0);
+  target.push(1);
+  pushU16(target, 0);
+  pushU16(target, 1);
+  target.push(0);
+  pushU16(target, 3);
+  target.push(0, 1, 2);
+  pushU16(target, 3);
+  target.push(0, 1, 2);
+  target.push(0x01, 0x02, 0x01);
+}
+
+function appendMcoSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.MCO);
+  pushU16(target, 4);
+  target.push(1, 1);
 }
 
 function writeTilePart(

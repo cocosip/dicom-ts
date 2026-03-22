@@ -51,6 +51,16 @@ describe("Jpeg2000Decoder", () => {
     expect(((extracted[0]! << 8) | extracted[1]!)).toBe(Jpeg2000Marker.SOC);
   });
 
+  it("fails strict decode when codestream has no tile data", () => {
+    expect(() => new Jpeg2000Decoder().decode(buildMinimalCodestream())).toThrow(/no tiles found in codestream/i);
+  });
+
+  it("fails strict decode when tile COD uses unsupported progression order", () => {
+    expect(() => new Jpeg2000Decoder().decode(buildSingleTileEmptyPacketCodestreamWithCod(99, 1, 0, 8, false))).toThrow(
+      /failed to decode tile 0: unsupported progression order: 99/i,
+    );
+  });
+
   it("summarizes tile packet headers/bodies via t2 foundation", () => {
     const codestream = buildSingleTilePacketCodestream();
     const decoder = new Jpeg2000Decoder();
@@ -171,6 +181,58 @@ describe("Jpeg2000Decoder", () => {
     expect(decoded.pixelData.length).toBe(16 * 16);
     expect([...decoded.pixelData]).toEqual(new Array(16 * 16).fill(128));
     expect(decoded.irreversible).toBe(true);
+  });
+
+  it("reports high-bit-depth unsigned metadata from SIZ", () => {
+    const header = new Jpeg2000Decoder().readHeader(
+      buildSingleTileEmptyPacketCodestreamWithPrecision(1, 0, 12, false),
+    );
+
+    expect(header.width).toBe(16);
+    expect(header.height).toBe(16);
+    expect(header.components).toBe(1);
+    expect(header.bitDepth).toBe(12);
+    expect(header.isSigned).toBe(false);
+  });
+
+  it("reports high-bit-depth signed metadata from SIZ", () => {
+    const header = new Jpeg2000Decoder().readHeader(
+      buildSingleTileEmptyPacketCodestreamWithPrecision(1, 0, 12, true),
+    );
+
+    expect(header.width).toBe(16);
+    expect(header.height).toBe(16);
+    expect(header.components).toBe(1);
+    expect(header.bitDepth).toBe(12);
+    expect(header.isSigned).toBe(true);
+  });
+
+  it("packs empty unsigned 12-bit samples as 16-bit midpoint values", () => {
+    const decoded = new Jpeg2000Decoder().decode(
+      buildSingleTileEmptyPacketCodestreamWithPrecision(1, 0, 12, false),
+    );
+
+    expect(decoded.bitDepth).toBe(12);
+    expect(decoded.isSigned).toBe(false);
+    expect(decoded.pixelData.length).toBe(16 * 16 * 2);
+
+    const samples = new Uint16Array(decoded.pixelData.buffer, decoded.pixelData.byteOffset, decoded.pixelData.byteLength / 2);
+    expect(samples.length).toBe(16 * 16);
+    expect([...samples]).toEqual(new Array(16 * 16).fill(2048));
+  });
+
+  it("packs empty signed 12-bit samples as 16-bit zero values", () => {
+    const decoded = new Jpeg2000Decoder().decode(
+      buildSingleTileEmptyPacketCodestreamWithPrecision(1, 0, 12, true),
+    );
+
+    expect(decoded.bitDepth).toBe(12);
+    expect(decoded.isSigned).toBe(true);
+    expect(decoded.pixelData.length).toBe(16 * 16 * 2);
+
+    const samples = new Uint16Array(decoded.pixelData.buffer, decoded.pixelData.byteOffset, decoded.pixelData.byteLength / 2);
+    expect(samples.length).toBe(16 * 16);
+    expect([...samples]).toEqual(new Array(16 * 16).fill(0));
   });
 
   it("marks codestream as Part2 when MCT marker segments are present", () => {
@@ -413,7 +475,27 @@ function buildSingleTilePacketCodestreamWithTileHeaderRgn(style: number, shift: 
 }
 
 function buildSingleTileEmptyPacketCodestream(transformation: 0 | 1, qcdStyle: number): Uint8Array {
+  return buildSingleTileEmptyPacketCodestreamWithCod(0, transformation, qcdStyle, 8, false);
+}
+
+function buildSingleTileEmptyPacketCodestreamWithPrecision(
+  transformation: 0 | 1,
+  qcdStyle: number,
+  bitDepth: number,
+  isSigned: boolean,
+): Uint8Array {
+  return buildSingleTileEmptyPacketCodestreamWithCod(0, transformation, qcdStyle, bitDepth, isSigned);
+}
+
+function buildSingleTileEmptyPacketCodestreamWithCod(
+  progressionOrder: number,
+  transformation: number,
+  qcdStyle: number,
+  bitDepth: number,
+  isSigned: boolean,
+): Uint8Array {
   const bytes: number[] = [];
+  const ssiz = ((bitDepth - 1) & 0x7f) | (isSigned ? 0x80 : 0x00);
   pushU16(bytes, Jpeg2000Marker.SOC);
   pushU16(bytes, Jpeg2000Marker.SIZ);
   pushU16(bytes, 41);
@@ -427,11 +509,11 @@ function buildSingleTileEmptyPacketCodestream(transformation: 0 | 1, qcdStyle: n
   pushU32(bytes, 0);
   pushU32(bytes, 0);
   pushU16(bytes, 1);
-  bytes.push(7, 1, 1);
+  bytes.push(ssiz, 1, 1);
 
   pushU16(bytes, Jpeg2000Marker.COD);
   pushU16(bytes, 12);
-  bytes.push(0, 0);
+  bytes.push(0, progressionOrder & 0xff);
   pushU16(bytes, 1);
   bytes.push(0, 0, 2, 2, 0, transformation);
 

@@ -248,6 +248,42 @@ Progress note:
   - Added `.90/.91/.92/.93` codec-level negative matrices for:
     - missing `COD` => `class=marker-corruption`
     - missing `QCD` => `class=marker-corruption`
+- P7.2 hardening update (2026-03-22, Go main-header ordering + duplicate component-marker alignment):
+  - `Jpeg2000CodestreamParser` now matches Go main-header sequencing rules for:
+    - `COD encountered before SIZ`
+    - `QCD encountered before SIZ`
+    - `COC encountered before SIZ`
+    - `COC encountered before COD`
+    - `QCC encountered before SIZ`
+    - `QCC encountered before QCD`
+    - `POC encountered before SIZ`
+    - `POC encountered before COD`
+    - `RGN/MCT/MCC/MCO encountered before SIZ`
+  - Main-header `COC/QCC` duplicate semantics now match Go:
+    - byte-equivalent duplicate component records are accepted,
+    - conflicting duplicates fail with `Duplicate COC/QCC for component ...`
+  - Extended codec failure classification so these ordering/conflict cases surface as `class=marker-corruption`.
+  - Added parser + codec regression coverage for the new malformed-marker matrix across `.90/.91/.92/.93`.
+- P7.2 hardening update (2026-03-22, tile-header duplicate `COC/QCC` regression lock):
+  - Added parser regression coverage for duplicate tile-header component markers to lock current Go semantics:
+    - conflicting duplicate `COC` => `duplicate tile COC for component ...`
+    - conflicting duplicate `QCC` => `duplicate tile QCC for component ...`
+    - byte-equivalent duplicates are accepted for both markers.
+  - Added codec-level malformed-marker regression coverage so conflicting duplicate tile-header `COC/QCC` markers surface as `class=marker-corruption` across `.90/.91/.92/.93`.
+- P7 decoder-coverage update (2026-03-22, precision metadata + storage semantics):
+  - Added direct decoder regression coverage for high-bit-depth `SIZ` metadata extraction:
+    - 12-bit unsigned => `bitDepth=12`, `isSigned=false`
+    - 12-bit signed => `bitDepth=12`, `isSigned=true`
+  - Added direct decoder regression coverage for empty-packet 12-bit sample packing semantics:
+    - unsigned decode packs 16-bit midpoint samples (`2048`)
+    - signed decode packs 16-bit zero samples (`0`)
+- P7 decoder-behavior update (2026-03-22, strict fail-fast on unusable tile state):
+  - `Jpeg2000Decoder.decode()` now fails fast when decode summary state is unusable instead of silently assembling zero-filled output:
+    - `no tiles found in codestream`
+    - `failed to decode tile ...: unsupported progression order: ...`
+    - tile-level decode errors / failed code-block counts
+  - Extended codec failure classification so these strict decoder tile-state failures surface as `class=marker-corruption`.
+  - Added decoder + codec regression coverage for the new fail-fast behavior.
 - P7.2 hardening update (2026-03-21, malformed required main-header payloads):
   - Extended codec failure classification so malformed required main-header payloads map to `class=marker-corruption`:
     - `Invalid SIZ segment payload length`

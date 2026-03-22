@@ -278,6 +278,7 @@ export class Jpeg2000Decoder {
     }
 
     const componentSummary = decodeTileComponents(codestream, codestream.siz);
+    assertDecodeSummaryIsUsable(componentSummary);
     const imageComponents = assembleImageComponents(codestream.siz, componentSummary.tiles);
     const part2MctPlan = resolvePart2MctPlan(codestream, imageComponents.components.length);
     const mctMode = resolveMctMode(codestream, imageComponents.components.length);
@@ -286,6 +287,21 @@ export class Jpeg2000Decoder {
       ...header,
       pixelData: packImageComponents(imageComponents, mctMode, part2MctPlan),
     };
+  }
+}
+
+function assertDecodeSummaryIsUsable(summary: Jpeg2000ComponentDecodeSummary): void {
+  if (summary.tiles.length === 0) {
+    throw new Error("no tiles found in codestream");
+  }
+
+  for (const tile of summary.tiles) {
+    if (tile.error) {
+      throw new Error(`failed to decode tile ${tile.tileIndex}: ${tile.error}`);
+    }
+    if (tile.failedCodeBlocks > 0) {
+      throw new Error(`failed to decode tile ${tile.tileIndex}: ${tile.failedCodeBlocks} code-block(s) failed`);
+    }
   }
 }
 

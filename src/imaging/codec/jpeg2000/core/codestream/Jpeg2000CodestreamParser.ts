@@ -89,12 +89,18 @@ export class Jpeg2000CodestreamParser {
         codestream.siz = parseSizSegment(payload);
         return;
       case Jpeg2000Marker.COD:
+        if (!codestream.siz) {
+          throw new Error("COD encountered before SIZ");
+        }
         if (codestream.cod) {
           throw new Error("Duplicate COD segment in main header");
         }
         codestream.cod = parseCodSegment(payload);
         return;
       case Jpeg2000Marker.QCD:
+        if (!codestream.siz) {
+          throw new Error("QCD encountered before SIZ");
+        }
         if (codestream.qcd) {
           throw new Error("Duplicate QCD segment in main header");
         }
@@ -107,28 +113,66 @@ export class Jpeg2000CodestreamParser {
         codestream.com.push(parseComSegment(payload));
         return;
       case Jpeg2000Marker.COC: {
+        if (!codestream.siz) {
+          throw new Error("COC encountered before SIZ");
+        }
+        if (!codestream.cod) {
+          throw new Error("COC encountered before COD");
+        }
         const coc = parseCocSegment(payload, codestream.siz?.cSiz);
+        const existing = codestream.coc.get(coc.component);
+        if (existing && !cocSegmentsEqual(existing, coc)) {
+          throw new Error(`Duplicate COC for component ${coc.component}`);
+        }
         codestream.coc.set(coc.component, coc);
         return;
       }
       case Jpeg2000Marker.QCC: {
+        if (!codestream.siz) {
+          throw new Error("QCC encountered before SIZ");
+        }
+        if (!codestream.qcd) {
+          throw new Error("QCC encountered before QCD");
+        }
         const qcc = parseQccSegment(payload, codestream.siz?.cSiz);
+        const existing = codestream.qcc.get(qcc.component);
+        if (existing && !qccSegmentsEqual(existing, qcc)) {
+          throw new Error(`Duplicate QCC for component ${qcc.component}`);
+        }
         codestream.qcc.set(qcc.component, qcc);
         return;
       }
       case Jpeg2000Marker.POC:
+        if (!codestream.siz) {
+          throw new Error("POC encountered before SIZ");
+        }
+        if (!codestream.cod) {
+          throw new Error("POC encountered before COD");
+        }
         codestream.poc.push(parsePocSegment(payload, codestream.siz?.cSiz));
         return;
       case Jpeg2000Marker.RGN:
+        if (!codestream.siz) {
+          throw new Error("RGN encountered before SIZ");
+        }
         codestream.rgn.push(parseRgnSegment(payload, codestream.siz?.cSiz));
         return;
       case Jpeg2000Marker.MCT:
+        if (!codestream.siz) {
+          throw new Error("MCT encountered before SIZ");
+        }
         codestream.mct.push(parseMctSegment(payload));
         return;
       case Jpeg2000Marker.MCC:
+        if (!codestream.siz) {
+          throw new Error("MCC encountered before SIZ");
+        }
         codestream.mcc.push(parseMccSegment(payload));
         return;
       case Jpeg2000Marker.MCO:
+        if (!codestream.siz) {
+          throw new Error("MCO encountered before SIZ");
+        }
         codestream.mco.push(parseMcoSegment(payload));
         return;
       default:
@@ -237,11 +281,19 @@ export class Jpeg2000CodestreamParser {
         return;
       case Jpeg2000Marker.COC: {
         const coc = parseCocSegment(payload, cSiz);
+        const existing = tile.coc.get(coc.component);
+        if (existing && !cocSegmentsEqual(existing, coc)) {
+          throw new Error(`duplicate tile COC for component ${coc.component}`);
+        }
         tile.coc.set(coc.component, coc);
         return;
       }
       case Jpeg2000Marker.QCC: {
         const qcc = parseQccSegment(payload, cSiz);
+        const existing = tile.qcc.get(qcc.component);
+        if (existing && !qccSegmentsEqual(existing, qcc)) {
+          throw new Error(`duplicate tile QCC for component ${qcc.component}`);
+        }
         tile.qcc.set(qcc.component, qcc);
         return;
       }
