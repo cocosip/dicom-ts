@@ -220,6 +220,16 @@ describe("Jpeg2000CodestreamParser", () => {
     expect(Array.from(qccCodestream.tiles[0]!.qcc.get(1)?.spQcc ?? [])).toEqual([0x12, 0x34]);
   });
 
+  it("allows duplicate tile-header COD/QCD segments and keeps the last segment", () => {
+    const codCodestream = parseJpeg2000Codestream(buildDuplicateTileHeaderCodQcdCodestream("cod"));
+    expect(codCodestream.tiles).toHaveLength(1);
+    expect(codCodestream.tiles[0]!.cod?.numberOfLayers).toBe(2);
+
+    const qcdCodestream = parseJpeg2000Codestream(buildDuplicateTileHeaderCodQcdCodestream("qcd"));
+    expect(qcdCodestream.tiles).toHaveLength(1);
+    expect(Array.from(qcdCodestream.tiles[0]!.qcd?.spQcd ?? [])).toEqual([0x00, 0x01]);
+  });
+
   it("parses COM marker segments from the main header", () => {
     const codestream = parseJpeg2000Codestream(buildComCodestream());
 
@@ -324,6 +334,11 @@ describe("Jpeg2000CodestreamParser", () => {
         data: buildMainHeaderOrderingCodestream("mco-before-siz"),
         pattern: /MCO encountered before SIZ/,
       },
+      {
+        name: "unknown segment before SIZ",
+        data: buildMainHeaderOrderingCodestream("unknown-before-siz"),
+        pattern: /Unexpected marker before SIZ: 0xFF55 \(TLM\)/,
+      },
     ] as const;
 
     for (const testCase of cases) {
@@ -380,7 +395,7 @@ describe("Jpeg2000CodestreamParser", () => {
       {
         name: "invalid marker after SOC",
         data: new Uint8Array([0xff, 0x4f, 0xff, 0xff]),
-        pattern: /Unexpected marker in main header|Unexpected end of codestream while reading uint16/,
+        pattern: /Unexpected marker before SIZ|Unexpected marker in main header|Unexpected end of codestream while reading uint16/,
       },
       {
         name: "truncated SIZ",
@@ -807,6 +822,23 @@ function buildDuplicateTileHeaderComponentSegmentCodestream(
   return new Uint8Array(bytes);
 }
 
+function buildDuplicateTileHeaderCodQcdCodestream(kind: "cod" | "qcd"): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  appendTwoComponentSizSegment(bytes);
+  appendCodSegment(bytes);
+  appendQcdSegment(bytes);
+
+  const tileHeader = new Uint8Array([
+    ...buildConflictTileHeader(kind, false),
+    ...buildConflictTileHeader(kind, true),
+  ]);
+  writeTilePartWithHeader(bytes, 0, 0, 1, tileHeader, new Uint8Array([0x00]));
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
 function buildMainHeaderOrderingCodestream(
   kind:
     | "cod-before-siz"
@@ -820,7 +852,8 @@ function buildMainHeaderOrderingCodestream(
     | "rgn-before-siz"
     | "mct-before-siz"
     | "mcc-before-siz"
-    | "mco-before-siz",
+    | "mco-before-siz"
+    | "unknown-before-siz",
 ): Uint8Array {
   const bytes: number[] = [];
   pushU16(bytes, Jpeg2000Marker.SOC);
@@ -892,6 +925,12 @@ function buildMainHeaderOrderingCodestream(
       break;
     case "mco-before-siz":
       appendMcoSegment(bytes);
+      appendTwoComponentSizSegment(bytes);
+      appendCodSegment(bytes);
+      appendQcdSegment(bytes);
+      break;
+    case "unknown-before-siz":
+      appendUnknownMainHeaderSegment(bytes);
       appendTwoComponentSizSegment(bytes);
       appendCodSegment(bytes);
       appendQcdSegment(bytes);
@@ -1027,6 +1066,12 @@ function appendMcoSegment(target: number[]): void {
   pushU16(target, Jpeg2000Marker.MCO);
   pushU16(target, 4);
   target.push(1, 1);
+}
+
+function appendUnknownMainHeaderSegment(target: number[]): void {
+  pushU16(target, Jpeg2000Marker.TLM);
+  pushU16(target, 4);
+  target.push(0, 0);
 }
 
 function writeTilePart(

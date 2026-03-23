@@ -248,6 +248,16 @@ Progress note:
   - Added `.90/.91/.92/.93` codec-level negative matrices for:
     - missing `COD` => `class=marker-corruption`
     - missing `QCD` => `class=marker-corruption`
+- P7 hardening update (2026-03-24, unsupported main-header marker parity):
+  - `Jpeg2000CodestreamParser` now matches Go when an unsupported length-bearing main-header marker appears before `SIZ`,
+    emitting `Unexpected marker before SIZ: 0x.... (...)` instead of silently preserving the segment.
+  - Added parser-level and codec-level regression coverage using `TLM` as the representative unsupported pre-`SIZ`
+    marker case across `.90/.91/.92/.93`.
+- P7 hardening update (2026-03-24, duplicate tile-header `COD/QCD` semantics):
+  - Locked the current Go tile-header behavior where repeated `COD` or `QCD` markers within the same tile-part are
+    accepted and the later segment overwrites the earlier one.
+  - Added parser-level regressions asserting last-segment retention and codec-level regressions showing decode remains
+    valid across `.90/.91/.92/.93` for duplicate tile-header `COD/QCD` inputs.
 - P7.2 hardening update (2026-03-22, Go main-header ordering + duplicate component-marker alignment):
   - `Jpeg2000CodestreamParser` now matches Go main-header sequencing rules for:
     - `COD encountered before SIZ`

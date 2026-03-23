@@ -1446,6 +1446,11 @@ describe("DicomJpeg2000Codec", () => {
         detail: "MCO encountered before SIZ",
       },
       {
+        name: "unknown marker before SIZ",
+        codestream: buildCodecMainHeaderOrderingCodestream("unknown-before-siz"),
+        detail: "Unexpected marker before SIZ",
+      },
+      {
         name: "duplicate COC for component",
         codestream: buildDuplicateCodecMainHeaderComponentSegmentCodestream("coc"),
         detail: "Duplicate COC for component 0",
@@ -1546,6 +1551,50 @@ describe("DicomJpeg2000Codec", () => {
         expect(message).toContain(malformed.detail);
         expect(message).toContain(`syntax=${entry.syntax.uid.uid}`);
         expect(message).toContain("frame=0");
+      }
+    }
+  });
+
+  it("accepts duplicate tile-header COD/QCD segments and keeps decoding with the final values for .90/.91/.92/.93", () => {
+    const codecEntries = [
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossless,
+        codec: new DicomJpeg2000LosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000Lossy,
+        codec: new DicomJpeg2000LossyCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MCLossless,
+        codec: new DicomJpeg2000Part2MCLosslessCodec(),
+      },
+      {
+        syntax: DicomTransferSyntax.JPEG2000MC,
+        codec: new DicomJpeg2000Part2MCCodec(),
+      },
+    ];
+
+    const codestreams = [
+      buildDuplicateTileHeaderCodCodestream(),
+      buildDuplicateTileHeaderQcdCodestream(),
+    ];
+
+    for (const codestream of codestreams) {
+      for (const entry of codecEntries) {
+        const encodedDataset = buildDataset(
+          entry.syntax,
+          8,
+          8,
+          2,
+          2,
+          1,
+          "MONOCHROME2",
+        );
+        DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(codestream));
+
+        const decoded = entry.codec.decode(DicomPixelData.create(encodedDataset), 0);
+        expect(decoded.data.length).toBe(4);
       }
     }
   });
@@ -2544,6 +2593,42 @@ function buildDuplicateTileHeaderComponentConflictCodestream(kind: "coc" | "qcc"
   return new Uint8Array(bytes);
 }
 
+function buildDuplicateTileHeaderCodCodestream(): Uint8Array {
+  const bytes = Array.from(buildMinimalJ2kCodestream().subarray(0, buildMinimalJ2kCodestream().length - 2));
+  const header = [
+    0xff, 0x52, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x02, 0x02, 0x00, 0x01,
+    0xff, 0x52, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x00, 0x01,
+  ];
+
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14 + header.length);
+  bytes.push(0, 1);
+  bytes.push(...header);
+  pushU16(bytes, 0xff93); // SOD
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildDuplicateTileHeaderQcdCodestream(): Uint8Array {
+  const bytes = Array.from(buildMinimalJ2kCodestream().subarray(0, buildMinimalJ2kCodestream().length - 2));
+  const header = [
+    0xff, 0x5c, 0x00, 0x05, 0x00, 0x00, 0x01,
+    0xff, 0x5c, 0x00, 0x05, 0x00, 0x00, 0x00,
+  ];
+
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14 + header.length);
+  bytes.push(0, 1);
+  bytes.push(...header);
+  pushU16(bytes, 0xff93); // SOD
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
 function buildUnsupportedProgressionOrderTileCodestream(): Uint8Array {
   const bytes = Array.from(buildMinimalJ2kCodestream().subarray(0, buildMinimalJ2kCodestream().length - 2));
   bytes[50] = 99;
@@ -2569,7 +2654,8 @@ function buildCodecMainHeaderOrderingCodestream(
     | "rgn-before-siz"
     | "mct-before-siz"
     | "mcc-before-siz"
-    | "mco-before-siz",
+    | "mco-before-siz"
+    | "unknown-before-siz",
 ): Uint8Array {
   const bytes: number[] = [];
   pushU16(bytes, 0xff4f); // SOC
@@ -2623,6 +2709,12 @@ function buildCodecMainHeaderOrderingCodestream(
       break;
     case "mco-before-siz":
       appendCodecMcoSegment(bytes);
+      appendCodecSizSegment(bytes);
+      appendCodecCodSegment(bytes);
+      appendCodecQcdSegment(bytes);
+      break;
+    case "unknown-before-siz":
+      appendCodecUnknownMainHeaderSegment(bytes);
       appendCodecSizSegment(bytes);
       appendCodecCodSegment(bytes);
       appendCodecQcdSegment(bytes);
@@ -2754,6 +2846,12 @@ function appendCodecMcoSegment(target: number[]): void {
   pushU16(target, 0xff77); // MCO
   pushU16(target, 4);
   target.push(1, 1);
+}
+
+function appendCodecUnknownMainHeaderSegment(target: number[]): void {
+  pushU16(target, 0xff55); // TLM
+  pushU16(target, 4);
+  target.push(0, 0);
 }
 
 function buildConflictingTileRgnCodestream(): Uint8Array {

@@ -72,6 +72,9 @@ export class Jpeg2000CodestreamParser {
       if (!markerHasLength(current.marker)) {
         throw new Error(`Unexpected marker in main header: 0x${toHex(current.marker)} (${markerName(current.marker)})`);
       }
+      if (!codestream.siz && !isTrackedMainHeaderMarker(current.marker)) {
+        throw new Error(`Unexpected marker before SIZ: 0x${toHex(current.marker)} (${markerName(current.marker)})`);
+      }
 
       const segment = this.readSegment(current);
       codestream.mainHeaderSegments.push(segment);
@@ -397,6 +400,20 @@ export function parseJpeg2000Codestream(data: Uint8Array): Jpeg2000Codestream {
 interface TilePartState {
   nextTilePartIndex: number;
   totalTileParts: number;
+}
+
+function isTrackedMainHeaderMarker(marker: number): boolean {
+  return marker === Jpeg2000Marker.SIZ
+    || marker === Jpeg2000Marker.COD
+    || marker === Jpeg2000Marker.QCD
+    || marker === Jpeg2000Marker.COM
+    || marker === Jpeg2000Marker.COC
+    || marker === Jpeg2000Marker.QCC
+    || marker === Jpeg2000Marker.POC
+    || marker === Jpeg2000Marker.RGN
+    || marker === Jpeg2000Marker.MCT
+    || marker === Jpeg2000Marker.MCC
+    || marker === Jpeg2000Marker.MCO;
 }
 
 function parseSizSegment(payload: Uint8Array): Jpeg2000SizSegment {
