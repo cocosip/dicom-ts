@@ -21,9 +21,9 @@ Status legend:
 | `jpeg2000/colorspace/*` | `jpeg2000/core/colorspace/*` | WIP | Inverse RCT/ICT landed; Part2 inverse MCT binding/fallback path wired. Forward path + parity matrix pending |
 | `jpeg2000/mqc/*` | `jpeg2000/core/mqc/*` | WIP | MQ decoder + RAW bypass + baseline encoder landed; packetization integration/perf parity pending |
 | `jpeg2000/t1/*` | `jpeg2000/core/t1/*` | WIP | T1 decoder + context model + baseline encoder landed; packetization integration/full parity pending |
-| `jpeg2000/t2/*` | `jpeg2000/core/t2/*` | WIP | P2.1 packet header decode foundation + P3.3/P3.4 LRCP packet encoder landed; baseline non-LRCP encode traversal (`RLCP/RPCL/PCRL/CPRL`) is now wired and covered by ordering tests, but position/precinct geometry parity is still simplified |
+| `jpeg2000/t2/*` | `jpeg2000/core/t2/*` | WIP | P2.1 packet header decode foundation + P3.3/P3.4 LRCP packet encoder landed; baseline non-LRCP encode traversal (`RLCP/RPCL/PCRL/CPRL`) is now wired and covered by ordering tests, decode-side `RPCL/PCRL/CPRL` traversal now uses Go/OpenJPEG-aligned precinct position maps instead of raw precinct-index unions, and geometry-free explicit precinct fixtures still fall back to legacy index ordering |
 | `jpeg2000/wavelet/*` | `jpeg2000/core/wavelet/*` | WIP | Inverse + forward 5/3 & 9/7 multilevel/parity path landed with roundtrip tests; fixture-level parity/perf validation pending |
-| `jpeg2000/decoder.go` | `jpeg2000/core/decoder/*` | WIP | Header/codestream/T2+T1 -> DWT -> component assembly -> pixel packing wired; Part2 MCT binding/fallback + irreversible/isPart2 metadata landed; main-header `RGN` MaxShift inverse scaling is now applied during code-block reconstruction, `JP2ROI` COM rectangles now enable decode-side `GeneralScaling` application for intersecting code-blocks, tile-header `RGN` remains intentionally ignored to match the current Go decoder path, malformed/unknown-version `JP2ROI` COM payloads are skipped without affecting decode, decoder regression coverage now explicitly locks 12-bit signed/unsigned `SIZ` metadata plus 16-bit-packed storage semantics for empty-packet decode output, and the direct `decode()` path now fails fast on unusable tile state (`no tiles found`, unsupported progression order, tile-level decode errors) instead of silently returning zero-filled images |
+| `jpeg2000/decoder.go` | `jpeg2000/core/decoder/*` | WIP | Header/codestream/T2+T1 -> DWT -> component assembly -> pixel packing wired; Part2 MCT binding/fallback + irreversible/isPart2 metadata landed; main-header `RGN` MaxShift inverse scaling is now applied during code-block reconstruction, `JP2ROI` COM rectangles now enable decode-side `GeneralScaling` application for intersecting code-blocks, tile-header `RGN` remains intentionally ignored to match the current Go decoder path, malformed/unknown-version `JP2ROI` COM payloads are skipped without affecting decode, decoder regression coverage now explicitly locks 12-bit signed/unsigned `SIZ` metadata plus 16-bit-packed storage semantics for empty-packet decode output, the direct `decode()` path now fails fast on unusable tile state (`no tiles found`, unsupported progression order, tile-level decode errors) instead of silently returning zero-filled images, and synthetic multi-precinct parity now confirms `RPCL/PCRL` spatial packet traversal stays aligned with equivalent `LRCP` contributions at both decoder and `DicomTranscoder` decode levels |
 | `jpeg2000/encoder.go` | `jpeg2000/core/encoder/*` | WIP | Encode-side analysis + in-tree MQ/T1 + single-tile codestream writing now support `LRCP/RLCP/RPCL/PCRL/CPRL` with COD propagation; full rate-target budget/PCRD parity and full geometry parity are still pending |
 | `jpeg2000/mct_builder.go` + MCT tests | `jpeg2000/core/mct/*` | WIP | Part 2 MCT builder landed (`MCT/MCC/MCO` header construction + staged ordering + element-type encoding); `mcoRecordOrder` now honors only full valid MCC permutations like Go, but broader parity hardening/edge cases remain |
 | `jpeg2000/lossless/*` | `jpeg2000/lossless/*` + `mc-lossless/*` | DONE | All four JPEG2000 codec classes are now wired directly to in-tree `Jpeg2000Encoder` API (no helper indirection) |
@@ -404,6 +404,59 @@ Status legend:
 - Commands:
   - `npm test -- --run tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/jpeg2000/Jpeg2000CodestreamParser.test.ts`
   - `npm run build`
+
+### 2026-03-24 (Phase 2 / T2 non-LRCP decode progression geometry alignment)
+
+- Focus: align decoder-side `RPCL/PCRL/CPRL` packet traversal with Go/OpenJPEG precinct-position ordering.
+- Key updates:
+  - Ported Go `t2/packet_progression.go`-style precinct position map construction into `Jpeg2000PacketDecoder`.
+  - `RPCL/PCRL/CPRL` now resolve packets from sorted spatial precinct positions instead of raw precinct-index unions.
+  - Preserved compatibility for geometry-free unit fixtures by falling back to legacy explicit-precinct index traversal when no image geometry is available.
+  - Added packet-decoder regression coverage proving shifted component bounds now decode in spatial order for `RPCL` and `PCRL`.
+- Main touched files:
+  - `src/imaging/codec/jpeg2000/core/t2/Jpeg2000PacketDecoder.ts`
+  - `tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts`
+- Commands:
+  - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts tests/imaging/jpeg2000/Jpeg2000PacketEncoder.test.ts`
+  - `npm run build`
+
+### 2026-03-24 (Phase 2 / decoder-level non-LRCP spatial parity regression)
+
+- Focus: prove the T2 spatial packet-order fix is actually exercised through `Jpeg2000Decoder`, not just packet-decoder unit tests.
+- Key updates:
+  - Added synthetic two-component multi-precinct codestream builders covering `LRCP`, `RPCL`, and `PCRL`.
+  - Locked decoder-level parity so equivalent logical packet contributions decode identically across `LRCP` and spatial non-LRCP packet orders.
+  - Compared both decoded code-block coefficients and final packed pixel output, ensuring the new T2 ordering semantics propagate through full decoder reconstruction.
+- Main touched files:
+  - `tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
+- Commands:
+  - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000Decoder.test.ts`
+  - `npm test -- --run tests/imaging/jpeg2000/Jpeg2000PacketDecoder.test.ts`
+  - `npm run build`
+
+### 2026-03-24 (Phase 2 / codec-level non-LRCP transcode parity regression)
+
+- Focus: push the same non-`LRCP` decode parity one layer higher so container/transcode paths are protected too.
+- Key updates:
+  - Added `DicomTranscoder` decode coverage for synthetic two-component multi-precinct codestreams serialized as `LRCP`, `RPCL`, and `PCRL`.
+  - Locked `.90/.91/.92/.93` parity so equivalent logical packet contributions produce identical uncompressed frame bytes across `LRCP` and spatial non-`LRCP` packet orders.
+  - Kept the coverage synthetic on purpose so it isolates codec/container behavior without waiting on real non-`LRCP` DICOM fixtures.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+- Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000Codec.test.ts`
+
+### 2026-03-24 (Phase 2 / Go-generated non-LRCP precinct container parity)
+
+- Focus: complement synthetic non-`LRCP` regressions with real codestreams emitted by the Go reference encoder.
+- Key updates:
+  - Added a test-local Go encode helper that generates lossless `.90` codestreams with explicit precinct partitioning and `RLCP/RPCL/PCRL/CPRL` progression orders.
+  - Locked `DicomTranscoder` decode parity for those Go-generated container inputs, asserting COD progression metadata plus exact hash parity between Go decode, TS decode, and the known source pixels.
+  - This gives the non-`LRCP` decode path one step more realism without having to commit new binary DICOM fixtures yet.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+- Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
 
 ### Archived history
 

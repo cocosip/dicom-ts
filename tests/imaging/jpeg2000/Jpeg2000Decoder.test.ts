@@ -5,6 +5,7 @@ import { DicomPixelData } from "../../../src/imaging/DicomPixelData.js";
 import {
   Jpeg2000Decoder,
   Jpeg2000Marker,
+  Jpeg2000ProgressionOrder,
   extractJp2Codestream,
   looksLikeJp2,
   resolveJpeg2000Codestream,
@@ -82,6 +83,37 @@ describe("Jpeg2000Decoder", () => {
 
     const decoded = decoder.decode(codestream);
     expect(decoded.pixelData.length).toBe(16 * 16);
+  });
+
+  it("keeps decoder output aligned across LRCP and spatial non-LRCP packet orders", () => {
+    const lrcp = buildTwoComponentMultiPrecinctCodestream(
+      Jpeg2000ProgressionOrder.LRCP,
+      ["c0p0", "c0p1", "c0p2", "c1p0", "c1p1"],
+    );
+    const rpcl = buildTwoComponentMultiPrecinctCodestream(
+      Jpeg2000ProgressionOrder.RPCL,
+      ["c0p0", "c1p0", "c0p1", "c0p2", "c1p1"],
+    );
+    const pcrl = buildTwoComponentMultiPrecinctCodestream(
+      Jpeg2000ProgressionOrder.PCRL,
+      ["c0p0", "c1p0", "c0p1", "c0p2", "c1p1"],
+    );
+
+    const decoder = new Jpeg2000Decoder();
+    const lrcpSummary = decoder.readTileCodeBlockCoefficients(lrcp);
+    const rpclSummary = decoder.readTileCodeBlockCoefficients(rpcl);
+    const pcrlSummary = decoder.readTileCodeBlockCoefficients(pcrl);
+
+    expect(codeBlockCoefficientSignatures(rpclSummary)).toEqual(codeBlockCoefficientSignatures(lrcpSummary));
+    expect(codeBlockCoefficientSignatures(pcrlSummary)).toEqual(codeBlockCoefficientSignatures(lrcpSummary));
+
+    const lrcpDecoded = decoder.decode(lrcp);
+    const rpclDecoded = decoder.decode(rpcl);
+    const pcrlDecoded = decoder.decode(pcrl);
+
+    expect([...lrcpDecoded.pixelData]).toEqual([...rpclDecoded.pixelData]);
+    expect([...lrcpDecoded.pixelData]).toEqual([...pcrlDecoded.pixelData]);
+    expect(new Set(lrcpDecoded.pixelData).size).toBeGreaterThan(1);
   });
 
   it("applies main-header RGN MaxShift during code-block reconstruction", () => {
@@ -577,6 +609,74 @@ function buildThreeComponentPacketCodestream(mctFlag: 0 | 1): Uint8Array {
   pushU16(bytes, Jpeg2000Marker.EOC);
   return new Uint8Array(bytes);
 }
+
+function buildTwoComponentMultiPrecinctCodestream(
+  progressionOrder: Jpeg2000ProgressionOrder,
+  packetOrder: readonly PacketOrderKey[],
+): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, Jpeg2000Marker.SOC);
+  pushU16(bytes, Jpeg2000Marker.SIZ);
+  pushU16(bytes, 44);
+  pushU16(bytes, 0);
+  pushU32(bytes, 96);
+  pushU32(bytes, 32);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 96);
+  pushU32(bytes, 32);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 2);
+  bytes.push(7, 1, 1);
+  bytes.push(7, 2, 1);
+
+  pushU16(bytes, Jpeg2000Marker.COD);
+  pushU16(bytes, 13);
+  bytes.push(0x01, progressionOrder & 0xff);
+  pushU16(bytes, 1);
+  bytes.push(0, 0, 3, 3, 0, 1, 0x55);
+
+  pushU16(bytes, Jpeg2000Marker.QCD);
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+
+  const packetPayload = packetOrder.flatMap((key) => buildSingleCodeBlockPacketBytes(PACKET_BODIES[key]));
+  pushU16(bytes, Jpeg2000Marker.SOT);
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14 + packetPayload.length);
+  bytes.push(0, 1);
+  pushU16(bytes, Jpeg2000Marker.SOD);
+  bytes.push(...packetPayload);
+
+  pushU16(bytes, Jpeg2000Marker.EOC);
+  return new Uint8Array(bytes);
+}
+
+function buildSingleCodeBlockPacketBytes(body: readonly number[]): number[] {
+  return [0xe3, ...body];
+}
+
+function codeBlockCoefficientSignatures(
+  summary: ReturnType<Jpeg2000Decoder["readTileCodeBlockCoefficients"]>,
+): Array<{ componentIndex: number; globalCodeBlockIndex: number; coefficients: number[] }> {
+  return summary.tiles.flatMap((tile) => tile.codeBlocks.map((block) => ({
+    componentIndex: block.componentIndex,
+    globalCodeBlockIndex: block.globalCodeBlockIndex,
+    coefficients: [...block.coefficients],
+  })));
+}
+
+type PacketOrderKey = "c0p0" | "c0p1" | "c0p2" | "c1p0" | "c1p1";
+
+const PACKET_BODIES: Record<PacketOrderKey, readonly number[]> = {
+  c0p0: [0x11, 0x22, 0x33],
+  c0p1: [0x44, 0x55, 0x66],
+  c0p2: [0x77, 0x88, 0x99],
+  c1p0: [0xaa, 0xbb, 0xcc],
+  c1p1: [0xdd, 0xee, 0xff],
+};
 
 function firstDecodedCodeBlockCoefficients(summary: ReturnType<Jpeg2000Decoder["readTileCodeBlockCoefficients"]>): number[] {
   const tile = summary.tiles[0];

@@ -40,6 +40,18 @@ interface Jpeg2000PacketHeaderContext {
   codeBlockStates: Jpeg2000CodeBlockState[] | undefined;
 }
 
+interface Jpeg2000PrecinctPosition {
+  x: number;
+  y: number;
+}
+
+interface Jpeg2000PrecinctPositionMaps {
+  byComponentResolution: Map<number, Map<number, Map<string, number>>>;
+  byResolution: Map<number, Jpeg2000PrecinctPosition[]>;
+  byComponent: Map<number, Jpeg2000PrecinctPosition[]>;
+  all: Jpeg2000PrecinctPosition[];
+}
+
 export class Jpeg2000PacketDecoder {
   private offset = 0;
   private readonly packets: Jpeg2000Packet[] = [];
@@ -70,6 +82,7 @@ export class Jpeg2000PacketDecoder {
   private readonly packetHeaderContexts = new Map<string, Jpeg2000PacketHeaderContext>();
 
   private precinctOrderBuilt = false;
+  private precinctPositionMaps: Jpeg2000PrecinctPositionMaps | undefined;
   private resilient = false;
   private strict = false;
 
@@ -221,6 +234,7 @@ export class Jpeg2000PacketDecoder {
     if (!this.precinctOrderBuilt) {
       this.buildPrecinctOrder();
     }
+    this.precinctPositionMaps = this.buildPrecinctPositionMaps();
 
     switch (this.progression) {
       case Jpeg2000ProgressionOrder.LRCP:
@@ -300,10 +314,33 @@ export class Jpeg2000PacketDecoder {
   }
 
   private decodeRPCL(): void {
+    const positionMaps = this.precinctPositionMaps;
     for (let resolution = 0; resolution < this.numResolutions; resolution++) {
-      for (const precinctIndex of this.allPrecinctIndicesForResolution(resolution)) {
+      const positions = positionMaps?.byResolution.get(resolution) ?? [];
+      if (positions.length === 0) {
+        for (const precinctIndex of this.allPrecinctIndicesForResolution(resolution)) {
+          for (let component = 0; component < this.numComponents; component++) {
+            if (!this.hasPrecinct(component, resolution, precinctIndex)) {
+              continue;
+            }
+
+            for (let layer = 0; layer < this.numLayers; layer++) {
+              this.packets.push(this.decodePacket(layer, resolution, component, precinctIndex));
+            }
+          }
+        }
+        continue;
+      }
+
+      for (const position of positions) {
+        const positionKey = precinctPositionKey(position);
         for (let component = 0; component < this.numComponents; component++) {
-          if (!this.hasPrecinct(component, resolution, precinctIndex)) {
+          const precinctIndex = positionMaps
+            ?.byComponentResolution
+            .get(component)
+            ?.get(resolution)
+            ?.get(positionKey);
+          if (precinctIndex === undefined) {
             continue;
           }
 
@@ -316,10 +353,35 @@ export class Jpeg2000PacketDecoder {
   }
 
   private decodePCRL(): void {
-    for (const precinctIndex of this.allPrecinctIndices()) {
+    const positionMaps = this.precinctPositionMaps;
+    const positions = positionMaps?.all ?? [];
+    if (positions.length === 0) {
+      for (const precinctIndex of this.allPrecinctIndices()) {
+        for (let component = 0; component < this.numComponents; component++) {
+          for (let resolution = 0; resolution < this.numResolutions; resolution++) {
+            if (!this.hasPrecinct(component, resolution, precinctIndex)) {
+              continue;
+            }
+
+            for (let layer = 0; layer < this.numLayers; layer++) {
+              this.packets.push(this.decodePacket(layer, resolution, component, precinctIndex));
+            }
+          }
+        }
+      }
+      return;
+    }
+
+    for (const position of positions) {
+      const positionKey = precinctPositionKey(position);
       for (let component = 0; component < this.numComponents; component++) {
         for (let resolution = 0; resolution < this.numResolutions; resolution++) {
-          if (!this.hasPrecinct(component, resolution, precinctIndex)) {
+          const precinctIndex = positionMaps
+            ?.byComponentResolution
+            .get(component)
+            ?.get(resolution)
+            ?.get(positionKey);
+          if (precinctIndex === undefined) {
             continue;
           }
 
@@ -332,10 +394,33 @@ export class Jpeg2000PacketDecoder {
   }
 
   private decodeCPRL(): void {
+    const positionMaps = this.precinctPositionMaps;
     for (let component = 0; component < this.numComponents; component++) {
-      for (const precinctIndex of this.allPrecinctIndicesForComponent(component)) {
+      const positions = positionMaps?.byComponent.get(component) ?? [];
+      if (positions.length === 0) {
+        for (const precinctIndex of this.allPrecinctIndicesForComponent(component)) {
+          for (let resolution = 0; resolution < this.numResolutions; resolution++) {
+            if (!this.hasPrecinct(component, resolution, precinctIndex)) {
+              continue;
+            }
+
+            for (let layer = 0; layer < this.numLayers; layer++) {
+              this.packets.push(this.decodePacket(layer, resolution, component, precinctIndex));
+            }
+          }
+        }
+        continue;
+      }
+
+      for (const position of positions) {
+        const positionKey = precinctPositionKey(position);
         for (let resolution = 0; resolution < this.numResolutions; resolution++) {
-          if (!this.hasPrecinct(component, resolution, precinctIndex)) {
+          const precinctIndex = positionMaps
+            ?.byComponentResolution
+            .get(component)
+            ?.get(resolution)
+            ?.get(positionKey);
+          if (precinctIndex === undefined) {
             continue;
           }
 
@@ -481,6 +566,7 @@ export class Jpeg2000PacketDecoder {
     this.generatedPrecinctOrder.clear();
     this.generatedPrecinctDims.clear();
     this.generatedPrecinctPositions.clear();
+    this.precinctPositionMaps = undefined;
 
     if (this.imageWidth <= 0 || this.imageHeight <= 0 || this.cbWidth <= 0 || this.cbHeight <= 0) {
       this.precinctOrderBuilt = true;
@@ -492,6 +578,116 @@ export class Jpeg2000PacketDecoder {
     }
 
     this.precinctOrderBuilt = true;
+  }
+
+  private buildPrecinctPositionMaps(): Jpeg2000PrecinctPositionMaps {
+    const byComponentResolution = new Map<number, Map<number, Map<string, number>>>();
+    const resolutionSets = new Map<number, Map<string, Jpeg2000PrecinctPosition>>();
+    const componentSets = new Map<number, Map<string, Jpeg2000PrecinctPosition>>();
+    const allSet = new Map<string, Jpeg2000PrecinctPosition>();
+
+    for (let component = 0; component < this.numComponents; component++) {
+      const bounds = this.componentBoundsFor(component);
+      const dx = this.componentDx[component] && this.componentDx[component]! > 0 ? this.componentDx[component]! : 1;
+      const dy = this.componentDy[component] && this.componentDy[component]! > 0 ? this.componentDy[component]! : 1;
+
+      for (let resolution = 0; resolution < this.numResolutions; resolution++) {
+        const precinctIndices = this.precinctIndicesForResolution(component, resolution);
+        if (precinctIndices.length === 0) {
+          continue;
+        }
+
+        const { width: precinctWidth, height: precinctHeight } = this.precinctSizeForResolution(resolution);
+        for (const precinctIndex of precinctIndices) {
+          const position = this.precinctPosition(bounds, dx, dy, resolution, precinctWidth, precinctHeight, precinctIndex);
+          if (!position) {
+            continue;
+          }
+
+          const key = precinctPositionKey(position);
+          const byResolution = getOrCreate(byComponentResolution, component, () => new Map<number, Map<string, number>>());
+          const byPosition = getOrCreate(byResolution, resolution, () => new Map<string, number>());
+          byPosition.set(key, precinctIndex);
+
+          getOrCreate(resolutionSets, resolution, () => new Map<string, Jpeg2000PrecinctPosition>()).set(key, position);
+          getOrCreate(componentSets, component, () => new Map<string, Jpeg2000PrecinctPosition>()).set(key, position);
+          allSet.set(key, position);
+        }
+      }
+    }
+
+    const byResolution = new Map<number, Jpeg2000PrecinctPosition[]>();
+    for (const [resolution, positions] of resolutionSets) {
+      byResolution.set(resolution, sortPrecinctPositions(positions));
+    }
+
+    const byComponent = new Map<number, Jpeg2000PrecinctPosition[]>();
+    for (const [component, positions] of componentSets) {
+      byComponent.set(component, sortPrecinctPositions(positions));
+    }
+
+    return {
+      byComponentResolution,
+      byResolution,
+      byComponent,
+      all: sortPrecinctPositions(allSet),
+    };
+  }
+
+  private precinctPosition(
+    bounds: Jpeg2000ComponentBounds,
+    dx: number,
+    dy: number,
+    resolution: number,
+    precinctWidth: number,
+    precinctHeight: number,
+    precinctIndex: number,
+  ): Jpeg2000PrecinctPosition | undefined {
+    if (precinctWidth <= 0 || precinctHeight <= 0) {
+      return undefined;
+    }
+
+    const width = bounds.x1 - bounds.x0;
+    const height = bounds.y1 - bounds.y0;
+    if (width <= 0 || height <= 0) {
+      return undefined;
+    }
+
+    const dims = bandInfosForResolution(width, height, bounds.x0, bounds.y0, this.numLevels, resolution);
+    const startX = floorDiv(dims.x0, precinctWidth) * precinctWidth;
+    const startY = floorDiv(dims.y0, precinctHeight) * precinctHeight;
+    const endX = ceilDiv(dims.x0 + dims.width, precinctWidth) * precinctWidth;
+    const endY = ceilDiv(dims.y0 + dims.height, precinctHeight) * precinctHeight;
+
+    let numPrecinctX = Math.floor((endX - startX) / precinctWidth);
+    let numPrecinctY = Math.floor((endY - startY) / precinctHeight);
+    if (numPrecinctX < 1) {
+      numPrecinctX = 1;
+    }
+    if (numPrecinctY < 1) {
+      numPrecinctY = 1;
+    }
+
+    if (precinctIndex < 0 || precinctIndex >= numPrecinctX * numPrecinctY) {
+      return undefined;
+    }
+
+    const precinctX = precinctIndex % numPrecinctX;
+    const precinctY = Math.floor(precinctIndex / numPrecinctX);
+    const originResX = startX + (precinctX * precinctWidth);
+    const originResY = startY + (precinctY * precinctHeight);
+
+    let levelNo = this.numLevels - resolution;
+    if (levelNo < 0) {
+      levelNo = 0;
+    }
+
+    const scaleX = dx * (2 ** levelNo);
+    const scaleY = dy * (2 ** levelNo);
+    return {
+      x: originResX * scaleX,
+      y: originResY * scaleY,
+    };
   }
 
   private buildComponentPrecinctOrder(component: number, cbWidth: number, cbHeight: number): void {
@@ -867,4 +1063,17 @@ function getOrCreate<K, V>(map: Map<K, V>, key: K, create: () => V): V {
 
 function packetHeaderContextKey(component: number, resolution: number, precinctIndex: number, band: number): string {
   return `${component}:${resolution}:${precinctIndex}:${band}`;
+}
+
+function precinctPositionKey(position: Jpeg2000PrecinctPosition): string {
+  return `${position.x}:${position.y}`;
+}
+
+function sortPrecinctPositions(positions: Map<string, Jpeg2000PrecinctPosition>): Jpeg2000PrecinctPosition[] {
+  return [...positions.values()].sort((left, right) => {
+    if (left.y !== right.y) {
+      return left.y - right.y;
+    }
+    return left.x - right.x;
+  });
 }

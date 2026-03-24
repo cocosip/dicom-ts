@@ -101,6 +101,54 @@ describe("Jpeg2000PacketDecoder", () => {
     expect([packets[3]!.resolutionLevel, packets[3]!.componentIndex]).toEqual([1, 1]);
   });
 
+  it("iterates RPCL packets by precinct position instead of raw precinct index", () => {
+    const decoder = new Jpeg2000PacketDecoder(
+      new Uint8Array(0),
+      2,
+      1,
+      1,
+      Jpeg2000ProgressionOrder.RPCL,
+      0,
+    );
+
+    decoder.setImageDimensions(64, 32, 16, 16);
+    decoder.setPrecinctSize(32, 32);
+    decoder.setComponentBounds(0, 0, 0, 64, 32);
+    decoder.setComponentBounds(1, 32, 0, 64, 32);
+
+    const packets = decoder.decodePackets();
+    expect(packets).toHaveLength(3);
+    expect(packets.map((packet) => [packet.componentIndex, packet.precinctIndex])).toEqual([
+      [0, 0],
+      [0, 1],
+      [1, 0],
+    ]);
+  });
+
+  it("iterates PCRL packets by precinct position instead of raw precinct index", () => {
+    const decoder = new Jpeg2000PacketDecoder(
+      new Uint8Array(0),
+      2,
+      1,
+      1,
+      Jpeg2000ProgressionOrder.PCRL,
+      0,
+    );
+
+    decoder.setImageDimensions(64, 32, 16, 16);
+    decoder.setPrecinctSize(32, 32);
+    decoder.setComponentBounds(0, 0, 0, 64, 32);
+    decoder.setComponentBounds(1, 32, 0, 64, 32);
+
+    const packets = decoder.decodePackets();
+    expect(packets).toHaveLength(3);
+    expect(packets.map((packet) => [packet.componentIndex, packet.precinctIndex])).toEqual([
+      [0, 0],
+      [0, 1],
+      [1, 0],
+    ]);
+  });
+
   it("builds precinct/code-block geometry from image settings", () => {
     const data = new Uint8Array([0xe2, 0xaa, 0xbb]);
     const decoder = new Jpeg2000PacketDecoder(

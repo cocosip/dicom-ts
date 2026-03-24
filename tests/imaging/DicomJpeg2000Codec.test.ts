@@ -16,7 +16,10 @@ import {
   DicomJpeg2000Part2MCLosslessCodec,
   DicomJpeg2000Part2MCCodec,
 } from "../../src/imaging/codec/jpeg2000/index.js";
-import { parseJpeg2000Codestream } from "../../src/imaging/codec/jpeg2000/core/index.js";
+import {
+  Jpeg2000ProgressionOrder,
+  parseJpeg2000Codestream,
+} from "../../src/imaging/codec/jpeg2000/core/index.js";
 
 function buildDataset(
   syntax: DicomTransferSyntax,
@@ -426,6 +429,39 @@ describe("DicomJpeg2000Codec", () => {
       expect(decodedPixelData.numberOfFrames).toBe(2);
       expect(decodedPixelData.getFrame(0).data.length).toBe(4);
       expect(decodedPixelData.getFrame(1).data.length).toBe(4);
+    }
+  });
+
+  it("keeps DicomTranscoder decode output aligned across LRCP and spatial non-LRCP packet orders", () => {
+    const lrcp = buildTwoComponentMultiPrecinctCodestream(
+      Jpeg2000ProgressionOrder.LRCP,
+      ["c0p0", "c0p1", "c0p2", "c1p0", "c1p1"],
+    );
+    const rpcl = buildTwoComponentMultiPrecinctCodestream(
+      Jpeg2000ProgressionOrder.RPCL,
+      ["c0p0", "c1p0", "c0p1", "c0p2", "c1p1"],
+    );
+    const pcrl = buildTwoComponentMultiPrecinctCodestream(
+      Jpeg2000ProgressionOrder.PCRL,
+      ["c0p0", "c1p0", "c0p1", "c0p2", "c1p1"],
+    );
+
+    const syntaxes = [
+      DicomTransferSyntax.JPEG2000Lossless,
+      DicomTransferSyntax.JPEG2000Lossy,
+      DicomTransferSyntax.JPEG2000MCLossless,
+      DicomTransferSyntax.JPEG2000MC,
+    ];
+
+    for (const syntax of syntaxes) {
+      const lrcpDecoded = decodeSingleFrameViaTranscoder(syntax, lrcp);
+      const rpclDecoded = decodeSingleFrameViaTranscoder(syntax, rpcl);
+      const pcrlDecoded = decodeSingleFrameViaTranscoder(syntax, pcrl);
+
+      expect(lrcpDecoded.length, `${syntax.uid.uid} decoded size`).toBe(96 * 32 * 2);
+      expect([...rpclDecoded], `${syntax.uid.uid} RPCL parity`).toEqual([...lrcpDecoded]);
+      expect([...pcrlDecoded], `${syntax.uid.uid} PCRL parity`).toEqual([...lrcpDecoded]);
+      expect(new Set(lrcpDecoded).size, `${syntax.uid.uid} non-constant output`).toBeGreaterThan(1);
     }
   });
 
@@ -2051,6 +2087,91 @@ function buildSingleTileMinimalJ2kCodestream(): Uint8Array {
   pushU16(bytes, 0xffd9); // EOC
   return new Uint8Array(bytes);
 }
+
+function decodeSingleFrameViaTranscoder(
+  syntax: DicomTransferSyntax,
+  codestream: Uint8Array,
+): Uint8Array {
+  const encodedDataset = buildDataset(
+    syntax,
+    8,
+    8,
+    96,
+    32,
+    2,
+    "MONOCHROME2",
+  );
+  DicomPixelData.create(encodedDataset, true).addFrame(new MemoryByteBuffer(codestream));
+
+  const decodedDataset = new DicomTranscoder(
+    syntax,
+    DicomTransferSyntax.ExplicitVRLittleEndian,
+  ).transcode(encodedDataset);
+
+  expect(decodedDataset.internalTransferSyntax).toBe(DicomTransferSyntax.ExplicitVRLittleEndian);
+  const decodedPixelData = DicomPixelData.create(decodedDataset);
+  expect(decodedPixelData.numberOfFrames).toBe(1);
+
+  return decodedPixelData.getFrame(0).data;
+}
+
+function buildTwoComponentMultiPrecinctCodestream(
+  progressionOrder: Jpeg2000ProgressionOrder,
+  packetOrder: readonly PacketOrderKey[],
+): Uint8Array {
+  const bytes: number[] = [];
+  pushU16(bytes, 0xff4f); // SOC
+  pushU16(bytes, 0xff51); // SIZ
+  pushU16(bytes, 44);
+  pushU16(bytes, 0);
+  pushU32(bytes, 96);
+  pushU32(bytes, 32);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU32(bytes, 96);
+  pushU32(bytes, 32);
+  pushU32(bytes, 0);
+  pushU32(bytes, 0);
+  pushU16(bytes, 2);
+  bytes.push(7, 1, 1);
+  bytes.push(7, 2, 1);
+
+  pushU16(bytes, 0xff52); // COD
+  pushU16(bytes, 13);
+  bytes.push(0x01, progressionOrder & 0xff);
+  pushU16(bytes, 1);
+  bytes.push(0, 0, 3, 3, 0, 1, 0x55);
+
+  pushU16(bytes, 0xff5c); // QCD
+  pushU16(bytes, 5);
+  bytes.push(0, 0, 0);
+
+  const packetPayload = packetOrder.flatMap((key) => buildSingleCodeBlockPacketBytes(PACKET_BODIES[key]));
+  pushU16(bytes, 0xff90); // SOT
+  pushU16(bytes, 10);
+  pushU16(bytes, 0);
+  pushU32(bytes, 14 + packetPayload.length);
+  bytes.push(0, 1);
+  pushU16(bytes, 0xff93); // SOD
+  bytes.push(...packetPayload);
+
+  pushU16(bytes, 0xffd9); // EOC
+  return new Uint8Array(bytes);
+}
+
+function buildSingleCodeBlockPacketBytes(body: readonly number[]): number[] {
+  return [0xe3, ...body];
+}
+
+type PacketOrderKey = "c0p0" | "c0p1" | "c0p2" | "c1p0" | "c1p1";
+
+const PACKET_BODIES: Record<PacketOrderKey, readonly number[]> = {
+  c0p0: [0x11, 0x22, 0x33],
+  c0p1: [0x44, 0x55, 0x66],
+  c0p2: [0x77, 0x88, 0x99],
+  c1p0: [0xaa, 0xbb, 0xcc],
+  c1p1: [0xdd, 0xee, 0xff],
+};
 
 function pushU16(target: number[], value: number): void {
   target.push((value >>> 8) & 0xff, value & 0xff);

@@ -358,6 +358,16 @@ Progress note:
     - lossless TS encode/decode roundtrip with non-LRCP COD values,
     - TS encode -> Go decode interoperability for non-LRCP `.90` multi-frame encodes.
   - Current limitation remains the existing simplified single-tile/single-precinct-oriented TS encoder model; position-based progression is not yet a full geometry-parity reimplementation of the Go packet planner.
+- P2/T2 decode progression update (2026-03-24):
+  - Ported Go `t2/packet_progression.go` precinct-position mapping semantics into `Jpeg2000PacketDecoder`.
+  - Decode-side `RPCL/PCRL/CPRL` traversal now iterates sorted spatial precinct positions instead of raw precinct-index unions, aligning multi-component shifted-bounds ordering with Go/OpenJPEG behavior.
+  - Added compatibility fallback so geometry-free explicit-precinct unit fixtures still use legacy index traversal when no image geometry is configured.
+  - Added targeted packet-decoder regression coverage for `RPCL` and `PCRL` spatial ordering and re-ran packet encoder/decoder tests plus full TypeScript build.
+- P2 decoder-parity follow-up (2026-03-24):
+  - Added synthetic decoder-level multi-precinct codestream coverage proving equivalent logical packet contributions decode identically across `LRCP`, `RPCL`, and `PCRL`.
+  - The new regression compares both code-block coefficient summaries and final packed pixel output, confirming the T2 spatial-order fix propagates through full `Jpeg2000Decoder` reconstruction.
+  - Added `DicomTranscoder`-level decode parity coverage across `.90/.91/.92/.93`, confirming the same synthetic `LRCP/RPCL/PCRL` codestreams produce identical uncompressed frame bytes through the higher-level codec/container path too.
+  - Added Go-generated `.90` non-`LRCP` precinct coverage through `DicomTranscoder`, so `RLCP/RPCL/PCRL/CPRL` container-level decode parity is now checked against real reference-encoder codestreams as well as synthetic builders.
 - P5 hardening update (2026-03-21):
   - Aligned Part 2 `mcoRecordOrder` handling with Go `validMCOOrder` semantics:
     - only full valid MCC-stage permutations are honored,
