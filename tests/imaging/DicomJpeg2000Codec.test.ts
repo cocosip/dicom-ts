@@ -121,6 +121,15 @@ describe("DicomJpeg2000Codec", () => {
     expect(TranscoderManager.hasCodec(DicomTransferSyntax.JPEG2000MC)).toBe(true);
   });
 
+  it("routes .90/.91/.92/.93 through their concrete default codecs", () => {
+    TranscoderManager.loadCodecs();
+
+    expect(TranscoderManager.getCodec(DicomTransferSyntax.JPEG2000Lossless)).toBeInstanceOf(DicomJpeg2000LosslessCodec);
+    expect(TranscoderManager.getCodec(DicomTransferSyntax.JPEG2000Lossy)).toBeInstanceOf(DicomJpeg2000LossyCodec);
+    expect(TranscoderManager.getCodec(DicomTransferSyntax.JPEG2000MCLossless)).toBeInstanceOf(DicomJpeg2000Part2MCLosslessCodec);
+    expect(TranscoderManager.getCodec(DicomTransferSyntax.JPEG2000MC)).toBeInstanceOf(DicomJpeg2000Part2MCCodec);
+  });
+
   it("encodes baseline JPEG2000 for .90/.91/.92/.93", () => {
     const sourceRaw = new Uint8Array([10, 20, 30, 40]);
     const codecEntries = [
@@ -237,6 +246,109 @@ describe("DicomJpeg2000Codec", () => {
     ).transcode(source);
     expect(transcoded.internalTransferSyntax).toBe(DicomTransferSyntax.JPEG2000Lossy);
     expect(DicomPixelData.create(transcoded).numberOfFrames).toBe(1);
+  });
+
+  it("roundtrips four-component Part 2 lossless data without rewriting ARGB photometric interpretation", () => {
+    const raw = new Uint8Array([
+      255, 10, 20, 30,
+      128, 40, 50, 60,
+      64, 70, 80, 90,
+      32, 15, 25, 35,
+      16, 45, 55, 65,
+      8, 75, 85, 95,
+    ]);
+    const source = buildDataset(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      8,
+      8,
+      3,
+      2,
+      4,
+      "ARGB",
+      raw,
+    );
+
+    const parameters = buildPart2LosslessParams();
+    parameters.allowMct = false;
+
+    const encoded = new DicomTranscoder(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      DicomTransferSyntax.JPEG2000MCLossless,
+      null,
+      parameters,
+    ).transcode(source);
+
+    expect(encoded.internalTransferSyntax).toBe(DicomTransferSyntax.JPEG2000MCLossless);
+    const encodedPixelData = DicomPixelData.create(encoded);
+    expect(encodedPixelData.getFrame(0).data.length).toBeGreaterThan(0);
+    expect(encodedPixelData.photometricInterpretation).toBe("ARGB");
+    expect(encoded.tryGetString(Tags.PhotometricInterpretation)).toBe("ARGB");
+
+    const restored = new DicomTranscoder(
+      DicomTransferSyntax.JPEG2000MCLossless,
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+    ).transcode(encoded);
+
+    const restoredPixelData = DicomPixelData.create(restored);
+    expect(restoredPixelData.photometricInterpretation).toBe("ARGB");
+    expect(restored.tryGetString(Tags.PhotometricInterpretation)).toBe("ARGB");
+    expect([...restoredPixelData.getFrame(0).data]).toEqual([...raw]);
+  });
+
+  it("roundtrips four-component Part 2 lossy data within bounded error without rewriting ARGB photometric interpretation", () => {
+    const raw = new Uint8Array([
+      255, 10, 20, 30,
+      128, 40, 50, 60,
+      64, 70, 80, 90,
+      32, 15, 25, 35,
+      16, 45, 55, 65,
+      8, 75, 85, 95,
+    ]);
+    const source = buildDataset(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      8,
+      8,
+      3,
+      2,
+      4,
+      "ARGB",
+      raw,
+    );
+
+    const parameters = new DicomJpeg2000Params();
+    parameters.irreversible = true;
+    parameters.targetRatio = 20;
+    parameters.numLevels = 3;
+    parameters.numLayers = 1;
+    parameters.allowMct = false;
+
+    const encoded = new DicomTranscoder(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      DicomTransferSyntax.JPEG2000MC,
+      null,
+      parameters,
+    ).transcode(source);
+
+    expect(encoded.internalTransferSyntax).toBe(DicomTransferSyntax.JPEG2000MC);
+    const encodedPixelData = DicomPixelData.create(encoded);
+    expect(encodedPixelData.getFrame(0).data.length).toBeGreaterThan(0);
+    expect(encodedPixelData.photometricInterpretation).toBe("ARGB");
+    expect(encoded.tryGetString(Tags.PhotometricInterpretation)).toBe("ARGB");
+
+    const restored = new DicomTranscoder(
+      DicomTransferSyntax.JPEG2000MC,
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+    ).transcode(encoded);
+
+    const restoredPixelData = DicomPixelData.create(restored);
+    const decoded = restoredPixelData.getFrame(0).data;
+    expect(restoredPixelData.photometricInterpretation).toBe("ARGB");
+    expect(restored.tryGetString(Tags.PhotometricInterpretation)).toBe("ARGB");
+    expect(decoded.length).toBe(raw.length);
+
+    for (let i = 0; i < raw.length; i++) {
+      expect(Math.abs((decoded[i] ?? 0) - raw[i]!)).toBeLessThanOrEqual(32);
+    }
   });
 
   it("produces deterministic lossless codestream bytes for repeated .90/.92 single-frame encodes", () => {

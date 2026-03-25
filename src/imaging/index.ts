@@ -54,6 +54,7 @@ export {
   GrayscalePixelDataS32,
   GrayscalePixelDataU32,
   ColorPixelData24,
+  ColorPixelData32,
   PixelDataFactory,
 } from "./render/PixelData.js";
 

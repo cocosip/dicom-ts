@@ -90,6 +90,44 @@ describe("PixelDataConverter", () => {
     ]);
   });
 
+  it("converts interleaved ARGB to RGBA", () => {
+    const ds = makeDataset({
+      rows: 1,
+      columns: 2,
+      samplesPerPixel: 4,
+      photometric: "ARGB",
+      data: new Uint8Array([64, 255, 0, 0, 192, 0, 255, 0]),
+    });
+    const pixelData = DicomPixelData.create(ds);
+    const rgba = PixelDataConverter.convertArgb(pixelData, 0);
+    expect([...rgba]).toEqual([
+      255, 0, 0, 64,
+      0, 255, 0, 192,
+    ]);
+  });
+
+  it("converts planar ARGB to RGBA", () => {
+    const ds = makeDataset({
+      rows: 1,
+      columns: 2,
+      samplesPerPixel: 4,
+      photometric: "ARGB",
+      planarConfiguration: 1,
+      data: new Uint8Array([
+        64, 192,   // A plane
+        255, 0,    // R plane
+        0, 255,    // G plane
+        0, 0,      // B plane
+      ]),
+    });
+    const pixelData = DicomPixelData.create(ds);
+    const rgba = PixelDataConverter.convertArgb(pixelData, 0);
+    expect([...rgba]).toEqual([
+      255, 0, 0, 64,
+      0, 255, 0, 192,
+    ]);
+  });
+
   it("converts planar RGB", () => {
     const ds = makeDataset({
       rows: 1,

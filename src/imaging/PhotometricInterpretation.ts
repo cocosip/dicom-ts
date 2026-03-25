@@ -6,6 +6,7 @@
 export enum PhotometricInterpretation {
   MONOCHROME1 = "MONOCHROME1",
   MONOCHROME2 = "MONOCHROME2",
+  ARGB = "ARGB",
   RGB = "RGB",
   YBR_FULL = "YBR_FULL",
   YBR_FULL_422 = "YBR_FULL_422",
@@ -19,6 +20,7 @@ export enum PhotometricInterpretation {
 const ALIASES: Record<string, PhotometricInterpretation> = {
   MONOCHROME1: PhotometricInterpretation.MONOCHROME1,
   MONOCHROME2: PhotometricInterpretation.MONOCHROME2,
+  ARGB: PhotometricInterpretation.ARGB,
   RGB: PhotometricInterpretation.RGB,
   YBR_FULL: PhotometricInterpretation.YBR_FULL,
   YBR_FULL_422: PhotometricInterpretation.YBR_FULL_422,

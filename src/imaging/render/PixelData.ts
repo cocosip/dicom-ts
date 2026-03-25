@@ -558,6 +558,84 @@ export class ColorPixelData24 implements IPixelData {
 }
 
 // ---------------------------------------------------------------------------
+// ColorPixelData32
+// ---------------------------------------------------------------------------
+
+/**
+ * Color 32-bit (RGBA, 4 bytes per pixel) IPixelData implementation.
+ *
+ * `render()` writes packed ARGB ints (0xAA_RR_GG_BB) to the output array.
+ */
+export class ColorPixelData32 implements IPixelData {
+  readonly width: number;
+  readonly height: number;
+  readonly components = 4;
+  readonly data: Uint8Array;
+
+  constructor(width: number, height: number, data: Uint8Array) {
+    this.width = width;
+    this.height = height;
+    this.data = data;
+  }
+
+  getMinMax(_padding?: number): PixelDataRange {
+    throw new Error("Calculation of min/max pixel values is not supported for 32-bit color pixel data.");
+  }
+
+  getPixel(x: number, y: number): number {
+    const d = this.data;
+    const p = (y * this.width + x) * 4;
+    return (
+      ((d[p + 3] ?? 0) << 24)
+      | ((d[p] ?? 0) << 16)
+      | ((d[p + 1] ?? 0) << 8)
+      | (d[p + 2] ?? 0)
+    ) >>> 0;
+  }
+
+  rescale(scale: number): IPixelData {
+    const w = (this.width * scale) | 0;
+    const h = (this.height * scale) | 0;
+    if (w === this.width && h === this.height) return this;
+    const scaled = BilinearInterpolation.rescaleColor32(this.data, this.width, this.height, w, h);
+    return new ColorPixelData32(w, h, scaled);
+  }
+
+  render(lut: ILUT | null, output: Int32Array): void {
+    const d = this.data;
+    if (lut == null) {
+      for (let i = 0, p = 0; i < output.length; i++) {
+        output[i] =
+          (((d[p + 3] ?? 0) & 0xff) << 24)
+          | (((d[p] ?? 0) & 0xff) << 16)
+          | (((d[p + 1] ?? 0) & 0xff) << 8)
+          | ((d[p + 2] ?? 0) & 0xff);
+        p += 4;
+      }
+    } else {
+      for (let i = 0, p = 0; i < output.length; i++) {
+        output[i] =
+          (((d[p + 3] ?? 0) & 0xff) << 24)
+          | ((lut.apply(d[p] ?? 0) & 0xff) << 16)
+          | ((lut.apply(d[p + 1] ?? 0) & 0xff) << 8)
+          | (lut.apply(d[p + 2] ?? 0) & 0xff);
+        p += 4;
+      }
+    }
+  }
+
+  getHistogram(channel: number): Histogram {
+    if (channel < 0 || channel > 3) {
+      throw new RangeError(`Expected channel between 0 and 3 for 32-bit color image, got ${channel}.`);
+    }
+    const h = new Histogram(0, 255);
+    const d = this.data;
+    for (let i = channel; i < d.length; i += 4) h.add(d[i]!);
+    return h;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // PixelDataFactory
 // ---------------------------------------------------------------------------
 
@@ -609,6 +687,12 @@ export class PixelDataFactory {
       } else {
         throw new Error(`Unsupported pixel data bits stored: ${pixelData.bitsStored}`);
       }
+    }
+
+    if (
+      pi === PhotometricInterpretation.ARGB
+    ) {
+      return new ColorPixelData32(w, h, PixelDataConverter.convertArgb(pixelData, frame));
     }
 
     if (

@@ -8,20 +8,13 @@ import { DicomTranscoder } from "../../src/imaging/codec/DicomTranscoder.js";
 const ACCEPTANCE_DIR = "source-code/fo-dicom.Codecs/Tests/Acceptance";
 const JPEG2000_LOSSLESS_FILE = "PM5644-960x540_JPEG2000-Lossless.dcm";
 const JPEG2000_LOSSY_FILE = "PM5644-960x540_JPEG2000-Lossy.dcm";
+const JPEG2000_LOSSY50_FILE = "PM5644-960x540_JPEG2000-Lossy50.dcm";
 const RGB_FILE = "PM5644-960x540_RGB.dcm";
 
-describe("DicomJpeg2000AlignmentBaseline", () => {
+describe("DicomJpeg2000AcceptanceGap", () => {
   it.fails("decodes JPEG2000 lossless acceptance fixture to reference RGB bytes (red baseline)", async () => {
-    const compressed = await DicomFile.open(join(ACCEPTANCE_DIR, JPEG2000_LOSSLESS_FILE));
-    const reference = await DicomFile.open(join(ACCEPTANCE_DIR, RGB_FILE));
-
-    const decoded = new DicomTranscoder(
-      DicomTransferSyntax.JPEG2000Lossless,
-      DicomTransferSyntax.ExplicitVRLittleEndian,
-    ).transcode(compressed.dataset);
-
-    const actual = DicomPixelData.create(decoded).getFrame(0).data;
-    const expected = DicomPixelData.create(reference.dataset).getFrame(0).data;
+    const actual = await decodeAcceptanceFrame(JPEG2000_LOSSLESS_FILE, DicomTransferSyntax.JPEG2000Lossless);
+    const expected = await readReferenceRgbFrame();
     const stats = computePixelDiffStats(actual, expected);
     expect(stats.mismatchPixels).toBe(0);
     expect(stats.mae).toBe(0);
@@ -30,16 +23,19 @@ describe("DicomJpeg2000AlignmentBaseline", () => {
   });
 
   it.fails("decodes JPEG2000 lossy acceptance fixture within RGB quality threshold (red baseline)", async () => {
-    const compressed = await DicomFile.open(join(ACCEPTANCE_DIR, JPEG2000_LOSSY_FILE));
-    const reference = await DicomFile.open(join(ACCEPTANCE_DIR, RGB_FILE));
+    const actual = await decodeAcceptanceFrame(JPEG2000_LOSSY_FILE, DicomTransferSyntax.JPEG2000Lossy);
+    const expected = await readReferenceRgbFrame();
+    const stats = computePixelDiffStats(actual, expected);
 
-    const decoded = new DicomTranscoder(
-      DicomTransferSyntax.JPEG2000Lossy,
-      DicomTransferSyntax.ExplicitVRLittleEndian,
-    ).transcode(compressed.dataset);
+    expect(actual.length).toBe(expected.length);
+    expect(stats.mae).toBeLessThanOrEqual(6);
+    expect(stats.maxAbsDiff).toBeLessThanOrEqual(48);
+    expect(stats.psnr).toBeGreaterThanOrEqual(32);
+  });
 
-    const actual = DicomPixelData.create(decoded).getFrame(0).data;
-    const expected = DicomPixelData.create(reference.dataset).getFrame(0).data;
+  it.fails("decodes JPEG2000 lossy50 acceptance fixture within RGB quality threshold (red baseline)", async () => {
+    const actual = await decodeAcceptanceFrame(JPEG2000_LOSSY50_FILE, DicomTransferSyntax.JPEG2000Lossy);
+    const expected = await readReferenceRgbFrame();
     const stats = computePixelDiffStats(actual, expected);
 
     expect(actual.length).toBe(expected.length);
@@ -66,6 +62,20 @@ describe("DicomJpeg2000AlignmentBaseline", () => {
     expect([...actual]).toEqual([...expected]);
   }, 20000);
 });
+
+async function decodeAcceptanceFrame(fileName: string, syntax: DicomTransferSyntax): Promise<Uint8Array> {
+  const compressed = await DicomFile.open(join(ACCEPTANCE_DIR, fileName));
+  const decoded = new DicomTranscoder(
+    syntax,
+    DicomTransferSyntax.ExplicitVRLittleEndian,
+  ).transcode(compressed.dataset);
+  return DicomPixelData.create(decoded).getFrame(0).data;
+}
+
+async function readReferenceRgbFrame(): Promise<Uint8Array> {
+  const reference = await DicomFile.open(join(ACCEPTANCE_DIR, RGB_FILE));
+  return DicomPixelData.create(reference.dataset).getFrame(0).data;
+}
 
 interface PixelDiffStats {
   mismatchPixels: number;

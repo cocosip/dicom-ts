@@ -87,6 +87,7 @@ export class DicomJpegLsNearLosslessCodec implements IDicomCodec {
       components: pixelData.samplesPerPixel,
       bitDepth: pixelData.bitsStored,
       near: parameters.allowedError,
+      interleaveMode: parameters.interleaveMode,
       reset: parameters.resetInterval,
     });
 
@@ -98,16 +99,10 @@ export class DicomJpegLsNearLosslessCodec implements IDicomCodec {
 
     const resolved = new DicomJpegLsParams();
     resolved.allowedError = normalizeAllowedError(source.allowedError, normalizeAllowedError(this.defaultAllowedError, 2));
-    resolved.interleaveMode = source.interleaveMode;
+    resolved.interleaveMode = normalizeInterleaveMode(source.interleaveMode);
     resolved.colorTransform = source.colorTransform;
     resolved.convertColorspaceToRgb = source.convertColorspaceToRgb;
     resolved.resetInterval = source.resetInterval;
-
-    if (resolved.interleaveMode !== 0) {
-      throw new Error(
-        `JPEG-LS Near-Lossless currently supports interleaveMode=0 only; got ${resolved.interleaveMode} [syntax=${this.transferSyntax.uid.uid}]`,
-      );
-    }
 
     return resolved;
   }
@@ -116,6 +111,13 @@ export class DicomJpegLsNearLosslessCodec implements IDicomCodec {
 function normalizeAllowedError(value: number, fallback: number): number {
   if (!Number.isInteger(value) || value < 0 || value > 255) {
     return fallback;
+  }
+  return value;
+}
+
+function normalizeInterleaveMode(value: number): number {
+  if (!Number.isInteger(value) || (value !== 0 && value !== 1)) {
+    throw new Error(`JPEG-LS Near-Lossless supports interleaveMode 0 or 1; got ${value}`);
   }
   return value;
 }

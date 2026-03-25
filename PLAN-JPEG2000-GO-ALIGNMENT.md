@@ -367,7 +367,9 @@ Progress note:
   - Added synthetic decoder-level multi-precinct codestream coverage proving equivalent logical packet contributions decode identically across `LRCP`, `RPCL`, and `PCRL`.
   - The new regression compares both code-block coefficient summaries and final packed pixel output, confirming the T2 spatial-order fix propagates through full `Jpeg2000Decoder` reconstruction.
   - Added `DicomTranscoder`-level decode parity coverage across `.90/.91/.92/.93`, confirming the same synthetic `LRCP/RPCL/PCRL` codestreams produce identical uncompressed frame bytes through the higher-level codec/container path too.
-  - Added Go-generated `.90` non-`LRCP` precinct coverage through `DicomTranscoder`, so `RLCP/RPCL/PCRL/CPRL` container-level decode parity is now checked against real reference-encoder codestreams as well as synthetic builders.
+  - Added Go-generated non-`LRCP` precinct coverage through `DicomTranscoder` for both `.90` lossless and `.91` lossy paths, so `RLCP/RPCL/PCRL/CPRL` container-level decode parity is now checked against real reference-encoder codestreams as well as synthetic builders.
+  - Split the heavier Go-generated non-`LRCP` container checks into `tests/imaging/DicomJpeg2000GoNonLrcpContainerParity.test.ts` so the broader Go interoperability suite stays focused by concern.
+  - Post-split verification on 2026-03-25: full `npm test` completed green (`101` test files / `755` tests) without re-observing the earlier Vitest worker-timeout concern.
 - P5 hardening update (2026-03-21):
   - Aligned Part 2 `mcoRecordOrder` handling with Go `validMCOOrder` semantics:
     - only full valid MCC-stage permutations are honored,
@@ -519,7 +521,7 @@ Exit criteria:
 
 Progress note:
 
-- P8.1 partial: `.90/.91` acceptance codestreams and `.92/.93` Go-generated Part2 vectors are covered by Go->TS hash-parity tests; broader fixture corpus is still pending.
+- P8.1 partial: `.90/.91` acceptance codestreams are covered by Go->TS hash-parity tests, `.90/.91` Go-generated non-`LRCP` precinct codestreams are covered through DICOM-container decode parity, and `.92/.93` Go-generated Part2 vectors are covered as well; broader fixture corpus is still pending.
 - P8.2 complete: TS->Go compatibility matrix is green for `.90/.91` acceptance fixtures and `.92/.93` single/multi-frame synthetic vectors.
 - P8.3 partial: direct RGB-reference acceptance assertions for `.90/.91` remain red and are tracked in expected-failure regression tests; Part2 `.92/.93` acceptance-style fixture coverage is still pending.
 - P8.4 partial: deterministic lossless checks are green for repeated `.90/.92` encodes; broader deterministic fixture coverage remains open.

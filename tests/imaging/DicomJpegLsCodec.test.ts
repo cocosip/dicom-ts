@@ -7,6 +7,7 @@ import { DicomOtherByte, DicomOtherWord } from "../../src/dataset/DicomElement.j
 import { DicomPixelData } from "../../src/imaging/DicomPixelData.js";
 import { DicomTranscoder } from "../../src/imaging/codec/DicomTranscoder.js";
 import {
+  DicomJpegLsInterleaveMode,
   DicomJpegLsLosslessCodec,
   DicomJpegLsNearLosslessCodec,
   DicomJpegLsParams,
@@ -142,6 +143,59 @@ describe("DicomJpegLsCodec", () => {
     }
   });
 
+  it("encodes and decodes JPEG-LS lossless RGB frame with line interleave", () => {
+    const raw = new Uint8Array([
+      10, 20, 30,
+      40, 50, 60,
+      70, 80, 90,
+      15, 25, 35,
+      45, 55, 65,
+      75, 85, 95,
+    ]);
+    const source = buildDataset(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      8,
+      8,
+      2,
+      3,
+      3,
+      raw,
+    );
+
+    const sourcePixelData = DicomPixelData.create(source);
+    const encodedDataset = buildDataset(
+      DicomTransferSyntax.JPEGLSLossless,
+      8,
+      8,
+      2,
+      3,
+      3,
+    );
+    const encodedPixelData = DicomPixelData.create(encodedDataset, true);
+
+    const codec = new DicomJpegLsLosslessCodec();
+    const parameters = new DicomJpegLsParams();
+    parameters.interleaveMode = DicomJpegLsInterleaveMode.Line;
+
+    codec.encode(sourcePixelData, encodedPixelData, parameters);
+
+    const encodedFrame = DicomPixelData.create(encodedDataset).getFrame(0).data;
+    expect(readJpegLsInterleaveMode(encodedFrame)).toBe(DicomJpegLsInterleaveMode.Line);
+
+    const decodedDataset = buildDataset(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      8,
+      8,
+      2,
+      3,
+      3,
+    );
+    const decodedPixelData = DicomPixelData.create(decodedDataset, true);
+    codec.decode(DicomPixelData.create(encodedDataset), decodedPixelData, null);
+
+    expect([...DicomPixelData.create(decodedDataset).getFrame(0).data]).toEqual([...raw]);
+  });
+
   it("rejects non-zero allowedError for JPEG-LS lossless", () => {
     const raw = new Uint8Array([1, 2, 3, 4]);
     const source = buildDataset(
@@ -198,3 +252,22 @@ describe("DicomJpegLsCodec", () => {
     expect([...DicomPixelData.create(restored).getFrame(0).data]).toEqual([...raw]);
   });
 });
+
+function readJpegLsInterleaveMode(frame: Uint8Array): number {
+  for (let i = 0; i + 5 < frame.length; i++) {
+    if (frame[i] !== 0xff || frame[i + 1] !== 0xda) {
+      continue;
+    }
+
+    const length = (frame[i + 2]! << 8) | frame[i + 3]!;
+    const segmentEnd = i + 2 + length;
+    const interleaveOffset = segmentEnd - 2;
+    if (interleaveOffset >= frame.length) {
+      throw new Error("Invalid JPEG-LS SOS marker while reading interleave mode");
+    }
+
+    return frame[interleaveOffset]!;
+  }
+
+  throw new Error("JPEG-LS SOS marker not found");
+}

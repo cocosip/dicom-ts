@@ -152,6 +152,9 @@ export class PixelDataConverter {
     if (isMonochrome(pi)) {
       return PixelDataConverter.convertMonochrome(pixelData, frame, options.lut);
     }
+    if (pi === PhotometricInterpretation.ARGB) {
+      return PixelDataConverter.convertArgb(pixelData, frame);
+    }
     if (pi === PhotometricInterpretation.RGB) {
       return PixelDataConverter.convertRgb(pixelData, frame);
     }
@@ -166,6 +169,31 @@ export class PixelDataConverter {
       return PixelDataConverter.convertPalette(pixelData, frame, options.palette);
     }
     throw new Error(`Unsupported photometric interpretation: ${pi}`);
+  }
+
+  static convertArgb(pixelData: DicomPixelData, frame: number): Uint8Array {
+    const bytes = pixelData.getFrame(frame).data;
+    const count = pixelData.rows * pixelData.columns;
+    const out = new Uint8Array(count * 4);
+    if (pixelData.planarConfiguration === PlanarConfiguration.Planar) {
+      const planeSize = count;
+      for (let i = 0; i < count; i++) {
+        const o = i * 4;
+        out[o] = bytes[i + planeSize] ?? 0;
+        out[o + 1] = bytes[i + planeSize * 2] ?? 0;
+        out[o + 2] = bytes[i + planeSize * 3] ?? 0;
+        out[o + 3] = bytes[i] ?? 0;
+      }
+      return out;
+    }
+    for (let i = 0; i < count; i++) {
+      const o = i * 4;
+      out[o] = bytes[i * 4 + 1] ?? 0;
+      out[o + 1] = bytes[i * 4 + 2] ?? 0;
+      out[o + 2] = bytes[i * 4 + 3] ?? 0;
+      out[o + 3] = bytes[i * 4] ?? 0;
+    }
+    return out;
   }
 
   static convertMonochrome(pixelData: DicomPixelData, frame: number, lut?: ILUT): Uint8Array {

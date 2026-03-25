@@ -23,7 +23,7 @@ export interface IPixelData {
 
   /**
    * Number of pixel components.
-   * 1 for grayscale/palette, 3 for RGB.
+   * 1 for grayscale/palette, 3 for RGB, 4 for RGBA-backed ARGB images.
    */
   readonly components: number;
 

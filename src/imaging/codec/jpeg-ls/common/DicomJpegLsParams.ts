@@ -30,7 +30,7 @@ export class DicomJpegLsParams extends DicomCodecParams {
   /** NEAR parameter (0 = lossless). */
   allowedError = 0;
 
-  /** Interleave mode hint. Current in-tree implementation supports None only. */
+  /** Interleave mode hint. Current in-tree implementation supports None and Line. */
   interleaveMode = DicomJpegLsInterleaveMode.None;
 
   /** Color transform hint for callers/adapters. */

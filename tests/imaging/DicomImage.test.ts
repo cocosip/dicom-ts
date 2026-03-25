@@ -49,6 +49,25 @@ describe("DicomImage", () => {
     expect(image.pixels[3]).toBe(255);
   });
 
+  it("renders ARGB image while preserving alpha", () => {
+    const ds = new DicomDataset();
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.Rows, 1));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.Columns, 1));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.BitsAllocated, 8));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.BitsStored, 8));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.HighBit, 7));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.SamplesPerPixel, 4));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.PlanarConfiguration, 0));
+    ds.addOrUpdate(new DicomCodeString(Tags.PhotometricInterpretation, "ARGB"));
+    ds.addOrUpdate(new DicomOtherByte(Tags.PixelData, new Uint8Array([64, 10, 20, 30])));
+
+    const image = new DicomImage(ds).renderImage(0) as RawImage;
+    expect(image.pixels[0]).toBe(10);
+    expect(image.pixels[1]).toBe(20);
+    expect(image.pixels[2]).toBe(30);
+    expect(image.pixels[3]).toBe(64);
+  });
+
   it("applies overlays when enabled", () => {
     const ds = new DicomDataset();
     ds.addOrUpdate(new DicomUnsignedShort(Tags.Rows, 2));

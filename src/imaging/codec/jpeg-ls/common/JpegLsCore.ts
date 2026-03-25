@@ -607,6 +607,7 @@ class CodecModel {
     readonly components: number,
     readonly bitDepth: number,
     readonly near: number,
+    readonly interleaveMode: number,
     readonly traits: Traits,
     t1: number,
     t2: number,
@@ -625,6 +626,11 @@ class CodecModel {
     const writer = new JpegLsBitWriter();
     const samples = toIntegerSamples(rawPixelData, this.bitDepth);
 
+    if (this.interleaveMode === 1) {
+      this.encodeLineInterleaved(writer, samples);
+      return writer.flush();
+    }
+
     for (let component = 0; component < this.components; component++) {
       this.encodeComponent(writer, samples, component);
     }
@@ -635,6 +641,11 @@ class CodecModel {
   decodeScanData(scanData: Uint8Array): Uint8Array {
     const reader = new JpegLsBitReader(scanData);
     const samples = new Array<number>(this.width * this.height * this.components).fill(0);
+
+    if (this.interleaveMode === 1) {
+      this.decodeLineInterleaved(reader, samples);
+      return fromIntegerSamples(samples, this.bitDepth, this.maxVal);
+    }
 
     for (let component = 0; component < this.components; component++) {
       this.decodeComponent(reader, samples, component);
@@ -725,6 +736,20 @@ class CodecModel {
     }
   }
 
+  private encodeLineInterleaved(writer: JpegLsBitWriter, samples: number[]): void {
+    const prevFirstPrev = new Array<number>(this.components).fill(0);
+    const prevNeg1 = new Array<number>(this.components).fill(0);
+    const runIndex = new Array<number>(this.components).fill(0);
+
+    for (let y = 0; y < this.height; y++) {
+      for (let component = 0; component < this.components; component++) {
+        this.runMode.runIndex = runIndex[component]!;
+        this.encodeComponentLine(writer, samples, component, y, prevFirstPrev, prevNeg1);
+        runIndex[component] = this.runMode.runIndex;
+      }
+    }
+  }
+
   private decodeComponent(reader: JpegLsBitReader, samples: number[], component: number): void {
     const stride = this.components;
     const offset = component;
@@ -795,6 +820,177 @@ class CodecModel {
         prevNeg1 = prevFirstPrev;
         prevFirstPrev = nextFirst;
       }
+    }
+  }
+
+  private decodeLineInterleaved(reader: JpegLsBitReader, samples: number[]): void {
+    const prevFirstPrev = new Array<number>(this.components).fill(0);
+    const prevNeg1 = new Array<number>(this.components).fill(0);
+    const runIndex = new Array<number>(this.components).fill(0);
+
+    for (let y = 0; y < this.height; y++) {
+      for (let component = 0; component < this.components; component++) {
+        this.runMode.runIndex = runIndex[component]!;
+        this.decodeComponentLine(reader, samples, component, y, prevFirstPrev, prevNeg1);
+        runIndex[component] = this.runMode.runIndex;
+      }
+    }
+  }
+
+  private encodeComponentLine(
+    writer: JpegLsBitWriter,
+    samples: number[],
+    component: number,
+    y: number,
+    prevFirstPrev: number[],
+    prevNeg1: number[],
+  ): void {
+    const stride = this.components;
+    const offset = component;
+    const firstPrev = prevFirstPrev[component]!;
+    const neg1 = prevNeg1[component]!;
+    let x = 0;
+
+    while (x < this.width) {
+      const idx = (y * this.width + x) * stride + offset;
+      if (idx >= samples.length) {
+        x++;
+        continue;
+      }
+
+      const currentSample = samples[idx]!;
+      let ra = 0;
+      let rb = 0;
+      let rc = 0;
+      let rd = 0;
+
+      if (x === 0) {
+        ra = firstPrev;
+        rb = y > 0 ? firstPrev : 0;
+        rc = neg1;
+        if (y > 0 && this.width > 1) {
+          const rdIdx = ((y - 1) * this.width + (x + 1)) * stride + offset;
+          rd = rdIdx < samples.length ? samples[rdIdx]! : rb;
+        } else {
+          rd = rb;
+        }
+      } else {
+        [ra, rb, rc, rd] = getNeighbors(samples, this.width, this.height, this.components, x, y, component);
+      }
+
+      const [q1, q2, q3] = this.quantizer.computeContext(ra, rb, rc, rd);
+      const contextId = computeContextID(q1, q2, q3);
+
+      if (contextId !== 0) {
+        const signBit = bitwiseSign(contextId);
+        const contextIndex = applySign(contextId, signBit);
+        const context = this.contexts[contextIndex]!;
+        const k = context.computeGolombParameter();
+
+        const prediction = predict(ra, rb, rc);
+        const correctedPrediction = this.traits.correctPrediction(prediction + applySign(context.C, signBit));
+
+        const errorValue = this.traits.computeErrorValue(applySign(currentSample - correctedPrediction, signBit));
+        const correction = context.getErrorCorrection(k | this.near, this.near);
+        const mappedError = mapErrorValue(correction ^ errorValue);
+
+        writer.encodeMappedValue(k, mappedError, this.traits.limit, this.traits.qbpp);
+        context.update(errorValue, this.near, this.traits.reset);
+
+        samples[idx] = this.traits.computeReconstructedSample(
+          correctedPrediction,
+          applySign(errorValue, signBit),
+        );
+
+        x++;
+        continue;
+      }
+
+      const processed = this.encodeRunMode(writer, samples, x, y, component, ra);
+      x += processed;
+    }
+
+    const firstIdx = (y * this.width) * stride + offset;
+    if (firstIdx < samples.length) {
+      const nextFirst = samples[firstIdx]!;
+      prevNeg1[component] = firstPrev;
+      prevFirstPrev[component] = nextFirst;
+    }
+  }
+
+  private decodeComponentLine(
+    reader: JpegLsBitReader,
+    samples: number[],
+    component: number,
+    y: number,
+    prevFirstPrev: number[],
+    prevNeg1: number[],
+  ): void {
+    const stride = this.components;
+    const offset = component;
+    const firstPrev = prevFirstPrev[component]!;
+    const neg1 = prevNeg1[component]!;
+    let x = 0;
+
+    while (x < this.width) {
+      const idx = (y * this.width + x) * stride + offset;
+      let ra = 0;
+      let rb = 0;
+      let rc = 0;
+      let rd = 0;
+
+      if (x === 0) {
+        ra = firstPrev;
+        rb = y > 0 ? firstPrev : 0;
+        rc = neg1;
+        if (y > 0 && this.width > 1) {
+          const rdIdx = ((y - 1) * this.width + (x + 1)) * stride + offset;
+          rd = rdIdx < samples.length ? samples[rdIdx]! : rb;
+        } else {
+          rd = rb;
+        }
+      } else {
+        [ra, rb, rc, rd] = getNeighbors(samples, this.width, this.height, this.components, x, y, component);
+      }
+
+      const [q1, q2, q3] = this.quantizer.computeContext(ra, rb, rc, rd);
+      const contextId = computeContextID(q1, q2, q3);
+
+      if (contextId !== 0) {
+        const signBit = bitwiseSign(contextId);
+        const contextIndex = applySign(contextId, signBit);
+        const context = this.contexts[contextIndex]!;
+        const k = context.computeGolombParameter();
+
+        const prediction = predict(ra, rb, rc);
+        const correctedPrediction = this.traits.correctPrediction(prediction + applySign(context.C, signBit));
+
+        const mappedError = reader.decodeValue(k, this.traits.limit, this.traits.qbpp);
+        let errorValue = unmapErrorValue(mappedError);
+        if (k === 0) {
+          errorValue ^= context.getErrorCorrection(k, this.near);
+        }
+
+        context.update(errorValue, this.near, this.traits.reset);
+
+        samples[idx] = this.traits.computeReconstructedSample(
+          correctedPrediction,
+          applySign(errorValue, signBit),
+        );
+
+        x++;
+        continue;
+      }
+
+      const processed = this.decodeRunMode(reader, samples, x, y, component, ra);
+      x += processed;
+    }
+
+    const firstIdx = (y * this.width) * stride + offset;
+    if (firstIdx < samples.length) {
+      const nextFirst = samples[firstIdx]!;
+      prevNeg1[component] = firstPrev;
+      prevFirstPrev[component] = nextFirst;
     }
   }
 
@@ -914,6 +1110,7 @@ export interface EncodeJpegLsOptions {
   components: number;
   bitDepth: number;
   near: number;
+  interleaveMode?: number;
   reset?: number;
 }
 
@@ -930,6 +1127,7 @@ export interface DecodeJpegLsResult {
 export function encodeJpegLs(pixelData: Uint8Array, options: EncodeJpegLsOptions): Uint8Array {
   validateEncodeOptions(options);
 
+  const interleaveMode = normalizeInterleaveMode(options.interleaveMode, options.components);
   const reset = normalizeReset(options.reset);
   const params = computeCodingParameters((1 << options.bitDepth) - 1, options.near, reset);
   const traits = new Traits((1 << options.bitDepth) - 1, options.near, params);
@@ -939,6 +1137,7 @@ export function encodeJpegLs(pixelData: Uint8Array, options: EncodeJpegLsOptions
     options.components,
     options.bitDepth,
     options.near,
+    interleaveMode,
     traits,
     params.t1,
     params.t2,
@@ -949,7 +1148,7 @@ export function encodeJpegLs(pixelData: Uint8Array, options: EncodeJpegLsOptions
   writer.writeMarker(JpegMarkers.SOI);
   writer.writeSegment(SOF55, buildSOF55(options.width, options.height, options.components, options.bitDepth));
   writer.writeSegment(LSE, buildLSE((1 << options.bitDepth) - 1, params.t1, params.t2, params.t3, params.reset));
-  writer.writeSegment(JpegMarkers.SOS, buildSOS(options.components, options.near, 0));
+  writer.writeSegment(JpegMarkers.SOS, buildSOS(options.components, options.near, interleaveMode));
   writer.writeBytes(model.encodeScanData(pixelData));
   writer.writeMarker(JpegMarkers.EOI);
 
@@ -1004,6 +1203,7 @@ export function decodeJpegLs(frameData: Uint8Array): DecodeJpegLsResult {
           state.components,
           state.bitDepth,
           state.near,
+          state.interleaveMode,
           traits,
           state.t1 > 0 ? state.t1 : params.t1,
           state.t2 > 0 ? state.t2 : params.t2,
@@ -1086,7 +1286,11 @@ function parseSOS(segment: Uint8Array, state: ParseState): void {
   state.near = segment[segment.length - 3]!;
   state.interleaveMode = segment[segment.length - 2]!;
 
-  if (state.interleaveMode !== 0) {
+  if (state.components === 1 && state.interleaveMode !== 0) {
+    throw new Error(`Unsupported JPEG-LS interleave mode for single-component scan: ${state.interleaveMode}`);
+  }
+
+  if (state.interleaveMode !== 0 && state.interleaveMode !== 1) {
     throw new Error(`Unsupported JPEG-LS interleave mode: ${state.interleaveMode}`);
   }
 }
@@ -1162,6 +1366,8 @@ function validateEncodeOptions(options: EncodeJpegLsOptions): void {
   if (!Number.isInteger(options.near) || options.near < 0 || options.near > 255) {
     throw new Error(`Invalid JPEG-LS NEAR value: ${options.near}`);
   }
+
+  normalizeInterleaveMode(options.interleaveMode, options.components);
 }
 
 function getNeighbors(
@@ -1299,6 +1505,17 @@ function normalizeReset(reset: number | undefined): number {
     return 64;
   }
   return reset;
+}
+
+function normalizeInterleaveMode(interleaveMode: number | undefined, components: number): number {
+  const mode = interleaveMode ?? 0;
+  if (!Number.isInteger(mode) || (mode !== 0 && mode !== 1)) {
+    throw new Error(`Unsupported JPEG-LS interleave mode: ${mode}`);
+  }
+  if (components === 1 && mode !== 0) {
+    throw new Error(`JPEG-LS single-component frames require interleaveMode=0; got ${mode}`);
+  }
+  return mode;
 }
 
 function predict(a: number, b: number, c: number): number {

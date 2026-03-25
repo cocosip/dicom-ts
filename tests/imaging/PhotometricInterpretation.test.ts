@@ -8,6 +8,7 @@ import {
 describe("PhotometricInterpretation", () => {
   it("parses aliases and ignores case", () => {
     expect(parsePhotometricInterpretation("monochrome1")).toBe(PhotometricInterpretation.MONOCHROME1);
+    expect(parsePhotometricInterpretation("argb")).toBe(PhotometricInterpretation.ARGB);
     expect(parsePhotometricInterpretation("PALETTE COLOR")).toBe(PhotometricInterpretation.PALETTE_COLOR);
     expect(parsePhotometricInterpretation("palette_color")).toBe(PhotometricInterpretation.PALETTE_COLOR);
     expect(parsePhotometricInterpretation(" ybr_full ")).toBe(PhotometricInterpretation.YBR_FULL);

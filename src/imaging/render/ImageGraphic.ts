@@ -36,9 +36,12 @@ export class ImageGraphic implements IGraphic {
     this.scale(1.0);
   }
 
-  /** Number of pixel components: 1 for grayscale/palette, 3 for RGB. */
+  /** Number of pixel components: 1 for grayscale/palette, 3 for RGB-like, 4 for ARGB. */
   get components(): number {
     const pi = this.pixelData.photometricInterpretation;
+    if (pi === PhotometricInterpretation.ARGB) {
+      return 4;
+    }
     if (
       pi === PhotometricInterpretation.RGB
       || pi === PhotometricInterpretation.YBR_FULL

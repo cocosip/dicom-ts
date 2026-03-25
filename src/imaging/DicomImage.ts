@@ -291,7 +291,8 @@ export class DicomImage {
   private _createPipeline(frame: number): IPipeline {
     const pi = this.pixelData.photometricInterpretation ?? PhotometricInterpretation.MONOCHROME2;
     if (
-      pi === PhotometricInterpretation.RGB
+      pi === PhotometricInterpretation.ARGB
+      || pi === PhotometricInterpretation.RGB
       || pi === PhotometricInterpretation.YBR_FULL
       || pi === PhotometricInterpretation.YBR_FULL_422
       || pi === PhotometricInterpretation.YBR_ICT

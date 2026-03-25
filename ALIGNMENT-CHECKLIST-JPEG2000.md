@@ -54,7 +54,7 @@ Status legend:
 | Validation | Status | Notes |
 | --- | --- | --- |
 | Decode fo-dicom.Codecs JPEG2000 acceptance fixtures | WIP | Go parity is green for `.90/.91`, but direct RGB-reference acceptance checks still fail; `.92/.93` acceptance-fixture coverage remains unavailable/pending |
-| Go encode -> TS decode compatibility | WIP | `.90/.91` acceptance codestreams + `.92/.93` Go-generated Part2 vectors are green on hash parity; `.92/.93` now also have multi-frame DICOM-container decode-loop regression coverage using repeated Go-generated codestreams; broader corpus still pending |
+| Go encode -> TS decode compatibility | WIP | `.90/.91` acceptance codestreams are green on hash parity; Go-generated non-`LRCP` DICOM-container coverage now also exercises `.90` lossless and `.91` lossy precinct codestreams through `DicomTranscoder`; `.92/.93` Go-generated Part2 vectors are green, including repeated multi-frame DICOM-container decode loops; broader corpus is still pending |
 | TS encode -> Go decode compatibility | DONE | `.90/.91` acceptance fixture single/multi-frame + `.92/.93` single/multi-frame matrix green |
 | Lossless deterministic checks | WIP | Codec-level deterministic hash/byte checks added for repeated `.90/.92` lossless encodes (single + multi-frame); acceptance-fixture deterministic matrix pending |
 | Lossy threshold checks | DONE | `.91/.93` lossy quality threshold checks are stable via PSNR/MAE assertions against Go decode output |
@@ -450,13 +450,28 @@ Status legend:
 
 - Focus: complement synthetic non-`LRCP` regressions with real codestreams emitted by the Go reference encoder.
 - Key updates:
-  - Added a test-local Go encode helper that generates lossless `.90` codestreams with explicit precinct partitioning and `RLCP/RPCL/PCRL/CPRL` progression orders.
-  - Locked `DicomTranscoder` decode parity for those Go-generated container inputs, asserting COD progression metadata plus exact hash parity between Go decode, TS decode, and the known source pixels.
+  - Added a test-local Go encode helper that generates `.90` lossless and `.91` lossy codestreams with explicit precinct partitioning and `RLCP/RPCL/PCRL/CPRL` progression orders.
+  - Locked `DicomTranscoder` decode parity for those Go-generated container inputs, asserting COD progression metadata plus exact hash parity between Go decode and TS decode, while `.90` also remains pinned to the known source pixels and `.91` keeps sanity quality thresholds (`MAE`/`PSNR`).
   - This gives the non-`LRCP` decode path one step more realism without having to commit new binary DICOM fixtures yet.
 - Main touched files:
+  - `tests/imaging/DicomJpeg2000GoNonLrcpContainerParity.test.ts`
   - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
 - Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000GoNonLrcpContainerParity.test.ts`
   - `npm test -- --run tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+
+### 2026-03-25 (Phase 8 / post-split verification and doc sync)
+
+- Focus: confirm the heavy JPEG2000 interoperability split removed the lingering Vitest worker-timeout concern and sync docs to the new test layout.
+- Key updates:
+  - Re-ran full `npm test` after the dedicated non-`LRCP` container file split; the suite finished green with `101` test files and `755` tests passing.
+  - Confirmed the new dedicated Go-generated non-`LRCP` container coverage file is part of the green full-suite run for both `.90` and `.91`.
+  - Kept the direct RGB-reference acceptance-gap coverage tracked under `tests/imaging/DicomJpeg2000AcceptanceGap.test.ts`.
+- Main touched files:
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Commands:
+  - `npm test`
 
 ### Archived history
 
