@@ -38,6 +38,9 @@ Alignment target:
 - TS side now has an in-tree real J2K/JP2-compatible pipeline (parser, T1/T2, wavelet, MQ, color transform, Part 2 hooks).
 - Go parity is green for `.90/.91`, but direct RGB-reference acceptance assertions still fail on current fixtures; remaining validation gap includes explaining or closing that divergence.
 - `.92/.93` still lack broad real-fixture acceptance validation; current confidence is based on synthetic and Go-generated parity coverage.
+- `.92/.93` now also have explicit four-component `ARGB` codec regressions and imaging-layer `ARGB` preservation/renderability coverage, but that closes only the practical metadata/render gap, not the broader acceptance-fixture gap.
+- `TS encode -> Go decode` parity now also covers multi-frame four-component `ARGB` `.92/.93` encodes with `allowMct=false`, so the practical four-component codec/container path is now checked against the Go decoder as well.
+- `Go encode -> TS decode` parity now also covers multi-frame four-component `ARGB` `.92/.93` vectors through the DICOM-container path, so reverse-direction practical `ARGB` compatibility is now locked too.
 - Go reference remains the behavioral source of truth for broader compatibility, failure classification, and performance-oriented edge cases.
 
 ---
@@ -488,6 +491,10 @@ Progress note:
     - `LossyImageCompression (0028,2110) = "01"`,
     - `LossyImageCompressionMethod (0028,2112)` appends `ISO_15444_1` / `ISO_15444_2` while preserving existing values,
     - `LossyImageCompressionRatio (0028,2114)` appends numeric ratio while preserving existing entries.
+- Phase 6 follow-up update (2026-03-25):
+  - Added explicit `.92/.93` four-component `ARGB` roundtrip regressions in `DicomJpeg2000Codec`.
+  - `ARGB` is now parsed by `PhotometricInterpretation`, preserved by `DicomPixelData`, and renderable through the main `DicomImage` path plus the secondary `render/PixelData.ts` factory path.
+  - The practical Part 2 metadata/render gap for four-component transcodes is now locked by tests, while broader `.92/.93` real-fixture acceptance remains pending.
 
 Exit criteria:
 
@@ -521,8 +528,11 @@ Exit criteria:
 
 Progress note:
 
-- P8.1 partial: `.90/.91` acceptance codestreams are covered by Go->TS hash-parity tests, `.90/.91` Go-generated non-`LRCP` precinct codestreams are covered through DICOM-container decode parity, and `.92/.93` Go-generated Part2 vectors are covered as well; broader fixture corpus is still pending.
+- P8.1 partial: `.90/.91` acceptance codestreams are covered by Go->TS hash-parity tests, `.90/.91` Go-generated non-`LRCP` precinct codestreams are covered through DICOM-container decode parity, and `.92/.93` Go-generated Part2 vectors are covered as well, including four-component `ARGB` DICOM-container decode coverage; broader fixture corpus is still pending.
 - P8.2 complete: TS->Go compatibility matrix is green for `.90/.91` acceptance fixtures and `.92/.93` single/multi-frame synthetic vectors.
+- P8.2 follow-up: TS->Go compatibility matrix now also includes multi-frame four-component `ARGB` `.92/.93` vectors with Go-vs-TS decoded hash parity on each frame.
+- P8.1 follow-up (2026-03-25): Go->TS compatibility matrix now also includes multi-frame four-component `ARGB` `.92/.93` vectors produced by a test-local Go Part 2 encoder helper and decoded through TS `DicomTranscoder`.
+- Verification note (2026-03-25): the added reverse-direction `ARGB` coverage initially triggered a Vitest worker `onTaskUpdate` timeout when `.92` and `.93` lived in one heavy test case; splitting them into separate cases preserved the codec assertions and removed the targeted-suite instability. Full direct Vitest CLI runs are green with `103` test files and `767` tests, while `npm test` in the current Codex shell can still report the same worker timeout after assertions complete.
 - P8.3 partial: direct RGB-reference acceptance assertions for `.90/.91` remain red and are tracked in expected-failure regression tests; Part2 `.92/.93` acceptance-style fixture coverage is still pending.
 - P8.4 partial: deterministic lossless checks are green for repeated `.90/.92` encodes; broader deterministic fixture coverage remains open.
 
@@ -552,6 +562,7 @@ Exit criteria:
 - Bit depth: 8, 12, 16 where supported
 - Pixel representation: unsigned + signed
 - Photometric interpretations: MONOCHROME2, RGB, YBR variants
+- Additional four-component coverage: `ARGB` for `.92/.93` Part 2 roundtrips and imaging-path regressions
 - Invalid inputs:
   - malformed markers
   - truncated codestream

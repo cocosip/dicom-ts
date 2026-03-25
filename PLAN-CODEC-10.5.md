@@ -9,6 +9,9 @@ It is the baseline document for future implementation tasks.
 > and `ALIGNMENT-CHECKLIST-JPEG2000.md`.
 > JPEG2000 codec scaffolding and baseline non-`LRCP` encode progression-order support are now in place.
 > The remaining work is primarily acceptance-fixture, parity, and hardening coverage.
+> Latest practical `.92/.93` progress such as four-component `ARGB` roundtrip regressions and imaging-layer
+> `ARGB` support is tracked only in the two active JPEG2000 documents above; do not treat the JPEG2000
+> checkboxes below as the current source of truth.
 
 ## 1) Scope and Required Transfer Syntax Coverage
 

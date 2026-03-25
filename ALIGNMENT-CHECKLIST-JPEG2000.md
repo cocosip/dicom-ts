@@ -43,7 +43,7 @@ Status legend:
 | `.91` encode | DONE | LRCP single/multi-layer path landed; TS->Go single/multi-frame fixture matrix green; lossy PSNR/MAE quality thresholds validated |
 | `.92` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green |
 | `.93` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green + lossy PSNR/MAE thresholds validated |
-| Photometric/Planar updates | DONE | Helper-level + end-to-end matrices now cover `.90/.91/.92/.93` encode/decode PI + planar semantics (including Part 2 `.92/.93` transcode roundtrip assertions) |
+| Photometric/Planar updates | DONE | Helper-level + end-to-end matrices now cover `.90/.91/.92/.93` encode/decode PI + planar semantics, including Part 2 `.92/.93` transcode roundtrip assertions for four-component `ARGB` data. Raw `(0028,0004) Photometric Interpretation` preservation and parsed/renderable `ARGB` support in the imaging layer are now regression-locked as well |
 | Parameter normalization parity | WIP | Lossless defaults + rate/targetRatio/layer derivation aligned; strict regression table now covers allowMct/updatePI/encodeSigned + invalid/fallback behaviors (including `.92/.93` metadata mapping helper coverage). Part2 scalar normalization + MCC reversible semantics aligned; full-table audit still pending |
 | Error model parity | WIP | Standardized `JPEG2000 {encode|decode} failed [class=...]` wrapping + `syntax/frame/size/bits/samples` context landed. Failure classes include `marker-corruption` / `truncation` / `metadata-mismatch` / `validation` with broad malformed-codestream coverage, including malformed main-header payloads for `SIZ/COD/QCD`, Go-aligned main-header ordering failures (`COD/QCD/COC/QCC/POC/RGN/MCT/MCC/MCO before required predecessors`), duplicate conflicting main-header `COC/QCC` component markers, duplicate conflicting tile-header `COC/QCC` component markers, and strict decoder tile-state failures such as `no tiles found in codestream` and `unsupported progression order`; Go-side full failure-class table audit pending |
 
@@ -54,11 +54,11 @@ Status legend:
 | Validation | Status | Notes |
 | --- | --- | --- |
 | Decode fo-dicom.Codecs JPEG2000 acceptance fixtures | WIP | Go parity is green for `.90/.91`, but direct RGB-reference acceptance checks still fail; `.92/.93` acceptance-fixture coverage remains unavailable/pending |
-| Go encode -> TS decode compatibility | WIP | `.90/.91` acceptance codestreams are green on hash parity; Go-generated non-`LRCP` DICOM-container coverage now also exercises `.90` lossless and `.91` lossy precinct codestreams through `DicomTranscoder`; `.92/.93` Go-generated Part2 vectors are green, including repeated multi-frame DICOM-container decode loops; broader corpus is still pending |
+| Go encode -> TS decode compatibility | WIP | `.90/.91` acceptance codestreams are green on hash parity; Go-generated non-`LRCP` DICOM-container coverage now also exercises `.90` lossless and `.91` lossy precinct codestreams through `DicomTranscoder`; `.92/.93` Go-generated Part2 vectors are green, including repeated multi-frame DICOM-container decode loops and explicit four-component `ARGB` `.92/.93` DICOM-container decode coverage; broader corpus is still pending |
 | TS encode -> Go decode compatibility | DONE | `.90/.91` acceptance fixture single/multi-frame + `.92/.93` single/multi-frame matrix green |
 | Lossless deterministic checks | WIP | Codec-level deterministic hash/byte checks added for repeated `.90/.92` lossless encodes (single + multi-frame); acceptance-fixture deterministic matrix pending |
 | Lossy threshold checks | DONE | `.91/.93` lossy quality threshold checks are stable via PSNR/MAE assertions against Go decode output |
-| Single-frame + multi-frame coverage | DONE | `.90/.91/.92/.93` single-frame and multi-frame encode->decode compatibility matrix is green |
+| Single-frame + multi-frame coverage | DONE | `.90/.91/.92/.93` single-frame and multi-frame encode->decode compatibility matrix is green; `.92/.93` also have explicit four-component `ARGB` single-frame transcode roundtrip regressions |
 | Invalid codestream negative tests | WIP | Truncation + marker corruption + metadata mismatch baseline matrices covered at codec level; broader malformed corpus still pending |
 
 ---
@@ -472,6 +472,63 @@ Status legend:
   - `PLAN-JPEG2000-GO-ALIGNMENT.md`
 - Commands:
   - `npm test`
+
+### 2026-03-25 (Phase 6 / Part 2 four-component ARGB regression closure)
+
+- Focus: lock the practical `.92/.93` multi-component gap that surfaced after adding four-component roundtrip coverage.
+- Key updates:
+  - Added `.92` lossless and `.93` lossy codec regressions for four-component `ARGB` roundtrips.
+  - Promoted `ARGB` from raw-tag preservation only to parsed/renderable imaging-layer support so the new Part 2 regressions can assert both raw `(0028,0004)` preservation and parsed `DicomPixelData.photometricInterpretation === "ARGB"`.
+  - Extended secondary render-path coverage (`render/PixelData.ts`) with `ColorPixelData32` / `PixelDataFactory` regressions so four-component `ARGB` data is covered beyond the main `DicomImage` path.
+  - Re-ran the full suite after the doc sync and ARGB support work; it finished green with `103` test files and `764` tests passing.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `src/imaging/PhotometricInterpretation.ts`
+  - `src/imaging/PixelDataConverter.ts`
+  - `src/imaging/DicomImage.ts`
+  - `src/imaging/render/ImageGraphic.ts`
+  - `src/imaging/render/PixelData.ts`
+  - `tests/imaging/RenderPixelData.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/PhotometricInterpretation.test.ts tests/imaging/PixelDataConverter.test.ts tests/imaging/DicomImage.test.ts`
+  - `npm test -- tests/imaging/RenderPixelData.test.ts tests/imaging/DicomJpeg2000Codec.test.ts`
+  - `npm test`
+
+### 2026-03-25 (Phase 8 / four-component Part 2 TS->Go parity extension)
+
+- Focus: extend the existing `.92/.93` interoperability matrix so four-component `ARGB` paths are validated against the Go decoder, not only by TS-local roundtrips.
+- Key updates:
+  - Added `DicomJpeg2000TsEncodeGoDecode` coverage for multi-frame four-component `ARGB` `.92` lossless and `.93` lossy encodes.
+  - Locked `TS encode -> Go decode` parity for the new ARGB matrix by asserting Go metadata (`width/height/components`) and Go-vs-TS decoded hash parity on each frame.
+  - Kept Part 2 MCT disabled for this specific matrix (`allowMct=false`) so the regression isolates four-component container/codec parity without conflating it with 3-component color transform paths.
+  - Re-ran the full suite after adding the new Go parity case; it finished green with `103` test files and `765` tests passing.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Commands:
+  - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test`
+
+### 2026-03-25 (Phase 8 / four-component Part 2 Go->TS parity extension)
+
+- Focus: extend `.92/.93` interoperability so four-component `ARGB` paths are checked in the reverse direction as well, using Go-encoded Part 2 codestreams decoded through the TS DICOM-container path.
+- Key updates:
+  - Added `DicomJpeg2000TsEncodeGoDecode` coverage for Go encode -> TS decode compatibility on four-component `ARGB` `.92` lossless and `.93` lossy multi-frame vectors.
+  - Split the new reverse-direction `ARGB` coverage into separate `.92` and `.93` test cases after an initial combined case triggered a Vitest worker `onTaskUpdate` timeout despite green assertions, keeping the regression stable without changing codec behavior.
+  - Locked decoded frame-count, `ARGB` photometric interpretation, lossless hash parity for `.92`, and bounded lossy `MAE` for `.93`.
+  - Local direct Vitest CLI verification is green (`103` test files / `767` tests) while `npm test` in this Codex shell still intermittently reports a Vitest worker `onTaskUpdate` timeout after assertions complete; keep that as an execution-environment issue rather than treating the new JPEG2000 coverage as red.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+- Commands:
+  - `npm test -- tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `node ./node_modules/vitest/vitest.mjs run --maxWorkers=1 --pool=forks tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `npm test`
+  - `node ./node_modules/vitest/vitest.mjs run --maxWorkers=1 --pool=forks`
 
 ### Archived history
 
