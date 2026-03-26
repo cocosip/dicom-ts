@@ -39,6 +39,8 @@ interface GoPart2EncodeOptions {
   components: number;
   frame: Uint8Array;
   targetRatio?: number;
+  allowMct?: boolean;
+  mctMode?: "none" | "fallback" | "explicit";
 }
 
 interface Jpeg2000SyntaxEntry {
@@ -119,6 +121,7 @@ function encodePart2CodestreamWithGo(options: GoPart2EncodeOptions): Uint8Array 
   const outputPath = join(tempDir, "encoded.j2k");
   const programPath = join(tempDir, "encode_part2.go");
 
+  const mctMode = options.mctMode ?? (options.allowMct ? "fallback" : "none");
   const program = `package main
 
 import (
@@ -127,14 +130,15 @@ import (
   "strconv"
 
   codecHelpers "github.com/cocosip/go-dicom-codec/codec"
+  j2k "github.com/cocosip/go-dicom-codec/jpeg2000"
   lossless "github.com/cocosip/go-dicom-codec/jpeg2000/lossless"
   lossy "github.com/cocosip/go-dicom-codec/jpeg2000/lossy"
   "github.com/cocosip/go-dicom/pkg/imaging/imagetypes"
 )
 
 func main() {
-  if len(os.Args) < 7 {
-    fmt.Fprintln(os.Stderr, "usage: encode_part2 <mode> <input> <output> <width> <height> <components> [targetRatio]")
+  if len(os.Args) < 8 {
+    fmt.Fprintln(os.Stderr, "usage: encode_part2 <mode> <input> <output> <width> <height> <components> <mctMode> [targetRatio]")
     os.Exit(2)
   }
 
@@ -153,6 +157,7 @@ func main() {
   if err != nil {
     panic(err)
   }
+  mctMode := os.Args[7]
 
   src, err := os.ReadFile(inputPath)
   if err != nil {
@@ -173,29 +178,58 @@ func main() {
     panic(err)
   }
   pdOut := codecHelpers.NewTestPixelData(frameInfo)
+  allowMct := mctMode != "none"
+  var bindings []j2k.MCTBindingParams
+  if mctMode == "explicit" {
+    bindings = []j2k.MCTBindingParams{
+      j2k.NewMCTBinding().
+        Assoc(1).
+        Components([]uint16{0, 1, 2}).
+        Matrix([][]float64{
+          {1, 0, 0},
+          {0, 1, 0},
+          {0, 0, 1},
+        }).
+        Inverse([][]float64{
+          {1, 0, 0},
+          {0, 1, 0},
+          {0, 0, 1},
+        }).
+        Offsets([]int32{5, -3, 2}).
+        ElementType(1).
+        MCOPrecision(0).
+        Build(),
+    }
+  }
 
   switch mode {
   case "lossless":
     params := lossless.NewLosslessParameters().
       WithNumLevels(3).
       WithNumLayers(1).
-      WithAllowMCT(false)
+      WithAllowMCT(allowMct)
+    if len(bindings) > 0 {
+      params = params.WithMCTBindings(bindings)
+    }
     enc := lossless.NewPart2MultiComponentLosslessCodec()
     if err := enc.Encode(pdIn, pdOut, params); err != nil {
       panic(err)
     }
   case "lossy":
     targetRatio := 20.0
-    if len(os.Args) > 7 {
-      if parsed, err := strconv.ParseFloat(os.Args[7], 64); err == nil && parsed > 0 {
+    if len(os.Args) > 8 {
+      if parsed, err := strconv.ParseFloat(os.Args[8], 64); err == nil && parsed > 0 {
         targetRatio = parsed
       }
     }
     params := lossy.NewLossyParameters().
       WithNumLevels(3).
       WithNumLayers(1).
-      WithAllowMCT(false).
+      WithAllowMCT(allowMct).
       WithTargetRatio(targetRatio)
+    if len(bindings) > 0 {
+      params = params.WithMCTBindings(bindings)
+    }
     enc := lossy.NewPart2MultiComponentCodec()
     if err := enc.Encode(pdIn, pdOut, params); err != nil {
       panic(err)
@@ -225,6 +259,7 @@ func main() {
       String(options.width),
       String(options.height),
       String(options.components),
+      mctMode,
     ];
     if (options.mode === "lossy") {
       args.push(String(options.targetRatio ?? 20));
@@ -430,6 +465,138 @@ function assertGoEncodeToTsDecodeArgbPart2Compatibility(entry: {
   }
 }
 
+async function assertGoEncodeToTsDecodeRealImagePart2Compatibility(entry: {
+  name: string;
+  syntax: DicomTransferSyntax;
+  mode: "lossless" | "lossy";
+  mctMode: "none" | "fallback" | "explicit";
+}) {
+  const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));
+  const sourceFrame = DicomPixelData.create(source.dataset).getFrame(0).data;
+  const sourceHash = sha256(sourceFrame);
+  const width = 960;
+  const height = 540;
+
+  const codestream = encodePart2CodestreamWithGo({
+    mode: entry.mode,
+    width,
+    height,
+    components: 3,
+    frame: sourceFrame,
+    targetRatio: 20,
+    mctMode: entry.mctMode,
+  });
+  const parsed = parseJpeg2000Codestream(codestream);
+  const goDecoded = decodeCodestreamWithGo(codestream);
+  const compressedPi = entry.mctMode !== "none"
+    ? (entry.mode === "lossless" ? "YBR_RCT" : "YBR_ICT")
+    : "RGB";
+  const dataset = createEncapsulatedColorDataset(entry.syntax, width, height, 3, compressedPi, [codestream]);
+
+  const tsDecoded = new DicomTranscoder(
+    entry.syntax,
+    DicomTransferSyntax.ExplicitVRLittleEndian,
+  ).transcode(dataset);
+  const tsPixelData = DicomPixelData.create(tsDecoded);
+  const tsFrame = tsPixelData.getFrame(0).data;
+
+  expect(goDecoded.metadata.width, `${entry.name} width`).toBe(width);
+  expect(goDecoded.metadata.height, `${entry.name} height`).toBe(height);
+  expect(goDecoded.metadata.components, `${entry.name} components`).toBe(3);
+  expect(goDecoded.pixelData.length, `${entry.name} decoded length`).toBe(sourceFrame.length);
+  expect(parsed.cod?.multipleComponentTransform ?? 0, `${entry.name} COD MCT`).toBe(entry.mctMode === "none" ? 0 : 1);
+  if (entry.mctMode === "explicit") {
+    expect(parsed.mct.length, `${entry.name} MCT segments`).toBeGreaterThan(0);
+    expect(parsed.mcc.length, `${entry.name} MCC segments`).toBeGreaterThan(0);
+    expect(parsed.mco.length, `${entry.name} MCO segments`).toBeGreaterThan(0);
+  } else {
+    expect(parsed.mct.length, `${entry.name} MCT segments`).toBe(0);
+    expect(parsed.mcc.length, `${entry.name} MCC segments`).toBe(0);
+    expect(parsed.mco.length, `${entry.name} MCO segments`).toBe(0);
+  }
+  expect(tsPixelData.photometricInterpretation, `${entry.name} decoded PI`).toBe("RGB");
+  expect(goDecoded.metadata.sha256, `${entry.name} Go vs TS hash`).toBe(sha256(tsFrame));
+
+  if (entry.mode === "lossless") {
+    expect(goDecoded.metadata.sha256, `${entry.name} source hash`).toBe(sourceHash);
+  } else {
+    const mae = meanAbsoluteError(goDecoded.pixelData, sourceFrame);
+    const psnr = peakSignalToNoiseRatio(sourceFrame, goDecoded.pixelData);
+    const maxMae = entry.mctMode === "fallback" ? 12 : 10;
+    const minPsnr = entry.mctMode === "fallback" ? 23 : 25;
+    expect(mae, `${entry.name} lossy MAE`).toBeLessThan(maxMae);
+    expect(psnr, `${entry.name} lossy PSNR`).toBeGreaterThan(minPsnr);
+  }
+}
+
+async function assertTsEncodeToGoDecodeRealImagePart2Compatibility() {
+  const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));
+  const sourcePixelData = DicomPixelData.create(source.dataset);
+  const sourceFrame = sourcePixelData.getFrame(0).data;
+  const sourceHash = sha256(sourceFrame);
+
+  const matrix: Jpeg2000SyntaxEntry[] = [
+    {
+      name: ".92-real-image",
+      syntax: DicomTransferSyntax.JPEG2000MCLossless,
+      isLossless: true,
+      isPart2: true,
+    },
+    {
+      name: ".93-real-image",
+      syntax: DicomTransferSyntax.JPEG2000MC,
+      isLossless: false,
+      isPart2: true,
+    },
+  ];
+
+  for (const entry of matrix) {
+    const params = createParamsForSyntax(entry, 20);
+    const encoded = new DicomTranscoder(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      entry.syntax,
+      null,
+      params,
+    ).transcode(source.dataset);
+
+    const encodedPixelData = DicomPixelData.create(encoded);
+    const encodedFrame = encodedPixelData.getFrame(0).data;
+    const parsed = parseJpeg2000Codestream(encodedFrame);
+    const goDecoded = decodeCodestreamWithGo(encodedFrame);
+    const tsDecoded = new DicomTranscoder(
+      entry.syntax,
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+    ).transcode(encoded);
+    const tsPixelData = DicomPixelData.create(tsDecoded);
+    const tsFrame = tsPixelData.getFrame(0).data;
+
+    expect(goDecoded.metadata.width, `${entry.name} width`).toBe(960);
+    expect(goDecoded.metadata.height, `${entry.name} height`).toBe(540);
+    expect(goDecoded.metadata.components, `${entry.name} components`).toBe(3);
+    expect(goDecoded.pixelData.length, `${entry.name} decoded length`).toBe(sourceFrame.length);
+    expect(parsed.cod?.multipleComponentTransform ?? 0, `${entry.name} COD MCT`).toBe(1);
+    expect(goDecoded.metadata.sha256, `${entry.name} Go vs TS hash`).toBe(sha256(tsFrame));
+    expect(tsPixelData.photometricInterpretation, `${entry.name} decoded PI`).toBe("RGB");
+
+    if (entry.isLossless) {
+      expect(parsed.mct.length, `${entry.name} MCT segments`).toBeGreaterThan(0);
+      expect(parsed.mcc.length, `${entry.name} MCC segments`).toBeGreaterThan(0);
+      expect(parsed.mco.length, `${entry.name} MCO segments`).toBeGreaterThan(0);
+      expect(encoded.tryGetString(Tags.PhotometricInterpretation), `${entry.name} encoded PI`).toBe("YBR_RCT");
+      expect(goDecoded.metadata.sha256, `${entry.name} source hash`).toBe(sourceHash);
+    } else {
+      expect(parsed.mct.length, `${entry.name} MCT segments`).toBeGreaterThan(0);
+      expect(parsed.mcc.length, `${entry.name} MCC segments`).toBeGreaterThan(0);
+      expect(parsed.mco.length, `${entry.name} MCO segments`).toBeGreaterThan(0);
+      expect(encoded.tryGetString(Tags.PhotometricInterpretation), `${entry.name} encoded PI`).toBe("YBR_ICT");
+      const mae = meanAbsoluteError(goDecoded.pixelData, sourceFrame);
+      const psnr = peakSignalToNoiseRatio(sourceFrame, goDecoded.pixelData);
+      expect(mae, `${entry.name} lossy MAE`).toBeLessThan(10);
+      expect(psnr, `${entry.name} lossy PSNR`).toBeGreaterThan(28);
+    }
+  }
+}
+
 describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
   it("validates TS encode -> Go decode for non-LRCP .90 progression orders", () => {
     const width = 16;
@@ -553,6 +720,51 @@ describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
       mode: "lossy",
     });
   }, 180000);
+
+  it("validates Go encode -> TS decode compatibility for real-image .92/.93 Part 2 codestreams", async () => {
+    await assertGoEncodeToTsDecodeRealImagePart2Compatibility({
+      name: ".92-go-real-image",
+      syntax: DicomTransferSyntax.JPEG2000MCLossless,
+      mode: "lossless",
+      mctMode: "none",
+    });
+    await assertGoEncodeToTsDecodeRealImagePart2Compatibility({
+      name: ".93-go-real-image",
+      syntax: DicomTransferSyntax.JPEG2000MC,
+      mode: "lossy",
+      mctMode: "none",
+    });
+  }, 240000);
+
+  it("validates Go encode -> TS decode compatibility for real-image .92/.93 fallback-MCT codestreams", async () => {
+    await assertGoEncodeToTsDecodeRealImagePart2Compatibility({
+      name: ".92-go-real-image-fallback-mct",
+      syntax: DicomTransferSyntax.JPEG2000MCLossless,
+      mode: "lossless",
+      mctMode: "fallback",
+    });
+    await assertGoEncodeToTsDecodeRealImagePart2Compatibility({
+      name: ".93-go-real-image-fallback-mct",
+      syntax: DicomTransferSyntax.JPEG2000MC,
+      mode: "lossy",
+      mctMode: "fallback",
+    });
+  }, 240000);
+
+  it("validates Go encode -> TS decode compatibility for real-image .92/.93 explicit Part 2 MCT codestreams", async () => {
+    await assertGoEncodeToTsDecodeRealImagePart2Compatibility({
+      name: ".92-go-real-image-explicit-mct",
+      syntax: DicomTransferSyntax.JPEG2000MCLossless,
+      mode: "lossless",
+      mctMode: "explicit",
+    });
+    await assertGoEncodeToTsDecodeRealImagePart2Compatibility({
+      name: ".93-go-real-image-explicit-mct",
+      syntax: DicomTransferSyntax.JPEG2000MC,
+      mode: "lossy",
+      mctMode: "explicit",
+    });
+  }, 240000);
 
   it("validates TS encode -> Go decode matrix on .90/.91 fixture corpus", async () => {
     const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));
@@ -967,6 +1179,10 @@ describeGo("DicomJpeg2000TsEncodeGoDecode", () => {
       }
     }
   }, 180000);
+
+  it("validates TS encode -> Go decode parity for real-image .92/.93 Part 2", async () => {
+    await assertTsEncodeToGoDecodeRealImagePart2Compatibility();
+  }, 240000);
 
   it("validates TS encode -> Go decode parity for multi-frame .90/.91", async () => {
     const source = await DicomFile.open(join(ACCEPTANCE_DIR, "PM5644-960x540_RGB.dcm"));

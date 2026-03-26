@@ -37,7 +37,7 @@ Alignment target:
 
 - TS side now has an in-tree real J2K/JP2-compatible pipeline (parser, T1/T2, wavelet, MQ, color transform, Part 2 hooks).
 - Go parity is green for `.90/.91`, but direct RGB-reference acceptance assertions still fail on current fixtures; remaining validation gap includes explaining or closing that divergence.
-- `.92/.93` still lack broad real-fixture acceptance validation; current confidence is based on synthetic and Go-generated parity coverage.
+- `.92/.93` still lack broad external acceptance-fixture validation; current confidence now includes synthetic vectors, Go-generated parity coverage, PM5644 RGB real-image interoperability coverage, real-image fallback-MCT (`COD MCT=1` without explicit Part 2 marker segments) decode coverage, and explicit Part 2 marker (`MCT/MCC/MCO`) real-image decode coverage, but a broader third-party corpus is still missing.
 - `.92/.93` now also have explicit four-component `ARGB` codec regressions and imaging-layer `ARGB` preservation/renderability coverage, but that closes only the practical metadata/render gap, not the broader acceptance-fixture gap.
 - `TS encode -> Go decode` parity now also covers multi-frame four-component `ARGB` `.92/.93` encodes with `allowMct=false`, so the practical four-component codec/container path is now checked against the Go decoder as well.
 - `Go encode -> TS decode` parity now also covers multi-frame four-component `ARGB` `.92/.93` vectors through the DICOM-container path, so reverse-direction practical `ARGB` compatibility is now locked too.

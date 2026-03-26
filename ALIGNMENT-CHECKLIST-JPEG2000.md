@@ -37,8 +37,8 @@ Status legend:
 | --- | --- | --- |
 | `.90` decode | WIP | Go hash parity is green, but direct acceptance-fixture RGB parity still fails (`PM5644-960x540_JPEG2000-Lossless.dcm` currently shows 1458 mismatched bytes vs `PM5644-960x540_RGB.dcm`) |
 | `.91` decode | WIP | Go hash parity is green for `Lossy` and `Lossy50`, but direct RGB-threshold acceptance checks still fail (`Lossy` maxAbsDiff 255; `Lossy50` MAE 7.71 > 6 threshold) |
-| `.92` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, real fixture parity pending |
-| `.93` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, real fixture parity pending |
+| `.92` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, and real-image DICOM-container coverage now includes PM5644 RGB-derived `.92` lossless codestreams decoded through TS for plain (`allowMct=false`), fallback `COD.MCT=1`, and explicit `MCT/MCC/MCO` marker paths with Go hash parity + source-hash lock; broader external fixture parity is still pending |
+| `.93` decode | WIP | Part2 marker parsing + decode-side MCT binding/fallback path landed; Go-generated synthetic parity is green, and real-image DICOM-container coverage now includes PM5644 RGB-derived `.93` lossy codestreams decoded through TS for plain (`allowMct=false`), fallback `COD.MCT=1`, and explicit `MCT/MCC/MCO` marker paths with Go hash parity + bounded MAE/PSNR checks; broader external fixture parity is still pending |
 | `.90` encode | DONE | LRCP single/multi-layer path landed; codec now calls in-tree encoder API directly; TS->Go single/multi-frame fixture matrix green |
 | `.91` encode | DONE | LRCP single/multi-layer path landed; TS->Go single/multi-frame fixture matrix green; lossy PSNR/MAE quality thresholds validated |
 | `.92` encode | DONE | Part 2 encode path landed (`Rsiz=2` + Part2 MCT + `MCT/MCC/MCO` writing); TS->Go single/multi-frame parity green |
@@ -54,8 +54,8 @@ Status legend:
 | Validation | Status | Notes |
 | --- | --- | --- |
 | Decode fo-dicom.Codecs JPEG2000 acceptance fixtures | WIP | Go parity is green for `.90/.91`, but direct RGB-reference acceptance checks still fail; `.92/.93` acceptance-fixture coverage remains unavailable/pending |
-| Go encode -> TS decode compatibility | WIP | `.90/.91` acceptance codestreams are green on hash parity; Go-generated non-`LRCP` DICOM-container coverage now also exercises `.90` lossless and `.91` lossy precinct codestreams through `DicomTranscoder`; `.92/.93` Go-generated Part2 vectors are green, including repeated multi-frame DICOM-container decode loops and explicit four-component `ARGB` `.92/.93` DICOM-container decode coverage; broader corpus is still pending |
-| TS encode -> Go decode compatibility | DONE | `.90/.91` acceptance fixture single/multi-frame + `.92/.93` single/multi-frame matrix green |
+| Go encode -> TS decode compatibility | WIP | `.90/.91` acceptance codestreams are green on hash parity; Go-generated non-`LRCP` DICOM-container coverage now also exercises `.90` lossless and `.91` lossy precinct codestreams through `DicomTranscoder`; `.92/.93` Go-generated Part2 vectors are green, including repeated multi-frame DICOM-container decode loops, explicit four-component `ARGB` `.92/.93` DICOM-container decode coverage, PM5644 RGB-derived real-image `.92/.93` single-frame DICOM-container coverage, fallback-MCT real-image `.92/.93` codestreams (`COD MCT=1`, no `MCT/MCC/MCO` markers), and explicit Part 2 marker real-image `.92/.93` codestreams with `MCT/MCC/MCO`; broader external corpus is still pending |
+| TS encode -> Go decode compatibility | DONE | `.90/.91` acceptance fixture single/multi-frame + `.92/.93` single/multi-frame matrix green; `.92/.93` now also include PM5644 RGB real-image single-frame parity plus four-component `ARGB` multi-frame parity |
 | Lossless deterministic checks | WIP | Codec-level deterministic hash/byte checks added for repeated `.90/.92` lossless encodes (single + multi-frame); acceptance-fixture deterministic matrix pending |
 | Lossy threshold checks | DONE | `.91/.93` lossy quality threshold checks are stable via PSNR/MAE assertions against Go decode output |
 | Single-frame + multi-frame coverage | DONE | `.90/.91/.92/.93` single-frame and multi-frame encode->decode compatibility matrix is green; `.92/.93` also have explicit four-component `ARGB` single-frame transcode roundtrip regressions |
@@ -93,7 +93,25 @@ Status legend:
   - `ALIGNMENT-CHECKLIST-JPEG2000.md`
 - Commands:
   - `npm test -- --run tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
-  - `npm run build`
+- `npm run build`
+
+### 2026-03-26 (Phase 8 / Part2 `.92/.93` real-image PM5644 coverage)
+
+- Focus: extend Part 2 interoperability coverage from synthetic vectors to a real RGB image source without depending on new external fixtures.
+- Key updates:
+  - Added Go encode -> TS decode coverage for PM5644 RGB-derived `.92` lossless and `.93` lossy codestreams wrapped in DICOM container metadata.
+  - Added Go encode -> TS decode coverage for PM5644 RGB-derived fallback-MCT `.92/.93` codestreams (`COD MCT=1` without Part 2 marker segments), locking current Go-compatible fallback behavior on real image content.
+  - Added Go encode -> TS decode coverage for PM5644 RGB-derived explicit Part 2 `.92/.93` codestreams carrying `MCT/MCC/MCO` markers via Go `WithMCTBindings(...)`.
+  - Added TS encode -> Go decode coverage for PM5644 RGB source transcoded to `.92/.93`, including real-image metadata assertions (`YBR_RCT` / `YBR_ICT`) and Go-vs-TS hash parity after decode.
+  - Strengthened real-image `.92/.93` assertions so explicit Part 2 marker paths must actually contain `MCT/MCC/MCO`, while fallback paths must keep those segments absent.
+  - Locked `.92` real-image lossless source-hash parity and `.93` real-image bounded MAE/PSNR expectations.
+- Main touched files:
+  - `tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts`
+  - `PLAN-JPEG2000-GO-ALIGNMENT.md`
+  - `ALIGNMENT-CHECKLIST-JPEG2000.md`
+- Commands:
+  - `npm test -- --run tests/imaging/DicomJpeg2000TsEncodeGoDecode.test.ts --testNamePattern real-image`
+  - `npm test -- --run tests/imaging/DicomJpeg2000GoPart2Parity.test.ts tests/imaging/DicomJpeg2000Codec.test.ts tests/imaging/DicomJpeg2000ParamSemantics.test.ts`
 
 ### 2026-03-17 (Phase 8 / acceptance-gap expansion for `.90/.91`)
 
