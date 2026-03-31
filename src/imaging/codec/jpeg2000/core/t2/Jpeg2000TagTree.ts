@@ -21,6 +21,7 @@ export class Jpeg2000TagTree {
   private readonly states: number[][];
   private readonly low: number[][];
   private readonly known: boolean[][];
+  private readonly reusableStack: NodePosition[];
 
   constructor(width: number, height: number) {
     this.width = width > 0 ? Math.floor(width) : 1;
@@ -58,6 +59,11 @@ export class Jpeg2000TagTree {
       this.states[level] = new Array<number>(size).fill(0);
       this.low[level] = new Array<number>(size).fill(0);
       this.known[level] = new Array<boolean>(size).fill(false);
+    }
+
+    this.reusableStack = new Array<NodePosition>(this.levels);
+    for (let level = 0; level < this.levels; level++) {
+      this.reusableStack[level] = { level: 0, index: 0 };
     }
   }
 
@@ -223,13 +229,13 @@ export class Jpeg2000TagTree {
   }
 
   private buildNodeStack(x: number, y: number): NodePosition[] {
-    const stack: NodePosition[] = new Array<NodePosition>(this.levels);
-
     let px = x;
     let py = y;
     for (let level = 0; level < this.levels; level++) {
       const index = py * this.levelWidths[level]! + px;
-      stack[level] = { level, index };
+      const node = this.reusableStack[level]!;
+      node.level = level;
+      node.index = index;
 
       if (level < this.levels - 1) {
         px = Math.floor(px / 2);
@@ -237,6 +243,6 @@ export class Jpeg2000TagTree {
       }
     }
 
-    return stack;
+    return this.reusableStack;
   }
 }

@@ -3131,7 +3131,7 @@ function buildTilePartSequenceCodestream(
     pushU32(bytes, 14 + part.payload.length);
     bytes.push(part.tilePartIndex & 0xff, part.totalTileParts & 0xff);
     pushU16(bytes, 0xff93); // SOD
-    bytes.push(...part.payload);
+bytes.push(...part.payload);
   }
 
   pushU16(bytes, 0xffd9); // EOC

@@ -14,13 +14,14 @@
   "files": [
     "dist"
   ],
-  "scripts": {
+"scripts": {
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build": "npm run build:cjs && npm run build:esm",
     "test": "vitest run --maxWorkers=1",
     "test:watch": "vitest --maxWorkers=1",
     "test:coverage": "vitest run --coverage --maxWorkers=1",
+    "bench": "vitest bench",
     "generate:dict": "node scripts/generate-dict.mjs",
     "tool:dicom-to-json": "node tools/dicom-to-json/index.mjs",
     "tool:dicom-to-json:help": "node tools/dicom-to-json/index.mjs --help",

@@ -309,7 +309,16 @@ export function validateDecodedFrameResult(
 
 type Jpeg2000Operation = "encode" | "decode";
 
-type Jpeg2000FailureClass = "truncation" | "marker-corruption" | "metadata-mismatch" | "validation" | "unknown";
+type Jpeg2000FailureClass =
+  | "truncation"
+  | "marker-corruption"
+  | "metadata-mismatch"
+  | "validation"
+  | "integer-overflow"
+  | "roi-config"
+  | "mct-error"
+  | "decoding-failure"
+  | "unknown";
 
 function describeError(error: unknown): string {
   if (error instanceof Error) {
@@ -346,8 +355,79 @@ function classifyJpeg2000Failure(error: unknown): Jpeg2000FailureClass {
     || message.includes("supports samplesperpixel")
     || message.includes("requires samplesperpixel")
     || message.includes("encode produced empty frame")
+    || message.includes("invalid dimensions")
+    || message.includes("invalid number of components")
+    || message.includes("invalid bit depth")
+    || message.includes("invalid decomposition levels")
+    || message.includes("invalid code-block width")
+    || message.includes("invalid code-block height")
+    || message.includes("invalid number of layers")
+    || message.includes("insufficient pixel data")
+    || message.includes("invalid roi parameters")
+    || message.includes("invalid roi shift")
   ) {
     return "validation";
+  }
+
+  if (
+    message.includes("segment length overflow")
+    || message.includes("integer overflow")
+    || message.includes("exceeds 255")
+    || message.includes("too many mco stages")
+  ) {
+    return "integer-overflow";
+  }
+
+  if (
+    message.includes("roi[")
+    || message.includes("roi rectangle")
+    || message.includes("roi polygon")
+    || message.includes("roi mask")
+    || message.includes("missing maxshift")
+    || message.includes("missing scale value")
+    || message.includes("roi component index")
+  ) {
+    return "roi-config";
+  }
+
+  if (
+    message.includes("empty mct matrix")
+    || message.includes("non-rectangular mct matrix")
+    || message.includes("non-square mct matrix")
+    || message.includes("empty mct offsets")
+    || message.includes("empty mcc component list")
+  ) {
+    return "mct-error";
+  }
+
+  if (
+    message.includes("unsupported progression order")
+    || message.includes("unsupported mct zmct value")
+    || message.includes("unsupported mct ymct value")
+    || message.includes("unsupported mcc zmcc value")
+    || message.includes("unsupported mcc ymcc value")
+    || message.includes("unsupported roi style")
+    || message.includes("unsupported roi shape")
+    || message.includes("unsupported wavelet transformation type")
+    || message.includes("unsupported mct element type")
+    || message.includes("mixed roi styles not supported")
+    || message.includes("unsupported jpeg2000 stream form")
+  ) {
+    return "marker-corruption";
+  }
+
+  if (
+    message.includes("failed to decode packet")
+    || message.includes("failed to parse packet header")
+    || message.includes("failed to decode inclusion")
+    || message.includes("failed to decode zbp")
+    || message.includes("failed to decode num passes")
+    || message.includes("failed to decode data length")
+    || message.includes("idwt failed")
+    || message.includes("failed to decode code-block")
+    || message.includes("tile decode error")
+  ) {
+    return "decoding-failure";
   }
 
   if (
@@ -355,8 +435,10 @@ function classifyJpeg2000Failure(error: unknown): Jpeg2000FailureClass {
     || message.includes("too short")
     || message.includes("exceeds codestream length")
     || message.includes("exceeds stream length")
+    || message.includes("exceeds available data")
     || message.includes("missing eoc marker")
     || message.includes("truncated")
+    || message.includes("insufficient data")
   ) {
     return "truncation";
   }
@@ -378,7 +460,6 @@ function classifyJpeg2000Failure(error: unknown): Jpeg2000FailureClass {
     || message.includes("invalid jp2 codestream box")
     || message.includes("payload does not start with soc marker")
     || message.includes("jp2 stream does not contain a jp2c codestream box")
-    || message.includes("unsupported jpeg2000 stream form")
     || message.includes("missing siz segment")
     || message.includes("missing required siz segment")
     || message.includes("missing cod segment")
@@ -395,11 +476,6 @@ function classifyJpeg2000Failure(error: unknown): Jpeg2000FailureClass {
     || message.includes("ended before sod marker")
     || message.includes("tile-part header ended before sod marker")
     || message.includes("no tiles found in codestream")
-    || message.includes("unsupported progression order")
-    || message.includes("unsupported mct zmct value")
-    || message.includes("unsupported mct ymct value")
-    || message.includes("unsupported mcc zmcc value")
-    || message.includes("unsupported mcc ymcc value")
     || message.includes("invalid mct segment payload length")
     || message.includes("invalid mcc segment payload length")
     || message.includes("invalid mco segment payload length")

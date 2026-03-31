@@ -41,7 +41,7 @@ export class Jpeg2000T1Encoder {
   private readonly data: Int32Array;
   private readonly flags: Uint32Array;
 
-  private mqEncoder: Jpeg2000MqEncoder | undefined;
+  private readonly mqEncoder: Jpeg2000MqEncoder;
   private bitplane = 0;
   private orientation = 0;
 
@@ -63,6 +63,8 @@ export class Jpeg2000T1Encoder {
     this.cblkstyle = cblkstyle;
     this.resetContext = (cblkstyle & CBLK_STYLE_RESET) !== 0;
     this.segmentation = (cblkstyle & CBLK_STYLE_SEGSYM) !== 0;
+
+    this.mqEncoder = new Jpeg2000MqEncoder(NUM_CONTEXTS);
   }
 
   setOrientation(orientation: number): void {
@@ -113,7 +115,7 @@ export class Jpeg2000T1Encoder {
     const maxBitplane = this.findMaxBitplane();
     this.lastMaxBitplane = maxBitplane;
 
-    this.mqEncoder = new Jpeg2000MqEncoder(NUM_CONTEXTS);
+    this.mqEncoder.reset();
     this.initializeMqContexts(this.mqEncoder);
     const totalPasses = Math.max(0, Math.floor(numPasses));
     const passEndOffsets: number[] = [];
