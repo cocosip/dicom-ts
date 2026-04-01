@@ -716,7 +716,9 @@ function decodeSingleCodeBlock(
 
     const coefficients = decoder.getData();
     applyInverseRoiBeforeNormalization(coefficients, roiContext);
+    console.log('[DEBUG T1] Before normalize first 5:', Array.from(coefficients.slice(0, 5)));
     const normalizedCoefficients = normalizeT1Coefficients(coefficients);
+    console.log('[DEBUG T1] After normalize first 5:', Array.from(normalizedCoefficients.slice(0, 5)));
     applyInverseGeneralScalingAfterNormalization(normalizedCoefficients, roiContext);
 
     return {
@@ -1347,14 +1349,19 @@ function applyInverseWaveletTransform(
 
   if (transformation === 0) {
     const reconstructed = int32ToFloat64(coefficients);
+    console.log('[DEBUG] Before dequant - coefficients first 10:', Array.from(coefficients.slice(0, 10)));
     const quantizationType = qcd ? (qcd.sQcd & 0x1f) : 0;
+    console.log('[DEBUG] transformation=0, quantizationType:', quantizationType, 'qcd:', qcd ? 'present' : 'missing');
     if (qcd && (quantizationType === 1 || quantizationType === 2)) {
       const steps = decodeQuantizationSteps(qcd, levels, bitDepth, transformation);
+      console.log('[DEBUG] steps length:', steps.length, 'first 5 steps:', steps.slice(0, 5));
       if (steps.length > 0) {
         dequantizeBySubband(reconstructed, width, height, levels, x0, y0, steps);
       }
     }
+    console.log('[DEBUG] reconstructed first 10:', Array.from(reconstructed.slice(0, 10)));
     inverseMultilevel97WithParity(reconstructed, width, height, levels, x0, y0);
+    console.log('[DEBUG] after inverse wavelet first 10:', Array.from(reconstructed.slice(0, 10)));
     return float64ToInt32(reconstructed);
   }
 
@@ -1446,18 +1453,22 @@ function dequantizeBySubband(
   let subbandIndex = 0;
 
   let info = bandInfosForResolution(width, height, x0, y0, levels, 0);
+  console.log('[DEBUG DECODE] res0 bands:', info.bands.map(b => ({ band: b.band, w: b.width, h: b.height, ox: b.offsetX, oy: b.offsetY })));
   if (info.bands.length > 0 && subbandIndex < steps.length) {
     const band = info.bands[0]!;
+    console.log('[DEBUG DECODE] LL subband using steps[' + subbandIndex + ']:', steps[subbandIndex]);
     applySubbandScale(coefficients, width, band.offsetX, band.offsetY, band.width, band.height, steps[subbandIndex]!);
   }
   subbandIndex++;
 
   for (let resolution = 1; resolution <= levels; resolution++) {
     info = bandInfosForResolution(width, height, x0, y0, levels, resolution);
+    console.log('[DEBUG DECODE] res' + resolution + ' bands:', info.bands.map(b => ({ band: b.band, w: b.width, h: b.height, ox: b.offsetX, oy: b.offsetY })));
     for (const band of info.bands) {
       if (subbandIndex >= steps.length) {
         return;
       }
+      console.log('[DEBUG DECODE] band', band.band, 'using steps[' + subbandIndex + ']:', steps[subbandIndex]);
       applySubbandScale(coefficients, width, band.offsetX, band.offsetY, band.width, band.height, steps[subbandIndex]!);
       subbandIndex++;
     }

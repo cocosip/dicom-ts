@@ -1,6 +1,11 @@
 import { PixelRepresentation } from "../../../../PixelRepresentation.js";
 import type { DicomJpeg2000MctBinding, DicomJpeg2000Params } from "../../DicomJpeg2000Params.js";
-import { writeJpeg2000SingleTileCodestream } from "../codestream/index.js";
+import {
+  writeJpeg2000SingleTileCodestream,
+  buildLosslessQcdInfo,
+  bandNumBpsFromQcdInfo,
+  type Jpeg2000QcdInfo,
+} from "../codestream/index.js";
 import { forwardIct, forwardRct } from "../colorspace/index.js";
 import { buildPart2MctMainHeaderSegments } from "../mct/index.js";
 import { CBLK_STYLE_TERMALL, Jpeg2000T1Encoder } from "../t1/index.js";
@@ -17,6 +22,7 @@ import {
   forwardMultilevel97WithParity,
   int32ToFloat64,
 } from "../wavelet/index.js";
+import { calculateQuantizationParams } from "../codestream/Jpeg2000Quantization.js";
 
 export interface Jpeg2000EncoderAnalyzeOptions {
   frameData: Uint8Array;
@@ -37,6 +43,7 @@ export interface Jpeg2000AnalyzedComponent {
   samples: Int32Array;
   transformedInt?: Int32Array;
   transformedFloat?: Float64Array;
+  quantizedCoefficients?: Int32Array;
 }
 
 export interface Jpeg2000AnalyzeResult {
@@ -141,7 +148,15 @@ export class Jpeg2000Encoder {
       usePart2CustomMct,
     );
     const numLevels = clampNumLevels(parameters.numLevels, width, height);
-    const analyzedComponents = transformComponents(componentSamples, width, height, numLevels, parameters.irreversible);
+    const analyzedComponents = transformComponents(
+      componentSamples,
+      width,
+      height,
+      numLevels,
+      parameters.irreversible,
+      parameters.rate,
+      bitsStored,
+    );
 
     return {
       width,
@@ -169,6 +184,11 @@ export class Jpeg2000Encoder {
     const codeBlockHeightExponent = 4;
     const codeBlockStyle = layerConfig.useTermAll ? CBLK_STYLE_TERMALL : 0;
     const numLevels = analyzed.numLevels;
+
+    let qcdInfo: Jpeg2000QcdInfo | undefined;
+    if (!analyzed.irreversible) {
+      qcdInfo = buildLosslessQcdInfo(numLevels, analyzed.bitsStored);
+    }
 
     const descriptorsByComponent = new Map<number, Jpeg2000CodeBlockDescriptor[]>();
     const packetPlansByComponent = new Map<number, Map<number, Jpeg2000PacketPlan>>();
@@ -208,6 +228,20 @@ export class Jpeg2000Encoder {
         }
 
         const codeBlockNumBps = Math.max(0, (rawMaxBitplane + 1) - 6);
+
+        let zeroBitplanes = 0;
+        if (qcdInfo) {
+          const bandNumBps = bandNumBpsFromQcdInfo(
+            qcdInfo,
+            numLevels,
+            descriptor.resolutionLevel,
+            descriptor.band,
+          );
+          if (bandNumBps > 0) {
+            zeroBitplanes = Math.max(0, bandNumBps - codeBlockNumBps);
+          }
+        }
+
         const numPasses = codeBlockNumBps > 0
           ? ((codeBlockNumBps * 3) - 2)
           : 1;
@@ -247,7 +281,7 @@ export class Jpeg2000Encoder {
             band: descriptor.band,
             globalCodeBlockIndex: descriptor.globalCodeBlockIndex,
             numPasses: cumulativePasses - previousPasses,
-            zeroBitplanes: 0,
+            zeroBitplanes,
             data: encodedBlock.data.slice(previousOffset, endOffset),
             passLengths: layerConfig.useTermAll
               ? buildLayerPassLengths(encodedBlock.passEndOffsets, previousPasses, cumulativePasses, previousOffset)
@@ -293,6 +327,7 @@ export class Jpeg2000Encoder {
       codeBlockHeightExponent,
       codeBlockStyle,
       transformation: analyzed.irreversible ? 0 : 1,
+      quality: options.parameters.rate,
       tileData,
       extraMainHeaderSegments: part2Segments,
     });
@@ -560,8 +595,19 @@ function transformComponents(
   height: number,
   numLevels: number,
   irreversible: boolean,
+  quality: number,
+  bitsStored: number,
 ): Jpeg2000AnalyzedComponent[] {
   const components: Jpeg2000AnalyzedComponent[] = [];
+
+  let stepSizes: number[] = [];
+  if (irreversible) {
+    const quantParams = calculateQuantizationParams(quality, numLevels, bitsStored);
+    stepSizes = quantParams.stepSizes;
+    console.log('[DEBUG ENCODER] quality:', quality, 'numLevels:', numLevels, 'bitsStored:', bitsStored);
+    console.log('[DEBUG ENCODER] stepSizes length:', stepSizes.length, 'first 5:', stepSizes.slice(0, 5));
+    console.log('[DEBUG ENCODER] encodedSteps first 5:', quantParams.encodedSteps.slice(0, 5).map(e => '0x' + e.toString(16)));
+  }
 
   for (let c = 0; c < componentSamples.length; c++) {
     const samples = componentSamples[c]!;
@@ -578,6 +624,13 @@ function transformComponents(
         forwardMultilevel97WithParity(transformed, width, height, numLevels, 0, 0);
       }
       analyzed.transformedFloat = transformed;
+      analyzed.quantizedCoefficients = quantizeBySubband(
+        transformed,
+        width,
+        height,
+        numLevels,
+        stepSizes,
+      );
     } else {
       const transformed = samples.slice();
       if (numLevels > 0) {
@@ -590,6 +643,79 @@ function transformComponents(
   }
 
   return components;
+}
+
+function quantizeBySubband(
+  coeffs: Float64Array,
+  width: number,
+  height: number,
+  numLevels: number,
+  stepSizes: number[],
+): Int32Array {
+  const quantized = new Int32Array(coeffs.length);
+
+  console.log('[DEBUG quantizeBySubband] coeffs first 10:', Array.from(coeffs.slice(0, 10)));
+  console.log('[DEBUG quantizeBySubband] stepSizes first 5:', stepSizes.slice(0, 5));
+
+  if (stepSizes.length === 0 || numLevels === 0) {
+    for (let i = 0; i < coeffs.length; i++) {
+      quantized[i] = Math.round(coeffs[i] ?? 0);
+    }
+    return quantized;
+  }
+
+  let subbandIdx = 0;
+
+  const res0 = bandInfosForResolution(width, height, 0, 0, numLevels, 0);
+  console.log('[DEBUG] res0 bands:', res0.bands.map(b => ({ band: b.band, w: b.width, h: b.height, ox: b.offsetX, oy: b.offsetY })));
+  if (res0.bands.length > 0 && subbandIdx < stepSizes.length) {
+    const b = res0.bands[0]!;
+    console.log('[DEBUG] LL subband using stepSize[' + subbandIdx + ']:', stepSizes[subbandIdx]);
+    if (b.width > 0 && b.height > 0) {
+      quantizeSubband(coeffs, quantized, b.offsetX, b.offsetY, b.width, b.height, width, stepSizes[subbandIdx] ?? 0);
+    }
+  }
+  subbandIdx++;
+
+  for (let res = 1; res <= numLevels; res++) {
+    const resInfo = bandInfosForResolution(width, height, 0, 0, numLevels, res);
+    console.log('[DEBUG] res' + res + ' bands:', resInfo.bands.map(b => ({ band: b.band, w: b.width, h: b.height, ox: b.offsetX, oy: b.offsetY })));
+    for (const b of resInfo.bands) {
+      if (subbandIdx < stepSizes.length && b.width > 0 && b.height > 0) {
+        console.log('[DEBUG] band', b.band, 'using stepSize[' + subbandIdx + ']:', stepSizes[subbandIdx]);
+        quantizeSubband(coeffs, quantized, b.offsetX, b.offsetY, b.width, b.height, width, stepSizes[subbandIdx] ?? 0);
+      }
+      subbandIdx++;
+    }
+  }
+
+  console.log('[DEBUG quantizeBySubband] quantized first 10:', Array.from(quantized.slice(0, 10)));
+  return quantized;
+}
+
+function quantizeSubband(
+  coeffs: Float64Array,
+  out: Int32Array,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+  stride: number,
+  stepSize: number,
+): void {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y0 + y) * stride + (x0 + x);
+      if (idx < out.length) {
+        const val = coeffs[idx] ?? 0;
+        if (stepSize <= 0) {
+          out[idx] = Math.round(val);
+        } else {
+          out[idx] = Math.round(val / stepSize);
+        }
+      }
+    }
+  }
 }
 
 function clampNumLevels(numLevels: number, width: number, height: number): number {
@@ -611,6 +737,9 @@ function clampNumLevels(numLevels: number, width: number, height: number): numbe
 function resolveAnalyzedComponentCoefficients(component: Jpeg2000AnalyzedComponent, irreversible: boolean): Int32Array | Float64Array {
   if (!irreversible) {
     return component.transformedInt ?? component.samples;
+  }
+  if (component.quantizedCoefficients) {
+    return component.quantizedCoefficients;
   }
   if (component.transformedFloat) {
     return component.transformedFloat;

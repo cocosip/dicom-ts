@@ -34,4 +34,7 @@ export { Jpeg2000CodestreamParser, parseJpeg2000Codestream } from "./Jpeg2000Cod
 export {
   writeJpeg2000SingleTileCodestream,
   type Jpeg2000CodestreamWriteOptions,
+  type Jpeg2000QcdInfo,
+  buildLosslessQcdInfo,
+  bandNumBpsFromQcdInfo,
 } from "./Jpeg2000CodestreamWriter.js";

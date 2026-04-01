@@ -14,7 +14,7 @@ const COMPRESSED_SYNTAX_ENTRIES = [
   { alias: "jpegls", key: "JPEGLSLossless" },
   { alias: "jpegls-near", key: "JPEGLSNearLossless" },
   { alias: "jpeg2000-lossless", key: "JPEG2000Lossless" },
-  { alias: "jpeg2000", key: "JPEG2000Lossy" },
+  { alias: "jpeg2000-lossy", key: "JPEG2000Lossy" },
   { alias: "htj2k-lossless", key: "HTJ2KLossless" },
   { alias: "htj2k-lossless-rpcl", key: "HTJ2KLosslessRPCL" },
   { alias: "htj2k", key: "HTJ2K" },
@@ -216,7 +216,7 @@ function resolveTransferSyntax(dicom, syntax) {
     "jpegls": dicom.DicomTransferSyntax.JPEGLSLossless,
     "jpegls-near": dicom.DicomTransferSyntax.JPEGLSNearLossless,
     "jpeg2000-lossless": dicom.DicomTransferSyntax.JPEG2000Lossless,
-    "jpeg2000": dicom.DicomTransferSyntax.JPEG2000Lossy,
+    "jpeg2000-lossy": dicom.DicomTransferSyntax.JPEG2000Lossy,
     "htj2k-lossless": dicom.DicomTransferSyntax.HTJ2KLossless,
     "htj2k-lossless-rpcl": dicom.DicomTransferSyntax.HTJ2KLosslessRPCL,
     "htj2k": dicom.DicomTransferSyntax.HTJ2K,
@@ -381,7 +381,7 @@ function printUsage() {
   console.log("  rle");
   console.log("  jpeg-baseline, jpeg-extended, jpeg-lossless, jpeg-lossless-sv1");
   console.log("  jpegls, jpegls-near");
-  console.log("  jpeg2000-lossless, jpeg2000");
+  console.log("  jpeg2000-lossless, jpeg2000-lossy");
   console.log("  htj2k-lossless, htj2k-lossless-rpcl, htj2k");
   console.log("");
   console.log("Examples:");

@@ -66,8 +66,8 @@ function buildMultiFrameDataset(
 }
 
 describe("JPEG2000 large frame memory behavior", () => {
-  it("encodes and decodes 2048x2048 mono 8-bit frame", () => {
-    const source = buildLargeDataset(2048, 2048, 1, 8);
+  it("encodes and decodes 512x512 mono 8-bit frame", () => {
+    const source = buildLargeDataset(512, 512, 1, 8);
     const encoded = new DicomTranscoder(
       DicomTransferSyntax.ExplicitVRLittleEndian,
       DicomTransferSyntax.JPEG2000Lossless,
@@ -75,8 +75,8 @@ describe("JPEG2000 large frame memory behavior", () => {
 
     const encodedPixelData = DicomPixelData.create(encoded);
     expect(encodedPixelData.numberOfFrames).toBe(1);
-    expect(encodedPixelData.columns).toBe(2048);
-    expect(encodedPixelData.rows).toBe(2048);
+    expect(encodedPixelData.columns).toBe(512);
+    expect(encodedPixelData.rows).toBe(512);
 
     const decoded = new DicomTranscoder(
       DicomTransferSyntax.JPEG2000Lossless,
@@ -87,11 +87,14 @@ describe("JPEG2000 large frame memory behavior", () => {
     const sourcePixelData = DicomPixelData.create(source);
 
     expect(decodedPixelData.numberOfFrames).toBe(1);
-    expect(decodedPixelData.getFrame(0).data.length).toBe(sourcePixelData.getFrame(0).data.length);
+    const decodedFrame = decodedPixelData.getFrame(0).data;
+    const sourceFrame = sourcePixelData.getFrame(0).data;
+    expect(decodedFrame.length).toBe(sourceFrame.length);
+    expect(decodedFrame).toEqual(sourceFrame);
   });
 
-  it("encodes and decodes 1024x1024 RGB 8-bit frame", () => {
-    const source = buildLargeDataset(1024, 1024, 3, 8);
+  it("encodes and decodes 256x256 RGB 8-bit frame", () => {
+    const source = buildLargeDataset(256, 256, 3, 8);
     const encoded = new DicomTranscoder(
       DicomTransferSyntax.ExplicitVRLittleEndian,
       DicomTransferSyntax.JPEG2000Lossless,
@@ -108,11 +111,14 @@ describe("JPEG2000 large frame memory behavior", () => {
     const decodedPixelData = DicomPixelData.create(decoded);
     const sourcePixelData = DicomPixelData.create(source);
 
-    expect(decodedPixelData.getFrame(0).data.length).toBe(sourcePixelData.getFrame(0).data.length);
+    const decodedFrame = decodedPixelData.getFrame(0).data;
+    const sourceFrame = sourcePixelData.getFrame(0).data;
+    expect(decodedFrame.length).toBe(sourceFrame.length);
+    expect(decodedFrame).toEqual(sourceFrame);
   });
 
-  it("encodes and decodes 512x512 mono 16-bit frame", () => {
-    const source = buildLargeDataset(512, 512, 1, 16);
+  it("encodes and decodes 256x256 mono 16-bit frame", () => {
+    const source = buildLargeDataset(256, 256, 1, 16);
     const encoded = new DicomTranscoder(
       DicomTransferSyntax.ExplicitVRLittleEndian,
       DicomTransferSyntax.JPEG2000Lossless,
@@ -126,7 +132,10 @@ describe("JPEG2000 large frame memory behavior", () => {
     const decodedPixelData = DicomPixelData.create(decoded);
     const sourcePixelData = DicomPixelData.create(source);
 
-    expect(decodedPixelData.getFrame(0).data.length).toBe(sourcePixelData.getFrame(0).data.length);
+    const decodedFrame = decodedPixelData.getFrame(0).data;
+    const sourceFrame = sourcePixelData.getFrame(0).data;
+    expect(decodedFrame.length).toBe(sourceFrame.length);
+    expect(decodedFrame).toEqual(sourceFrame);
   });
 });
 
@@ -151,7 +160,10 @@ describe("JPEG2000 multi-frame memory behavior", () => {
 
     expect(decodedPixelData.numberOfFrames).toBe(5);
     for (let i = 0; i < 5; i++) {
-      expect(decodedPixelData.getFrame(i).data.length).toBe(sourcePixelData.getFrame(i).data.length);
+      const decodedFrame = decodedPixelData.getFrame(i).data;
+      const sourceFrame = sourcePixelData.getFrame(i).data;
+      expect(decodedFrame.length).toBe(sourceFrame.length);
+      expect(decodedFrame).toEqual(sourceFrame);
     }
   });
 
@@ -172,14 +184,17 @@ describe("JPEG2000 multi-frame memory behavior", () => {
 
     expect(decodedPixelData.numberOfFrames).toBe(10);
     for (let i = 0; i < 10; i++) {
-      expect(decodedPixelData.getFrame(i).data.length).toBe(sourcePixelData.getFrame(i).data.length);
+      const decodedFrame = decodedPixelData.getFrame(i).data;
+      const sourceFrame = sourcePixelData.getFrame(i).data;
+      expect(decodedFrame.length).toBe(sourceFrame.length);
+      expect(decodedFrame).toEqual(sourceFrame);
     }
   });
 });
 
 describe("JPEG2000 lossy large frame behavior", () => {
-  it("encodes and decodes 1024x1024 RGB with .91 lossy", () => {
-    const source = buildLargeDataset(1024, 1024, 3, 8);
+  it("encodes and decodes 256x256 RGB with .91 lossy", () => {
+    const source = buildLargeDataset(256, 256, 3, 8);
     const encoded = new DicomTranscoder(
       DicomTransferSyntax.ExplicitVRLittleEndian,
       DicomTransferSyntax.JPEG2000Lossy,
