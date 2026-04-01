@@ -24,6 +24,22 @@ import {
 } from "../wavelet/index.js";
 import { calculateQuantizationParams } from "../codestream/Jpeg2000Quantization.js";
 
+function buildIrreversibleQcdInfo(numLevels: number, bitsStored: number, quality: number): Jpeg2000QcdInfo {
+  const quantParams = calculateQuantizationParams(quality, numLevels, bitsStored);
+  const numSubbands = quantParams.encodedSteps.length;
+  const exponents: number[] = [];
+  for (let i = 0; i < numSubbands; i++) {
+    const step = quantParams.encodedSteps[i] ?? 0;
+    const expn = (step >> 11) & 0x1F;
+    exponents.push(expn);
+  }
+  return {
+    style: quantParams.style,
+    guardBits: quantParams.guardBits,
+    exponents,
+  };
+}
+
 export interface Jpeg2000EncoderAnalyzeOptions {
   frameData: Uint8Array;
   width: number;
@@ -188,6 +204,8 @@ export class Jpeg2000Encoder {
     let qcdInfo: Jpeg2000QcdInfo | undefined;
     if (!analyzed.irreversible) {
       qcdInfo = buildLosslessQcdInfo(numLevels, analyzed.bitsStored);
+    } else {
+      qcdInfo = buildIrreversibleQcdInfo(numLevels, analyzed.bitsStored, options.parameters.rate);
     }
 
     const descriptorsByComponent = new Map<number, Jpeg2000CodeBlockDescriptor[]>();
@@ -604,9 +622,6 @@ function transformComponents(
   if (irreversible) {
     const quantParams = calculateQuantizationParams(quality, numLevels, bitsStored);
     stepSizes = quantParams.stepSizes;
-    console.log('[DEBUG ENCODER] quality:', quality, 'numLevels:', numLevels, 'bitsStored:', bitsStored);
-    console.log('[DEBUG ENCODER] stepSizes length:', stepSizes.length, 'first 5:', stepSizes.slice(0, 5));
-    console.log('[DEBUG ENCODER] encodedSteps first 5:', quantParams.encodedSteps.slice(0, 5).map(e => '0x' + e.toString(16)));
   }
 
   for (let c = 0; c < componentSamples.length; c++) {
@@ -654,9 +669,6 @@ function quantizeBySubband(
 ): Int32Array {
   const quantized = new Int32Array(coeffs.length);
 
-  console.log('[DEBUG quantizeBySubband] coeffs first 10:', Array.from(coeffs.slice(0, 10)));
-  console.log('[DEBUG quantizeBySubband] stepSizes first 5:', stepSizes.slice(0, 5));
-
   if (stepSizes.length === 0 || numLevels === 0) {
     for (let i = 0; i < coeffs.length; i++) {
       quantized[i] = Math.round(coeffs[i] ?? 0);
@@ -667,10 +679,8 @@ function quantizeBySubband(
   let subbandIdx = 0;
 
   const res0 = bandInfosForResolution(width, height, 0, 0, numLevels, 0);
-  console.log('[DEBUG] res0 bands:', res0.bands.map(b => ({ band: b.band, w: b.width, h: b.height, ox: b.offsetX, oy: b.offsetY })));
   if (res0.bands.length > 0 && subbandIdx < stepSizes.length) {
     const b = res0.bands[0]!;
-    console.log('[DEBUG] LL subband using stepSize[' + subbandIdx + ']:', stepSizes[subbandIdx]);
     if (b.width > 0 && b.height > 0) {
       quantizeSubband(coeffs, quantized, b.offsetX, b.offsetY, b.width, b.height, width, stepSizes[subbandIdx] ?? 0);
     }
@@ -679,17 +689,14 @@ function quantizeBySubband(
 
   for (let res = 1; res <= numLevels; res++) {
     const resInfo = bandInfosForResolution(width, height, 0, 0, numLevels, res);
-    console.log('[DEBUG] res' + res + ' bands:', resInfo.bands.map(b => ({ band: b.band, w: b.width, h: b.height, ox: b.offsetX, oy: b.offsetY })));
     for (const b of resInfo.bands) {
       if (subbandIdx < stepSizes.length && b.width > 0 && b.height > 0) {
-        console.log('[DEBUG] band', b.band, 'using stepSize[' + subbandIdx + ']:', stepSizes[subbandIdx]);
         quantizeSubband(coeffs, quantized, b.offsetX, b.offsetY, b.width, b.height, width, stepSizes[subbandIdx] ?? 0);
       }
       subbandIdx++;
     }
   }
 
-  console.log('[DEBUG quantizeBySubband] quantized first 10:', Array.from(quantized.slice(0, 10)));
   return quantized;
 }
 
