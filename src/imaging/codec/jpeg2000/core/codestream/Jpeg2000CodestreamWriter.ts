@@ -30,7 +30,7 @@ export function writeJpeg2000SingleTileCodestream(options: Jpeg2000CodestreamWri
   writer.writeU16(Jpeg2000Marker.SOC);
   writer.writeSegment(Jpeg2000Marker.SIZ, buildSizPayload(options));
   writer.writeSegment(Jpeg2000Marker.COD, buildCodPayload(options));
-  writer.writeSegment(Jpeg2000Marker.QCD, buildQcdPayload(options.numLevels));
+  writer.writeSegment(Jpeg2000Marker.QCD, buildQcdPayload(options.numLevels, options.bitsStored, options.transformation));
 
   for (const segment of options.extraMainHeaderSegments ?? []) {
     writer.writeSegment(segment.marker, segment.payload);
@@ -92,10 +92,12 @@ function buildCodPayload(options: Jpeg2000CodestreamWriteOptions): Uint8Array {
   return payload;
 }
 
-function buildQcdPayload(numLevels: number): Uint8Array {
+function buildQcdPayload(numLevels: number, bitsStored: number, transformation: number): Uint8Array {
   const subbandCount = (3 * numLevels) + 1;
   const payload = new Uint8Array(1 + subbandCount);
-  payload[0] = 0; // Sqcd: no quantization (reconstruction uses pass-derived bitplane)
+
+  payload[0] = 0;
+
   return payload;
 }
 

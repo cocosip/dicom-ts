@@ -24,8 +24,8 @@ export class DicomJpeg2000Params extends DicomCodecParams {
   rateLevels = [...DEFAULT_RATE_LEVELS];
   progressionOrder: DicomJpeg2000ProgressionOrder = 0;
   isVerbose = false;
-  allowMct = true;
-  updatePhotometricInterpretation = true;
+  allowMct = false;
+  updatePhotometricInterpretation = false;
   encodeSignedPixelValuesAsUnsigned = false;
 
   numLevels = 5;
