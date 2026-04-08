@@ -59,6 +59,24 @@ export function formatStatusHex(value) {
   return `0x${(value & 0xffff).toString(16).toUpperCase().padStart(4, "0")}`;
 }
 
+export function formatDicomStatus(dicom, code) {
+  const resolved = dicom.DicomStatus.lookup(code);
+  return formatResolvedStatus(code, resolved.state, resolved.description || resolved.toString());
+}
+
+export function formatResolvedStatus(code, state, description) {
+  const hex = formatStatusHex(code);
+  const normalizedState = state || "Unknown";
+  const normalizedDescription = String(description || "").trim();
+  if (!normalizedDescription) {
+    return `${hex} ${normalizedState}`;
+  }
+  if (normalizedDescription.localeCompare(String(normalizedState), undefined, { sensitivity: "accent" }) === 0) {
+    return `${hex} ${normalizedState}`;
+  }
+  return `${hex} ${normalizedState} (${normalizedDescription})`;
+}
+
 export function sanitizeFilename(value) {
   return String(value ?? "").replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 180) || "received";
 }

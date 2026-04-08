@@ -133,6 +133,21 @@ class SlowEchoProvider extends DicomCEchoProvider {
   }
 }
 
+class SlowPendingFindProvider extends DicomCEchoProvider implements IDicomCFindProvider {
+  async *onCFindRequest(request: DicomCFindRequest): AsyncIterable<DicomCFindResponse> {
+    for (let index = 0; index < 3; index += 1) {
+      const pending = new DicomCFindResponse(request, DicomStatus.Pending.code);
+      pending.dataset = new DicomDataset();
+      pending.dataset.addOrUpdateValue(Tags.PatientName, `Pending^${index + 1}`);
+      pending.remaining = 3 - index;
+      yield pending;
+      await delay(40);
+    }
+
+    yield new DicomCFindResponse(request, DicomStatus.Success.code);
+  }
+}
+
 class SilentAssociationProvider extends DicomService {
   constructor(association?: DicomAssociation, options: DicomServiceOptions = {}) {
     super(association, {
@@ -328,6 +343,36 @@ describe("Network integration e2e", () => {
     await expect(client.sendAsync("127.0.0.1", server.port, "SCU", "SCP"))
       .rejects
       .toThrow("Timed out waiting for response");
+  });
+
+  it("keeps long-running requests alive while pending responses continue arriving", async () => {
+    const server = DicomServerFactory.createForService(SlowPendingFindProvider, { host: "127.0.0.1", port: 0 });
+    servers.push(server);
+    await server.start();
+
+    const statuses: number[] = [];
+    const names: string[] = [];
+    const request = new DicomCFindRequest(DicomQueryRetrieveLevel.Study);
+    request.onResponseReceived = (_rq, rsp) => {
+      statuses.push(rsp.status);
+      const name = rsp.dataset?.tryGetString(Tags.PatientName);
+      if (name) {
+        names.push(name);
+      }
+    };
+
+    const client = new DicomClient({ requestTimeoutMs: 60 });
+    client.addRequest(request);
+
+    await client.sendAsync("127.0.0.1", server.port, "SCU", "SCP");
+
+    expect(statuses).toEqual([
+      DicomStatus.Pending.code,
+      DicomStatus.Pending.code,
+      DicomStatus.Pending.code,
+      DicomStatus.Success.code,
+    ]);
+    expect(names).toEqual(["Pending^1", "Pending^2", "Pending^3"]);
   });
 
   it("times out association negotiation when SCP does not reply to A-ASSOCIATE", async () => {

@@ -150,9 +150,10 @@ export class DicomClientConnection extends DicomService implements IDicomService
     const responses: DicomResponse[] = [];
     const originalDispatch = request.dispatchResponse.bind(request);
     const deferred = createDeferred<readonly DicomResponse[]>();
-    const timeout = setTimeout(() => {
-      deferred.reject(new Error(`Timed out waiting for response to request ${request.messageID}.`));
-    }, timeoutMs);
+    const timeout = createRefreshableTimeout(
+      timeoutMs,
+      () => deferred.reject(new Error(`Timed out waiting for response to request ${request.messageID}.`)),
+    );
 
     const rejecter = (error: Error): void => {
       deferred.reject(error);
@@ -160,6 +161,7 @@ export class DicomClientConnection extends DicomService implements IDicomService
     this.requestRejecters.add(rejecter);
 
     request.dispatchResponse = ((response: DicomResponse) => {
+      timeout.refresh();
       responses.push(response);
       originalDispatch(response);
 
@@ -173,7 +175,7 @@ export class DicomClientConnection extends DicomService implements IDicomService
       await this.sendRequest(request);
       return await deferred.promise;
     } finally {
-      clearTimeout(timeout);
+      timeout.dispose();
       request.dispatchResponse = originalDispatch;
       this.requestRejecters.delete(rejecter);
     }
@@ -348,6 +350,48 @@ function createDeferred<T>(): Deferred<T> {
     resolve: (value: T) => resolveRef?.(value),
     reject: (error: Error) => rejectRef?.(error),
     settled: () => done,
+  };
+}
+
+function createRefreshableTimeout(timeoutMs: number, onTimeout: () => void): {
+  refresh: () => void;
+  dispose: () => void;
+} {
+  let timer: NodeJS.Timeout | null = null;
+  let active = true;
+
+  const schedule = (): void => {
+    if (!active) {
+      return;
+    }
+
+    if (timer) {
+      clearTimeout(timer);
+    }
+
+    timer = setTimeout(() => {
+      if (!active) {
+        return;
+      }
+      active = false;
+      timer = null;
+      onTimeout();
+    }, timeoutMs);
+  };
+
+  schedule();
+
+  return {
+    refresh: () => {
+      schedule();
+    },
+    dispose: () => {
+      active = false;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    },
   };
 }
 

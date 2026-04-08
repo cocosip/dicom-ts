@@ -42,7 +42,9 @@
     "tool:dicom-worklist-scp": "node tools/dicom-worklist-scp/index.mjs",
     "tool:dicom-worklist-scp:help": "node tools/dicom-worklist-scp/index.mjs --help",
     "tool:dicom-transcode": "node tools/dicom-transcode/index.mjs",
-    "tool:dicom-transcode:help": "node tools/dicom-transcode/index.mjs --help"
+    "tool:dicom-transcode:help": "node tools/dicom-transcode/index.mjs --help",
+    "tool:dicom-to-jpeg": "node tools/dicom-to-jpeg/index.mjs",
+    "tool:dicom-to-jpeg:help": "node tools/dicom-to-jpeg/index.mjs --help"
   },
   "keywords": [
     "dicom",

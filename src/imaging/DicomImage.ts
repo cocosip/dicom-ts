@@ -1,6 +1,8 @@
 
 import { DicomDataset } from "../dataset/DicomDataset.js";
+import { DicomTransferSyntax } from "../core/DicomTransferSyntax.js";
 import { DicomPixelData } from "./DicomPixelData.js";
+import { DicomTranscoder } from "./codec/DicomTranscoder.js";
 import { ImageGraphic } from "./render/ImageGraphic.js";
 import { OverlayGraphic } from "./render/OverlayGraphic.js";
 import { GenericGrayscalePipeline } from "./render/GenericGrayscalePipeline.js";
@@ -208,13 +210,14 @@ export class DicomImage {
       if (cached) return cached;
     }
 
-    const pipeline = this._getOrCreatePipeline(frame);
+    const renderSource = this._getRenderSource(frame);
+    const pipeline = this._getOrCreatePipeline(frame, renderSource.pixelData);
 
     // For palette color, the LUT IS the PaletteColorLUT — pass it as the palette arg
     const palette = pipeline instanceof PaletteColorPipeline
       ? (pipeline.lut instanceof PaletteColorLUT ? pipeline.lut : null)
       : null;
-    const graphic = new ImageGraphic(this.pixelData, frame, palette);
+    const graphic = new ImageGraphic(renderSource.pixelData, renderSource.frameIndex, palette);
 
     if (this._showOverlays) {
       const overlays = DicomOverlayDataFactory.fromDataset(this.dataset);
@@ -274,13 +277,13 @@ export class DicomImage {
     }
   }
 
-  private _getOrCreatePipeline(frame: number): IPipeline {
+  private _getOrCreatePipeline(frame: number, pixelDataForFrame: DicomPixelData): IPipeline {
     if ((this._cacheType & CacheType.LookupTables) !== 0) {
       const cached = this._pipelineCache.get(frame);
       if (cached) return cached;
     }
     
-    const pipeline = this._createPipeline(frame);
+    const pipeline = this._createPipeline(frame, pixelDataForFrame);
     
     if ((this._cacheType & CacheType.LookupTables) !== 0) {
       this._pipelineCache.set(frame, pipeline);
@@ -288,8 +291,8 @@ export class DicomImage {
     return pipeline;
   }
 
-  private _createPipeline(frame: number): IPipeline {
-    const pi = this.pixelData.photometricInterpretation ?? PhotometricInterpretation.MONOCHROME2;
+  private _createPipeline(frame: number, pixelDataForFrame: DicomPixelData): IPipeline {
+    const pi = pixelDataForFrame.photometricInterpretation ?? PhotometricInterpretation.MONOCHROME2;
     if (
       pi === PhotometricInterpretation.ARGB
       || pi === PhotometricInterpretation.RGB
@@ -301,13 +304,32 @@ export class DicomImage {
       return new RgbColorPipeline();
     }
     if (pi === PhotometricInterpretation.PALETTE_COLOR) {
-      return new PaletteColorPipeline(this.pixelData);
+      return new PaletteColorPipeline(pixelDataForFrame);
     }
     const options = GrayscaleRenderOptions.fromDataset(this.dataset, frame);
     if (this._windowCenter != null) options.windowCenter = this._windowCenter;
     if (this._windowWidth != null) options.windowWidth = this._windowWidth;
     options.invert = pi === PhotometricInterpretation.MONOCHROME1;
     return new GenericGrayscalePipeline(options);
+  }
+
+  private _getRenderSource(frame: number): { pixelData: DicomPixelData; frameIndex: number } {
+    if (!this.dataset.internalTransferSyntax.isEncapsulated) {
+      return {
+        pixelData: this.pixelData,
+        frameIndex: frame,
+      };
+    }
+
+    const transcoder = new DicomTranscoder(
+      this.dataset.internalTransferSyntax,
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+    );
+
+    return {
+      pixelData: transcoder.decodePixelData(this.dataset, frame),
+      frameIndex: 0,
+    };
   }
 }
 

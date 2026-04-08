@@ -5,7 +5,7 @@ import path from "node:path";
 import {
   allocateOutputPath,
   applyValidationMode,
-  formatStatusHex,
+  formatDicomStatus,
   levelToString,
   loadDicomTs,
   normalizeAe,
@@ -180,7 +180,7 @@ async function runGet(dicom, options, context) {
         failures: rsp.failures,
       });
       console.error(
-        `[qr-scu] C-GET response: status=${formatStatusHex(rsp.status)} `
+        `[qr-scu] C-GET response: status=${formatDicomStatus(dicom, rsp.status)} `
         + `remaining=${rsp.remaining} completed=${rsp.completed} warnings=${rsp.warnings} failures=${rsp.failures}`,
       );
     };
@@ -193,7 +193,7 @@ async function runGet(dicom, options, context) {
     await connection.close();
   }
 
-  emitRetrieveReport("C-GET", savedFiles, cGetStatuses);
+  emitRetrieveReport(dicom, "C-GET", savedFiles, cGetStatuses);
   if (cGetStatuses.some((status) => isFailedRetrieveState(dicom, status.status))) {
     process.exitCode = 2;
   }
@@ -245,7 +245,7 @@ async function runMove(dicom, options, context) {
         failures: rsp.failures,
       });
       console.error(
-        `[qr-scu] C-MOVE response: status=${formatStatusHex(rsp.status)} `
+        `[qr-scu] C-MOVE response: status=${formatDicomStatus(dicom, rsp.status)} `
         + `remaining=${rsp.remaining} completed=${rsp.completed} warnings=${rsp.warnings} failures=${rsp.failures}`,
       );
     };
@@ -261,7 +261,7 @@ async function runMove(dicom, options, context) {
     }
   }
 
-  emitRetrieveReport("C-MOVE", savedFiles, statuses);
+  emitRetrieveReport(dicom, "C-MOVE", savedFiles, statuses);
   if (statuses.some((status) => isFailedRetrieveState(dicom, status.status))) {
     process.exitCode = 2;
   }
@@ -433,7 +433,7 @@ function emitFindReport(dicom, datasets) {
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
-function emitRetrieveReport(label, savedFiles, statuses) {
+function emitRetrieveReport(dicom, label, savedFiles, statuses) {
   const lines = [];
   lines.push(`# QR SCU ${label} Result`);
   lines.push("");
@@ -444,7 +444,7 @@ function emitRetrieveReport(label, savedFiles, statuses) {
   }
   if (statuses.length > 0) {
     const last = statuses[statuses.length - 1];
-    lines.push(`- Final status: ${formatStatusHex(last.status)} remaining=${last.remaining} completed=${last.completed} warnings=${last.warnings} failures=${last.failures}`);
+    lines.push(`- Final status: ${formatDicomStatus(dicom, last.status)} remaining=${last.remaining} completed=${last.completed} warnings=${last.warnings} failures=${last.failures}`);
   }
   lines.push("");
   process.stdout.write(`${lines.join("\n")}\n`);

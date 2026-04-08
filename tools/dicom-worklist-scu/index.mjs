@@ -2,6 +2,7 @@
 
 import {
   applyValidationMode,
+  formatDicomStatus,
   loadDicomTs,
   parseKeyValueSpec,
   parseTagSpec,
@@ -67,6 +68,7 @@ console.error(
 await client.sendAsync(options.host, options.port, options.callingAE, options.calledAE);
 
 emitWorklistReport(dicom, results);
+emitStatusSummary(dicom, statuses);
 
 const failed = statuses.some((status) => {
   const state = dicom.DicomStatus.lookup(status).state;
@@ -177,6 +179,14 @@ function emitWorklistReport(dicom, datasets) {
   });
 
   process.stdout.write(`${lines.join("\n")}\n`);
+}
+
+function emitStatusSummary(dicom, statuses) {
+  if (statuses.length === 0) {
+    return;
+  }
+  const last = statuses[statuses.length - 1];
+  console.error(`[worklist-scu] Final status: ${formatDicomStatus(dicom, last)}`);
 }
 
 function parseArgs(argv) {

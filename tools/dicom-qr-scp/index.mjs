@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
   allocateOutputPath,
-  formatStatusHex,
+  formatDicomStatus,
   levelToString,
   listFiles,
   loadDicomTs,
@@ -179,7 +179,7 @@ function createQrScpServiceCtor(dicom, runtime) {
             failures += 1;
           }
           console.error(
-            `[qr-scp] C-GET store result: ${path.basename(match.path)} ${formatStatusHex(storeResponse.status)}`,
+            `[qr-scp] C-GET store result: ${path.basename(match.path)} ${formatDicomStatus(dicom, storeResponse.status)}`,
           );
         } catch (error) {
           failures += 1;
@@ -240,7 +240,7 @@ function createQrScpServiceCtor(dicom, runtime) {
               failures += 1;
             }
             console.error(
-              `[qr-scp] C-MOVE store result: ${path.basename(match.path)} ${formatStatusHex(rsp.status)}`,
+              `[qr-scp] C-MOVE store result: ${path.basename(match.path)} ${formatDicomStatus(dicom, rsp.status)}`,
             );
           };
           client.addRequest(storeRequest);

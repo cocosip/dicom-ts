@@ -4,8 +4,10 @@ import { DicomUnsignedShort, DicomCodeString, DicomOtherByte } from "../../src/d
 import * as Tags from "../../src/core/DicomTag.generated.js";
 import { DicomTag } from "../../src/core/DicomTag.js";
 import { DicomVR } from "../../src/core/DicomVR.js";
+import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import { DicomImage } from "../../src/imaging/DicomImage.js";
 import { RawImage } from "../../src/imaging/RawImage.js";
+import { DicomTranscoder } from "../../src/imaging/codec/DicomTranscoder.js";
 
 function baseImageDataset(): DicomDataset {
   const ds = new DicomDataset();
@@ -47,6 +49,29 @@ describe("DicomImage", () => {
     expect(image.pixels[1]).toBe(20);
     expect(image.pixels[2]).toBe(30);
     expect(image.pixels[3]).toBe(255);
+  });
+
+  it("renders encapsulated JPEG baseline without tool-side pre-decoding", () => {
+    const ds = new DicomDataset();
+    ds.internalTransferSyntax = DicomTransferSyntax.ExplicitVRLittleEndian;
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.Rows, 8));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.Columns, 8));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.BitsAllocated, 8));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.BitsStored, 8));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.HighBit, 7));
+    ds.addOrUpdate(new DicomUnsignedShort(Tags.SamplesPerPixel, 1));
+    ds.addOrUpdate(new DicomCodeString(Tags.PhotometricInterpretation, "MONOCHROME2"));
+    ds.addOrUpdate(new DicomOtherByte(Tags.PixelData, new Uint8Array(64).fill(180)));
+
+    const compressed = new DicomTranscoder(
+      DicomTransferSyntax.ExplicitVRLittleEndian,
+      DicomTransferSyntax.JPEGProcess1,
+    ).transcode(ds) as DicomDataset;
+
+    const image = new DicomImage(compressed).renderImage(0) as RawImage;
+    expect(image.pixels[0]).toBeGreaterThan(150);
+    expect(image.pixels[1]).toBeGreaterThan(150);
+    expect(image.pixels[2]).toBeGreaterThan(150);
   });
 
   it("renders ARGB image while preserving alpha", () => {

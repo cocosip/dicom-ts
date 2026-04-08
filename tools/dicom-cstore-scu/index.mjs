@@ -3,6 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { formatDicomStatus, formatResolvedStatus } from "../tool-common.mjs";
 
 const args = process.argv.slice(2);
 const options = parseArgs(args);
@@ -75,8 +76,7 @@ try {
       reportItem.statusState = resolved.state;
       reportItem.statusDescription = resolved.description || resolved.toString();
       console.error(
-        `[scu] Response: file=${path.basename(reportItem.inputPath)} status=${formatStatusHex(rsp.status)} `
-        + `state=${resolved.state} desc=${reportItem.statusDescription}`,
+        `[scu] Response: file=${path.basename(reportItem.inputPath)} status=${formatDicomStatus(dicom, rsp.status)}`,
       );
     };
     requests.push(request);
@@ -132,11 +132,7 @@ function formatStatus(item) {
   if (item.statusCode === null) {
     return item.statusDescription;
   }
-  return `${formatStatusHex(item.statusCode)} ${item.statusState} (${item.statusDescription})`;
-}
-
-function formatStatusHex(value) {
-  return `0x${(value & 0xffff).toString(16).toUpperCase().padStart(4, "0")}`;
+  return formatResolvedStatus(item.statusCode, item.statusState, item.statusDescription);
 }
 
 function isFailedState(state) {

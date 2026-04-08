@@ -16,6 +16,8 @@ export type { IImageManager } from "./IImageManager.js";
 export { RawImage } from "./RawImage.js";
 export { RawImageManager } from "./RawImageManager.js";
 export { DicomIconImage } from "./DicomIconImage.js";
+export type { JpegImageEncodeOptions } from "./JpegImage.js";
+export { encodeJpegImage, encodeRgbaToJpeg } from "./JpegImage.js";
 
 export { CacheType } from "./CacheType.js";
 export { DicomImagingException } from "./DicomImagingException.js";

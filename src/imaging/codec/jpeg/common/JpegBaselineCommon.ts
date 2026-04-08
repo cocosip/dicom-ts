@@ -576,13 +576,13 @@ export function encodeDctJpeg(
     const block = new Uint8Array(64);
     for (let by = 0; by < blocksH; by++) {
       for (let bx = 0; bx < blocksW; bx++) {
-        extractBlock(pixels, width, height, 1, bx, by, 0, block);
+        extractBlock(pixels, width, width, height, bx, by, block);
         encodeBlock(bw, block, lumQ, dcLumCodes, acLumCodes, dcPred);
       }
     }
   } else {
     // Color 4:2:0: Y (2x2 blocks), Cb (1x1), Cr (1x1) per 16x16 MCU
-    const { Y, Cb, Cr, yStride, cStride, cHeight } = rgbToYcbcr420(pixels, width, height);
+    const { Y, Cb, Cr, yStride, cStride, yWidth, yHeight, cWidth, cHeight } = rgbToYcbcr420(pixels, width, height);
     const mcuW = divCeil(width, 16);
     const mcuH = divCeil(height, 16);
     const dcY = { v: 0 }, dcCb = { v: 0 }, dcCr = { v: 0 };
@@ -593,15 +593,15 @@ export function encodeDctJpeg(
         // Y: 2x2 blocks
         for (let v = 0; v < 2; v++) {
           for (let h = 0; h < 2; h++) {
-            extractBlock(Y, yStride, divCeil(height, 8) * 8, 1, mcuX*2+h, mcuY*2+v, 0, block);
+            extractBlock(Y, yStride, yWidth, yHeight, mcuX * 2 + h, mcuY * 2 + v, block);
             encodeBlock(bw, block, lumQ, dcLumCodes, acLumCodes, dcY);
           }
         }
         // Cb
-        extractBlock(Cb, cStride, cHeight, 1, mcuX, mcuY, 0, block);
+        extractBlock(Cb, cStride, cWidth, cHeight, mcuX, mcuY, block);
         encodeBlock(bw, block, chrQ, dcChrCodes, acChrCodes, dcCb);
         // Cr
-        extractBlock(Cr, cStride, cHeight, 1, mcuX, mcuY, 0, block);
+        extractBlock(Cr, cStride, cWidth, cHeight, mcuX, mcuY, block);
         encodeBlock(bw, block, chrQ, dcChrCodes, acChrCodes, dcCr);
       }
     }
@@ -617,17 +617,16 @@ export function encodeDctJpeg(
 function extractBlock(
   data: Uint8Array,
   stride: number,
-  totalHeight: number,
-  _spp: number,
+  actualWidth: number,
+  actualHeight: number,
   blockX: number,
   blockY: number,
-  _comp: number,
   out: Uint8Array,
 ): void {
   for (let y = 0; y < 8; y++) {
-    const srcY = Math.min(blockY * 8 + y, totalHeight - 1);
+    const srcY = Math.min(blockY * 8 + y, actualHeight - 1);
     for (let x = 0; x < 8; x++) {
-      const srcX = Math.min(blockX * 8 + x, stride - 1);
+      const srcX = Math.min(blockX * 8 + x, actualWidth - 1);
       out[y * 8 + x] = data[srcY * stride + srcX]!;
     }
   }
@@ -635,12 +634,14 @@ function extractBlock(
 
 /** Convert RGB → YCbCr with 4:2:0 subsampling. */
 function rgbToYcbcr420(rgb: Uint8Array, width: number, height: number) {
+  const yWidth = width;
+  const yHeight = height;
+  const cWidth = divCeil(width, 2);
+  const cHeight = divCeil(height, 2);
   const yStride = divCeil(width, 8) * 8;
-  const yHeight = divCeil(height, 8) * 8;
-  const cStride = divCeil(width / 2, 8) * 8;
-  const cHeight = divCeil(height / 2, 8) * 8;
+  const cStride = divCeil(cWidth, 8) * 8;
 
-  const Y  = new Uint8Array(yStride * yHeight);
+  const Y  = new Uint8Array(yStride * divCeil(yHeight, 8) * 8);
   const Cb = new Uint8Array(cStride * cHeight);
   const Cr = new Uint8Array(cStride * cHeight);
 
@@ -656,7 +657,7 @@ function rgbToYcbcr420(rgb: Uint8Array, width: number, height: number) {
       }
     }
   }
-  return { Y, Cb, Cr, yStride, cStride, cHeight };
+  return { Y, Cb, Cr, yStride, cStride, yWidth, yHeight, cWidth, cHeight };
 }
 
 // ─────────────────────────────────────────────────────────────

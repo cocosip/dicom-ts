@@ -34,3 +34,6 @@ Each tool lives in its own directory and can run independently.
 - `dicom-transcode`: transcode one DICOM file to one or all compressed transfer syntaxes
   - docs: `tools/dicom-transcode/README.md`
   - entry: `tools/dicom-transcode/index.mjs`
+- `dicom-to-jpeg`: render a DICOM frame and export the final image as JPEG
+  - docs: `tools/dicom-to-jpeg/README.md`
+  - entry: `tools/dicom-to-jpeg/index.mjs`
