@@ -138,4 +138,15 @@ describe("Network basics", () => {
     expect(move.destinationAE).toBe("DEST_AE");
     expect(move.dataset?.getString(Tags.SOPInstanceUID)).toBe("1.2.sop");
   });
+
+  it("builds modality worklist C-FIND requests with explicit SOP class", () => {
+    const request = new DicomCFindRequest(DicomUIDs.ModalityWorklistInformationModelFind);
+    request.dataset = new DicomDataset();
+    request.dataset.addOrUpdateValue(Tags.PatientName, "Worklist^Patient");
+
+    expect(request.sopClassUID?.uid).toBe(DicomUIDs.ModalityWorklistInformationModelFind.uid);
+    expect(request.level).toBe(DicomQueryRetrieveLevel.NotApplicable);
+    expect(request.dataset?.contains(Tags.QueryRetrieveLevel)).toBe(false);
+    expect(request.dataset?.getString(Tags.PatientName)).toBe("Worklist^Patient");
+  });
 });

@@ -25,6 +25,12 @@ Each tool lives in its own directory and can run independently.
 - `dicom-qr-scp`: run a file-backed QR SCP with C-FIND / C-GET / C-MOVE support
   - docs: `tools/dicom-qr-scp/README.md`
   - entry: `tools/dicom-qr-scp/index.mjs`
+- `dicom-worklist-scu`: send Modality Worklist C-FIND requests
+  - docs: `tools/dicom-worklist-scu/README.md`
+  - entry: `tools/dicom-worklist-scu/index.mjs`
+- `dicom-worklist-scp`: run a file-backed Modality Worklist SCP
+  - docs: `tools/dicom-worklist-scp/README.md`
+  - entry: `tools/dicom-worklist-scp/index.mjs`
 - `dicom-transcode`: transcode one DICOM file to one or all compressed transfer syntaxes
   - docs: `tools/dicom-transcode/README.md`
   - entry: `tools/dicom-transcode/index.mjs`
