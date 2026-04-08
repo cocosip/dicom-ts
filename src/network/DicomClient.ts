@@ -180,7 +180,6 @@ function toClientOptions(options: ResolvedDicomClientOptions): DicomClientOption
     maxPendingRequests: options.maxPendingRequests,
     maximumPDULength: options.maximumPDULength,
     tlsInitiator: options.tlsInitiator,
-    networkManager: options.networkManager,
   };
   if (options.maxRequestsPerAssociation !== null) {
     normalized.maxRequestsPerAssociation = options.maxRequestsPerAssociation;

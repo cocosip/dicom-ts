@@ -22,7 +22,10 @@ export class DicomServerFactory {
     serviceCtor: DicomServiceConstructor<TService>,
     options: DicomServerOptions = {},
   ): IDicomServer {
-    return new DicomServer((_socket, association, serviceOptions) => new serviceCtor(association, serviceOptions), options);
+    return this.create(
+      (_socket, association, serviceOptions) => new serviceCtor(association, serviceOptions),
+      options,
+    );
   }
 
   static createCEchoServer(options: DicomServerOptions = {}): IDicomServer {

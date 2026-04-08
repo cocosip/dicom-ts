@@ -1,6 +1,4 @@
 import type { ITlsInitiator } from "./ITlsInitiator.js";
-import { NetworkManager } from "./NetworkManager.js";
-import "./DesktopNetworkManager.js";
 
 export interface DicomClientOptions {
   connectTimeoutMs?: number;
@@ -13,7 +11,6 @@ export interface DicomClientOptions {
   maxPendingRequests?: number;
   maximumPDULength?: number;
   tlsInitiator?: ITlsInitiator | null;
-  networkManager?: NetworkManager;
 }
 
 export interface ResolvedDicomClientOptions {
@@ -27,7 +24,6 @@ export interface ResolvedDicomClientOptions {
   maxPendingRequests: number;
   maximumPDULength: number;
   tlsInitiator: ITlsInitiator | null;
-  networkManager: NetworkManager;
 }
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
@@ -51,7 +47,6 @@ export function resolveDicomClientOptions(options: DicomClientOptions = {}): Res
     maxPendingRequests: Math.max(1, options.maxPendingRequests ?? DEFAULT_MAX_PENDING_REQUESTS),
     maximumPDULength: Math.max(1024, options.maximumPDULength ?? DEFAULT_MAX_PDU_LENGTH),
     tlsInitiator: options.tlsInitiator ?? null,
-    networkManager: options.networkManager ?? NetworkManager.getCurrent(),
   };
 }
 

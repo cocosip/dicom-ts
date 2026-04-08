@@ -1,68 +1,61 @@
 import { connect, createServer, type Server, type Socket } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  DesktopNetworkManager,
-  NetworkManager,
-  type INetworkListener,
-  type INetworkStream,
-} from "../../src/network/index.js";
+import type { ITlsAcceptor } from "../../src/network/index.js";
+import { connectSocket, listenServer } from "../../src/network/nodeTransport.js";
 
-describe("Network abstractions", () => {
-  const listeners: INetworkListener[] = [];
-  const streams: INetworkStream[] = [];
+class PassthroughTlsAcceptor implements ITlsAcceptor {
+  called = false;
+
+  createTlsServer(connectionListener: (socket: Socket) => void): Server {
+    this.called = true;
+    return createServer(connectionListener);
+  }
+}
+
+describe("nodeTransport helpers", () => {
   const sockets: Socket[] = [];
   const servers: Server[] = [];
 
   afterEach(async () => {
-    for (const stream of streams.splice(0, streams.length)) {
-      stream.close();
-    }
     for (const socket of sockets.splice(0, sockets.length)) {
       if (!socket.destroyed) {
         socket.destroy();
       }
-    }
-    for (const listener of listeners.splice(0, listeners.length)) {
-      listener.stop();
     }
     while (servers.length > 0) {
       await closeServer(servers.pop()!);
     }
   });
 
-  it("provides DesktopNetworkManager as current registered platform", () => {
-    const manager = NetworkManager.getCurrent();
-    expect(manager).toBeInstanceOf(DesktopNetworkManager);
-    expect(manager.machineName.length).toBeGreaterThan(0);
-    expect(() => manager.tryGetNetworkIdentifier()).not.toThrow();
-  });
+  it("creates native node servers through a thin internal helper", async () => {
+    const acceptedPromise = new Promise<Socket>((resolve) => {
+      void resolve;
+    });
+    void acceptedPromise;
+    let accepted: Socket | null = null;
+    const server = await listenServer("127.0.0.1", 0, {
+      connectionListener: (socket) => {
+        accepted = socket;
+        sockets.push(socket);
+      },
+    });
+    servers.push(server);
 
-  it("supports listener accept and stream wrapping", async () => {
-    const manager = NetworkManager.getCurrent();
-    const listener = manager.createNetworkListener("127.0.0.1", 0);
-    listeners.push(listener);
-    await listener.start();
-
-    const acceptPromise = listener.acceptSocket({ noDelay: true });
+    const port = getPort(server);
     const client = connect({
       host: "127.0.0.1",
-      port: listener.port,
+      port,
     });
     sockets.push(client);
     await onceConnect(client);
+    await delay(20);
 
-    const accepted = await acceptPromise;
     expect(accepted).not.toBeNull();
-    sockets.push(accepted!);
-
-    const wrapped = manager.createNetworkStreamFromSocket(accepted!, false);
-    streams.push(wrapped);
-    expect(wrapped.remotePort).toBe(client.localPort);
-    expect(wrapped.localPort).toBe(listener.port);
+    expect(accepted?.remotePort).toBe(client.localPort);
+    expect(accepted?.localPort).toBe(port);
   });
 
-  it("creates outbound stream via NetworkStreamCreationOptions", async () => {
-    const manager = NetworkManager.getCurrent();
+  it("creates outbound sockets through a thin internal helper", async () => {
     const server = createServer((socket) => {
       sockets.push(socket);
     });
@@ -70,16 +63,38 @@ describe("Network abstractions", () => {
     await listen(server);
 
     const port = getPort(server);
-    const stream = await manager.createNetworkStream({
+    const socket = await connectSocket({
       host: "127.0.0.1",
       port,
       noDelay: true,
       connectionTimeoutMs: 2_000,
     });
-    streams.push(stream);
+    sockets.push(socket);
 
-    expect(stream.remotePort).toBe(port);
-    expect(stream.localPort).toBeGreaterThan(0);
+    expect(socket.remotePort).toBe(port);
+    expect(socket.localPort).toBeGreaterThan(0);
+  });
+
+  it("surfaces connection failures from connectSocket", async () => {
+    const port = await reserveFreePort();
+
+    await expect(connectSocket({
+      host: "127.0.0.1",
+      port,
+      noDelay: true,
+      connectionTimeoutMs: 200,
+    })).rejects.toThrow();
+  });
+
+  it("uses the tlsAcceptor branch when listenServer is configured for TLS", async () => {
+    const tlsAcceptor = new PassthroughTlsAcceptor();
+    const server = await listenServer("127.0.0.1", 0, {
+      tlsAcceptor,
+    });
+    servers.push(server);
+
+    expect(tlsAcceptor.called).toBe(true);
+    expect(getPort(server)).toBeGreaterThan(0);
   });
 });
 
@@ -109,10 +124,23 @@ async function closeServer(server: Server): Promise<void> {
   });
 }
 
+async function delay(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 function getPort(server: Server): number {
   const address = server.address();
   if (!address || typeof address === "string") {
     throw new Error("Server is not bound to a TCP port.");
   }
   return address.port;
+}
+
+async function reserveFreePort(): Promise<number> {
+  const server = createServer();
+  await listen(server);
+
+  const port = getPort(server);
+  await closeServer(server);
+  return port;
 }

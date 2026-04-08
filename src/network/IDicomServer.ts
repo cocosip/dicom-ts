@@ -1,4 +1,5 @@
 import type { ResolvedDicomServerOptions } from "./DicomServerOptions.js";
+import type { DicomServerRegistration } from "./DicomServerRegistration.js";
 
 export interface IDicomServer {
   readonly options: Readonly<ResolvedDicomServerOptions>;
@@ -6,6 +7,7 @@ export interface IDicomServer {
   readonly host: string;
   readonly port: number;
   readonly connectionCount: number;
+  readonly registration: DicomServerRegistration | null;
   start(): Promise<void>;
   stop(): Promise<void>;
 }

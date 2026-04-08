@@ -1,5 +1,6 @@
 import { connect, type Socket } from "node:net";
-import { describe, expect, it } from "vitest";
+import { createServer } from "node:net";
+import { afterEach, describe, expect, it } from "vitest";
 import * as DicomUIDs from "../../src/core/DicomUID.generated.js";
 import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import {
@@ -9,18 +10,31 @@ import {
   AReleaseRQ,
   DicomAssociation,
   DicomServerFactory,
+  DicomServerRegistry,
+  type IDicomServer,
   readPDU,
 } from "../../src/network/index.js";
 
 describe("DicomServer", () => {
+  const servers: IDicomServer[] = [];
+
+  afterEach(async () => {
+    while (servers.length > 0) {
+      await servers.pop()!.stop();
+    }
+    DicomServerRegistry.reset();
+  });
+
   it("starts from factory and accepts basic association/release flow", async () => {
     const server = DicomServerFactory.createCEchoServer({
       host: "127.0.0.1",
       port: 0,
     });
+    servers.push(server);
     await server.start();
     expect(server.isListening).toBe(true);
     expect(server.port).toBeGreaterThan(0);
+    expect(DicomServerRegistry.get(server.port, server.host)?.dicomServer).toBe(server);
 
     const client = connect({
       host: "127.0.0.1",
@@ -41,6 +55,45 @@ describe("DicomServer", () => {
 
     await server.stop();
     expect(server.isListening).toBe(false);
+    expect(DicomServerRegistry.get(server.port, server.host)).toBeNull();
+  });
+
+  it("registers running servers and unregisters them on stop", async () => {
+    const server = DicomServerFactory.createCEchoServer({
+      host: "127.0.0.1",
+      port: 0,
+    });
+    servers.push(server);
+
+    await server.start();
+
+    const registration = DicomServerRegistry.get(server.port, server.host);
+    expect(registration).not.toBeNull();
+    expect(registration?.dicomServer).toBe(server);
+    expect(server.registration).toBe(registration);
+
+    await server.stop();
+
+    expect(server.registration).toBeNull();
+    expect(DicomServerRegistry.get(server.port, server.host)).toBeNull();
+  });
+
+  it("rejects starting another server on the same host and port", async () => {
+    const port = await reserveFreePort();
+    const server1 = DicomServerFactory.createCEchoServer({
+      host: "127.0.0.1",
+      port,
+    });
+    const server2 = DicomServerFactory.createCEchoServer({
+      host: "127.0.0.1",
+      port,
+    });
+    servers.push(server1, server2);
+
+    await server1.start();
+
+    await expect(server2.start()).rejects.toThrow(`There is already a DICOM server registered for 127.0.0.1:${port}.`);
+    expect(DicomServerRegistry.get(port, "127.0.0.1")?.dicomServer).toBe(server1);
   });
 });
 
@@ -143,4 +196,26 @@ async function onceClose(socket: Socket): Promise<void> {
   await new Promise<void>((resolve) => {
     socket.once("close", () => resolve());
   });
+}
+
+async function reserveFreePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Unable to reserve a TCP port for test.");
+  }
+
+  const { port } = address;
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve());
+  });
+  return port;
 }

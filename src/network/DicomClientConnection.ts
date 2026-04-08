@@ -25,9 +25,8 @@ import {
   type DicomClientOptions,
   type ResolvedDicomClientOptions,
 } from "./DicomClientOptions.js";
-import type { INetworkStream } from "./INetworkStream.js";
-import type { NetworkStreamCreationOptions } from "./NetworkStreamCreationOptions.js";
 import type { IDicomCStoreProvider } from "./IDicomCStoreProvider.js";
+import { connectSocket } from "./nodeTransport.js";
 
 export interface DicomClientConnectionOpenOptions {
   host: string;
@@ -58,7 +57,6 @@ export class DicomClientConnection extends DicomService implements IDicomService
   private remoteAbortError: Error | null = null;
 
   private constructor(
-    private readonly networkStream: INetworkStream,
     private readonly transportSocket: Socket,
     association: DicomAssociation,
     clientOptions: ResolvedDicomClientOptions,
@@ -80,16 +78,14 @@ export class DicomClientConnection extends DicomService implements IDicomService
 
   static async connect(options: DicomClientConnectionOpenOptions): Promise<DicomClientConnection> {
     const resolvedOptions = resolveDicomClientOptions(options.clientOptions);
-    const streamOptions: NetworkStreamCreationOptions = {
+    const socket = await connectSocket({
       host: options.host,
       port: options.port,
       tlsInitiator: resolvedOptions.tlsInitiator,
       noDelay: true,
       timeoutMs: 0,
       connectionTimeoutMs: resolvedOptions.connectTimeoutMs,
-    };
-    const networkStream = await resolvedOptions.networkManager.createNetworkStream(streamOptions);
-    const socket = networkStream.asSocket();
+    });
     socket.setNoDelay?.(true);
     socket.setTimeout?.(0);
 
@@ -102,7 +98,7 @@ export class DicomClientConnection extends DicomService implements IDicomService
       association.maximumPDULength = resolvedOptions.maximumPDULength;
     }
 
-    return new DicomClientConnection(networkStream, socket, association, resolvedOptions);
+    return new DicomClientConnection(socket, association, resolvedOptions);
   }
 
   async requestAssociation(timeoutMs = this.clientOptions.associationRequestTimeoutMs): Promise<void> {
@@ -216,7 +212,9 @@ export class DicomClientConnection extends DicomService implements IDicomService
   }
 
   async close(): Promise<void> {
-    this.networkStream.close();
+    if (!this.transportSocket.destroyed) {
+      this.transportSocket.destroy();
+    }
     await this.closeDeferred.promise;
   }
 

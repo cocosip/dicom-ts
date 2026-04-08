@@ -1,7 +1,5 @@
 import type { DicomServiceOptions } from "./DicomService.js";
 import type { ITlsAcceptor } from "./ITlsAcceptor.js";
-import { NetworkManager } from "./NetworkManager.js";
-import "./DesktopNetworkManager.js";
 
 export interface DicomServerOptions {
   host?: string;
@@ -9,7 +7,6 @@ export interface DicomServerOptions {
   backlog?: number;
   tls?: boolean;
   tlsAcceptor?: ITlsAcceptor | null;
-  networkManager?: NetworkManager;
   serviceOptions?: DicomServiceOptions;
 }
 
@@ -19,7 +16,6 @@ export interface ResolvedDicomServerOptions {
   backlog: number;
   tls: boolean;
   tlsAcceptor: ITlsAcceptor | null;
-  networkManager: NetworkManager;
   serviceOptions: DicomServiceOptions;
 }
 
@@ -34,7 +30,6 @@ export function resolveDicomServerOptions(options: DicomServerOptions = {}): Res
     backlog: options.backlog ?? DEFAULT_BACKLOG,
     tls: options.tls ?? false,
     tlsAcceptor: options.tlsAcceptor ?? null,
-    networkManager: options.networkManager ?? NetworkManager.getCurrent(),
     serviceOptions: { ...(options.serviceOptions ?? {}) },
   };
 }

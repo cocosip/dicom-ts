@@ -1,9 +1,11 @@
-import type { Socket } from "node:net";
+import type { Server, Socket } from "node:net";
 import { DicomAssociation } from "./DicomAssociation.js";
+import { DicomServerRegistry } from "./DicomServerRegistry.js";
+import type { DicomServerRegistration } from "./DicomServerRegistration.js";
 import { DicomService, type DicomServiceOptions } from "./DicomService.js";
 import type { IDicomServer } from "./IDicomServer.js";
+import { closeServer, listenServer, waitForServerClose } from "./nodeTransport.js";
 import { resolveDicomServerOptions, type DicomServerOptions, type ResolvedDicomServerOptions } from "./DicomServerOptions.js";
-import type { INetworkListener } from "./INetworkListener.js";
 
 export type DicomServiceFactory<TService extends DicomService = DicomService> = (
   socket: Socket,
@@ -16,11 +18,12 @@ export class DicomServer<TService extends DicomService = DicomService> implement
 
   private readonly serviceFactory: DicomServiceFactory<TService>;
   private readonly servicesBySocket = new Map<Socket, TService>();
-  private listener: INetworkListener | null = null;
-  private acceptLoopTask: Promise<void> | null = null;
+  private server: Server | null = null;
+  private closeTask: Promise<void> | null = null;
   private hostValue: string;
   private portValue: number;
   private listeningValue = false;
+  private registrationValue: DicomServerRegistration | null = null;
 
   constructor(serviceFactory: DicomServiceFactory<TService>, options: DicomServerOptions = {}) {
     this.serviceFactory = serviceFactory;
@@ -45,6 +48,10 @@ export class DicomServer<TService extends DicomService = DicomService> implement
     return this.servicesBySocket.size;
   }
 
+  get registration(): DicomServerRegistration | null {
+    return this.registrationValue;
+  }
+
   async start(): Promise<void> {
     if (this.listeningValue) {
       return;
@@ -54,32 +61,52 @@ export class DicomServer<TService extends DicomService = DicomService> implement
       throw new Error("TLS is enabled but no tlsAcceptor is configured.");
     }
 
-    const listener = this.options.networkManager.createNetworkListener(this.options.host, this.options.port, {
+    if (this.options.port > 0 && !DicomServerRegistry.isAvailable(this.options.port, this.options.host)) {
+      throw new Error(`There is already a DICOM server registered for ${this.options.host}:${this.options.port}.`);
+    }
+
+    const server = await listenServer(this.options.host, this.options.port, {
+      backlog: this.options.backlog,
       tlsAcceptor: this.options.tlsAcceptor,
+      connectionListener: (socket) => this.handleSocketConnection(socket),
     });
-    await listener.start(this.options.backlog);
-    this.listener = listener;
-    this.hostValue = listener.host;
-    this.portValue = listener.port;
+
+    const address = server.address();
+    const boundHost = address && typeof address !== "string" ? address.address : this.options.host;
+    const boundPort = address && typeof address !== "string" ? address.port : this.options.port;
+    if (!DicomServerRegistry.isAvailable(boundPort, boundHost)) {
+      await closeServer(server);
+      throw new Error(`There is already a DICOM server registered for ${boundHost}:${boundPort}.`);
+    }
+
+    this.server = server;
+    this.hostValue = boundHost;
+    this.portValue = boundPort;
     this.listeningValue = true;
-    this.acceptLoopTask = this.acceptLoop(listener).catch(() => {
-      this.listeningValue = false;
-    });
+    const closeTask = waitForServerClose(server)
+      .finally(() => {
+        this.listeningValue = false;
+        if (this.server === server) {
+          this.server = null;
+        }
+        this.unregisterFromRegistry();
+      });
+    this.closeTask = closeTask;
+    this.registrationValue = DicomServerRegistry.register(this, closeTask);
   }
 
   async stop(): Promise<void> {
-    if (!this.listener) {
+    if (!this.server) {
+      this.unregisterFromRegistry();
       return;
     }
 
-    const listener = this.listener;
-    this.listener = null;
+    const server = this.server;
+    this.server = null;
     this.listeningValue = false;
-    listener.stop();
-    if (this.acceptLoopTask) {
-      await this.acceptLoopTask;
-    }
-    this.acceptLoopTask = null;
+    const closeTask = this.closeTask;
+    this.closeTask = null;
+    server.close();
 
     for (const socket of this.servicesBySocket.keys()) {
       if (!socket.destroyed) {
@@ -87,15 +114,8 @@ export class DicomServer<TService extends DicomService = DicomService> implement
       }
     }
     this.servicesBySocket.clear();
-  }
-
-  private async acceptLoop(listener: INetworkListener): Promise<void> {
-    while (this.listeningValue) {
-      const socket = await listener.acceptSocket({ noDelay: true });
-      if (!socket) {
-        return;
-      }
-      this.handleSocketConnection(socket);
+    if (closeTask) {
+      await closeTask;
     }
   }
 
@@ -119,5 +139,14 @@ export class DicomServer<TService extends DicomService = DicomService> implement
     socket.on("close", () => {
       this.servicesBySocket.delete(socket);
     });
+  }
+
+  private unregisterFromRegistry(): void {
+    const registration = this.registrationValue;
+    if (!registration) {
+      return;
+    }
+    this.registrationValue = null;
+    registration.dispose();
   }
 }
