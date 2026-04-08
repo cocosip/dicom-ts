@@ -3,10 +3,12 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import * as Tags from "../../src/core/DicomTag.generated.js";
 import * as DicomUIDs from "../../src/core/DicomUID.generated.js";
+import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import { DicomDataset } from "../../src/dataset/DicomDataset.js";
 import { DicomFile } from "../../src/DicomFile.js";
 import {
   AAssociateRJ,
+  AdvancedDicomClientConnection,
   DicomCEchoProvider,
   DicomCEchoRequest,
   DicomCEchoResponse,
@@ -140,6 +142,42 @@ class SilentAssociationProvider extends DicomService {
   }
 }
 
+class CGetRetrieveProvider extends DicomCEchoProvider implements IDicomCGetProvider {
+  static retrievedSopInstanceUid = "";
+
+  static reset(): void {
+    CGetRetrieveProvider.retrievedSopInstanceUid = "";
+  }
+
+  async *onCGetRequest(request: DicomCGetRequest): AsyncIterable<DicomCGetResponse> {
+    const pending = new DicomCGetResponse(request, DicomStatus.Pending.code);
+    pending.remaining = 1;
+    pending.completed = 0;
+    yield pending;
+
+    const dataset = new DicomDataset();
+    dataset.addOrUpdateValue(Tags.SOPClassUID, DicomUIDs.CTImageStorage.uid);
+    dataset.addOrUpdateValue(Tags.SOPInstanceUID, "1.2.826.0.1.3680043.2.1125.400.1");
+    dataset.addOrUpdateValue(Tags.PatientName, "Get^Retrieved");
+
+    const storeRequest = new DicomCStoreRequest(new DicomFile(dataset));
+    const storeResponse = await waitForSubOperationResponse(this, storeRequest);
+    if (storeResponse.status !== DicomStatus.Success.code) {
+      const failure = new DicomCGetResponse(request, DicomStatus.QueryRetrieveUnableToPerformSuboperations.code);
+      failure.remaining = 0;
+      failure.completed = 0;
+      failure.failures = 1;
+      yield failure;
+      return;
+    }
+
+    const success = new DicomCGetResponse(request, DicomStatus.Success.code);
+    success.remaining = 0;
+    success.completed = 1;
+    yield success;
+  }
+}
+
 describe("Network integration e2e", () => {
   const servers: IDicomServer[] = [];
 
@@ -148,6 +186,7 @@ describe("Network integration e2e", () => {
       await servers.pop()!.stop();
     }
     FullIntegrationProvider.reset();
+    CGetRetrieveProvider.reset();
   });
 
   it("supports C-STORE end-to-end and invokes provider", async () => {
@@ -217,6 +256,52 @@ describe("Network integration e2e", () => {
     expect(cGetCompleted).toBe(1);
     expect(cMoveStatuses).toEqual([DicomStatus.Pending.code, DicomStatus.Success.code]);
     expect(cMoveCompleted).toBe(1);
+  });
+
+  it("supports C-GET with inbound C-STORE sub-operations on the client association", async () => {
+    const server = DicomServerFactory.createForService(CGetRetrieveProvider, { host: "127.0.0.1", port: 0 });
+    servers.push(server);
+    await server.start();
+
+    const connection = await AdvancedDicomClientConnection.open({
+      host: "127.0.0.1",
+      port: server.port,
+      callingAE: "GET_SCU",
+      calledAE: "GET_SCP",
+    });
+
+    try {
+      connection.association.presentationContexts.addPresentationContext(
+        DicomUIDs.CTImageStorage,
+        [
+          DicomTransferSyntax.ExplicitVRLittleEndian,
+          DicomTransferSyntax.ImplicitVRLittleEndian,
+        ],
+        false,
+        true,
+      );
+
+      connection.connection.cStoreRequestHandler = async (request) => {
+        CGetRetrieveProvider.retrievedSopInstanceUid = request.sopInstanceUID?.uid ?? "";
+        return new DicomCStoreResponse(request, DicomStatus.Success.code);
+      };
+
+      const statuses: number[] = [];
+      const request = new DicomCGetRequest("1.2.3");
+      request.onResponseReceived = (_rq, rsp) => {
+        statuses.push(rsp.status);
+      };
+
+      connection.connection.prepareRequest(request);
+      await connection.requestAssociation();
+      const responses = await connection.sendRequest(request);
+
+      expect(statuses).toEqual([DicomStatus.Pending.code, DicomStatus.Success.code]);
+      expect(responses.map((response) => response.status)).toEqual([DicomStatus.Pending.code, DicomStatus.Success.code]);
+      expect(CGetRetrieveProvider.retrievedSopInstanceUid).toBe("1.2.826.0.1.3680043.2.1125.400.1");
+    } finally {
+      await connection.close();
+    }
   });
 
   it("fails association negotiation when server rejects A-ASSOCIATE", async () => {
@@ -358,4 +443,25 @@ describe("Network integration e2e", () => {
 
 async function delay(ms: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForSubOperationResponse(service: DicomService, request: DicomCStoreRequest): Promise<DicomCStoreResponse> {
+  return await new Promise<DicomCStoreResponse>((resolve, reject) => {
+    let settled = false;
+    request.onResponseReceived = (_rq, rsp) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(rsp);
+    };
+
+    void service.sendRequest(request).catch((error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    });
+  });
 }

@@ -2,6 +2,7 @@ import type { Socket } from "node:net";
 import { DicomTransferSyntax } from "../core/DicomTransferSyntax.js";
 import { DicomAssociation } from "./DicomAssociation.js";
 import { DicomCStoreRequest } from "./DicomCStoreRequest.js";
+import { DicomCStoreResponse } from "./DicomCStoreResponse.js";
 import { DicomMessage } from "./DicomMessage.js";
 import { DicomRequest } from "./DicomRequest.js";
 import { DicomResponse } from "./DicomResponse.js";
@@ -26,6 +27,7 @@ import {
 } from "./DicomClientOptions.js";
 import type { INetworkStream } from "./INetworkStream.js";
 import type { NetworkStreamCreationOptions } from "./NetworkStreamCreationOptions.js";
+import type { IDicomCStoreProvider } from "./IDicomCStoreProvider.js";
 
 export interface DicomClientConnectionOpenOptions {
   host: string;
@@ -43,8 +45,10 @@ type Deferred<T> = {
   settled: () => boolean;
 };
 
-export class DicomClientConnection extends DicomService implements IDicomServiceProvider {
+export class DicomClientConnection extends DicomService implements IDicomServiceProvider, IDicomCStoreProvider {
   readonly clientOptions: Readonly<ResolvedDicomClientOptions>;
+  cStoreRequestHandler: ((request: DicomCStoreRequest) => Promise<DicomCStoreResponse>) | null = null;
+  cStoreRequestExceptionHandler: ((tempFileName: string | null, error: unknown) => Promise<void>) | null = null;
 
   private readonly closeDeferred = createDeferred<void>();
   private associationDeferred: Deferred<PDU> | null = null;
@@ -224,6 +228,18 @@ export class DicomClientConnection extends DicomService implements IDicomService
     await this.sendPDU(new AReleaseRP());
     this.associationEstablished = false;
     this.transportSocket.end();
+  }
+
+  async onCStoreRequest(request: DicomCStoreRequest): Promise<DicomCStoreResponse> {
+    if (!this.cStoreRequestHandler) {
+      return new DicomCStoreResponse(request, DicomStatus.StorageCannotUnderstand.code);
+    }
+
+    return await this.cStoreRequestHandler(request);
+  }
+
+  async onCStoreRequestException(tempFileName: string | null, error: unknown): Promise<void> {
+    await this.cStoreRequestExceptionHandler?.(tempFileName, error);
   }
 
   onReceiveAbort(source: unknown, reason: unknown): void {

@@ -299,6 +299,11 @@ export abstract class DicomService {
   protected async onReceivePDataTF(pdu: PDataTF): Promise<void> {
     const messages = decodePDataTF(this.association, this.dimseDecoderState, pdu);
     for (const message of messages) {
+      if (message instanceof DicomRequest) {
+        this.enqueueDIMSE(message);
+        this.dispatchIncomingRequestDetached(message);
+        continue;
+      }
       await this.receiveDIMSEMessage(message);
     }
   }
@@ -376,6 +381,14 @@ export abstract class DicomService {
       default:
         await this.onUnhandledRequest(request);
     }
+  }
+
+  private dispatchIncomingRequestDetached(request: DicomRequest): void {
+    void this.handleIncomingRequest(request).catch((error: unknown) => {
+      const normalized = toError(error);
+      this.socketCloseError = normalized;
+      this.socket?.destroy(normalized);
+    });
   }
 
   private async dispatchCEcho(request: DicomRequest): Promise<void> {
