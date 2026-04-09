@@ -1,5 +1,4 @@
 import { Endian } from "../core/DicomTransferSyntax.js";
-import { Readable } from "node:stream";
 import type { IByteBuffer } from "./buffer/IByteBuffer.js";
 import { MemoryByteBuffer } from "./buffer/MemoryByteBuffer.js";
 import type { IByteSource, ByteSourceCallback } from "./IByteSource.js";
@@ -198,8 +197,28 @@ export class ByteBufferByteSource implements IByteSource {
   }
 
   getStream(): NodeJS.ReadableStream {
-    const data = this.buffers.map((b) => b.data);
-    return Readable.from(data);
+    const chunks = this.buffers.map((b) => b.data);
+    let index = 0;
+    return {
+      read: () => chunks[index++] ?? null,
+      [Symbol.asyncIterator]: async function* () {
+        for (const chunk of chunks) {
+          yield chunk;
+        }
+      },
+    } as unknown as NodeJS.ReadableStream;
+  }
+
+  getRemainingBytes(): Uint8Array {
+    if (this._position >= this._length) {
+      return new Uint8Array(0);
+    }
+
+    const out = new Uint8Array(this._length - this._position);
+    const saved = this._position;
+    this.getBytes(out, 0, out.length);
+    this.goTo(saved);
+    return out;
   }
 
   private swapBuffers(): boolean {

@@ -1,23 +1,18 @@
 {
-  "name": "dicom-ts",
-  "version": "0.1.0",
-  "description": "DICOM standard implementation in TypeScript, ported from fo-dicom",
+  "name": "dicom-ts-workspace",
+  "version": "0.2.0-alpha.0",
+  "private": true,
+  "description": "dicom-ts workspace",
   "type": "module",
-  "main": "./dist/cjs/index.js",
-  "module": "./dist/esm/index.js",
-  "exports": {
-    ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
-    }
-  },
-  "files": [
-    "dist"
+  "workspaces": [
+    "packages/*"
   ],
-"scripts": {
+  "scripts": {
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build": "npm run build:cjs && npm run build:esm",
+    "build:all": "npm run build && npm run check:browser-safe",
+    "check:browser-safe": "node scripts/check-browser-safe.mjs",
     "test": "vitest run --maxWorkers=1",
     "test:watch": "vitest --maxWorkers=1",
     "test:coverage": "vitest run --coverage --maxWorkers=1",
@@ -59,6 +54,9 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "iconv-lite": "^0.7.2"
+    "@types/jpeg-js": "^0.3.0",
+    "iconv-lite": "^0.7.2",
+    "jpeg-js": "^0.4.4",
+    "upng-js": "^2.1.0"
   }
 }

@@ -1,4 +1,3 @@
-import { Writable } from "node:stream";
 import { Endian } from "../core/DicomTransferSyntax.js";
 import { LocalEndian } from "./buffer/byteSwap.js";
 import type { IByteTarget } from "./IByteTarget.js";
@@ -82,12 +81,15 @@ export class MemoryByteTarget implements IByteTarget {
   }
 
   asWritableStream(): NodeJS.WritableStream {
-    return new Writable({
-      write: (chunk, _encoding, callback) => {
-        this.writeBytes(chunk as Uint8Array);
-        callback();
+    return {
+      write: (chunk: Uint8Array) => {
+        this.writeBytes(chunk);
+        return true;
       },
-    });
+      end: () => undefined,
+      once: () => undefined,
+      on: () => undefined,
+    } as unknown as NodeJS.WritableStream;
   }
 
   toBuffer(): Uint8Array {

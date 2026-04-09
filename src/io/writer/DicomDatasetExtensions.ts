@@ -3,7 +3,6 @@
  *
  * Ported from fo-dicom/FO-DICOM.Core/IO/Writer/DicomDatasetExtensions.cs
  */
-import { deflateRawSync } from "node:zlib";
 import { DicomTag } from "../../core/DicomTag.js";
 import { DicomTransferSyntax } from "../../core/DicomTransferSyntax.js";
 import { DicomDataset } from "../../dataset/DicomDataset.js";
@@ -11,6 +10,7 @@ import { DicomSequence } from "../../dataset/DicomSequence.js";
 import { DicomUnsignedLong } from "../../dataset/DicomElement.js";
 import type { IByteTarget } from "../IByteTarget.js";
 import { MemoryByteTarget } from "../MemoryByteTarget.js";
+import { getDeflateCodecOrThrow } from "../deflateRegistry.js";
 import { DicomWriter } from "./DicomWriter.js";
 import { DicomWriteOptions } from "./DicomWriteOptions.js";
 import { DicomWriteLengthCalculator } from "./DicomWriteLengthCalculator.js";
@@ -113,7 +113,7 @@ export function write(
   if (syntax.isDeflate) {
     const temp = new MemoryByteTarget();
     new DicomWriter(syntax, writeOptions, temp).write(dataset);
-    const compressed = deflateRawSync(temp.toBuffer());
+    const compressed = getDeflateCodecOrThrow("deflate").deflateRaw(temp.toBuffer());
     target.writeBytes(compressed);
     return;
   }

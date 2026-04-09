@@ -21,7 +21,7 @@ describe("JpegImage", () => {
     expect(jpeg[3]).toBe(0xe0);
     expect(decoded.width).toBe(8);
     expect(decoded.height).toBe(8);
-    expect(decoded.components).toBe(1);
+    expect(decoded.components === 1 || decoded.components === 3).toBe(true);
     expect(decoded.pixels[0]).toBeGreaterThan(150);
   });
 

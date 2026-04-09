@@ -3,6 +3,13 @@
  *
  * Ported from fo-dicom v5.2.5 (https://github.com/fo-dicom/fo-dicom)
  */
+import { registerNodeRuntime } from "./node/registerNodeRuntime.js";
+import { registerNodeImaging } from "./node/registerNodeImaging.js";
+import { registerNodeCodecProviders } from "./imaging/codec/provider/registerBuiltins.js";
+
+registerNodeRuntime();
+registerNodeImaging();
+registerNodeCodecProviders();
 
 export * from "./core/index.js";
 export * from "./logging/index.js";
@@ -12,9 +19,10 @@ export * from "./dataset/index.js";
 export * from "./media/index.js";
 export * from "./serialization/index.js";
 export * from "./imaging/index.js";
-export * from "./network/index.js";
 export * from "./structured-report/index.js";
 export * from "./printing/index.js";
+export * from "./node/fileAdapters.js";
+export * from "./runtime/index.js";
 export { DicomFile } from "./DicomFile.js";
 export { DicomFileMetaInformation } from "./DicomFileMetaInformation.js";
 export { DicomFileFormat } from "./DicomFileFormat.js";

@@ -164,6 +164,13 @@ export class FileByteSource implements IByteSource {
     return createReadStream(this.filePath, { start: this._position });
   }
 
+  getRemainingBytes(): Uint8Array {
+    if (this._position >= this.length) {
+      return new Uint8Array(0);
+    }
+    return this.readBytes(this.length - this._position);
+  }
+
   close(): void {
     closeSync(this.fd);
   }

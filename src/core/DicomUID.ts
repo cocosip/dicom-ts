@@ -6,8 +6,6 @@
  * Standard UID constants live in DicomUID.generated.ts and are merged
  * into this class via augmentation in DicomUID.constants.ts.
  */
-import { randomBytes } from "node:crypto";
-
 // ---------------------------------------------------------------------------
 // Enumerations
 // ---------------------------------------------------------------------------
@@ -271,7 +269,7 @@ export class DicomUIDGenerator {
    * This matches fo-dicom's `DicomUIDGenerator.GenerateDerivedFromUUID()`.
    */
   static generateDerivedFromUUID(): string {
-    const bytes = randomBytes(16);
+    const bytes = getRandomBytes(16);
     // Convert 16-byte big-endian buffer to a decimal string via BigInt
     let n = 0n;
     for (const b of bytes) {
@@ -296,4 +294,29 @@ export class DicomUIDGenerator {
     if (uid.length > 64) throw new Error(`Generated UID exceeds 64 characters: ${uid}`);
     return uid;
   }
+}
+
+function getRandomBytes(length: number): Uint8Array {
+  const cryptoLike = (globalThis as { crypto?: { getRandomValues?: (buffer: Uint8Array) => Uint8Array } }).crypto;
+  if (cryptoLike && typeof cryptoLike.getRandomValues === "function") {
+    return cryptoLike.getRandomValues(new Uint8Array(length));
+  }
+
+  try {
+    const maybeRequire = Function("return typeof require === 'function' ? require : undefined;")() as
+      | ((id: string) => any)
+      | undefined;
+    if (maybeRequire) {
+      const nodeCrypto = maybeRequire("node:crypto");
+      return new Uint8Array(nodeCrypto.randomBytes(length));
+    }
+  } catch {
+    // fall through
+  }
+
+  const out = new Uint8Array(length);
+  for (let i = 0; i < length; i++) {
+    out[i] = Math.floor(Math.random() * 256);
+  }
+  return out;
 }

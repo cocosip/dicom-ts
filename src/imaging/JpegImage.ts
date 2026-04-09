@@ -1,5 +1,8 @@
+import { encode as encodeJpegJs } from "jpeg-js";
 import type { IImage } from "./IImage.js";
-import { encodeDctJpeg } from "./codec/jpeg/common/JpegBaselineCommon.js";
+import type { IImageEncoder } from "./runtime/IImageEncoder.js";
+import type { IImageSurface } from "./runtime/IImageSurface.js";
+import { registerImageEncoder } from "./runtime/ImageEncoderRegistry.js";
 
 export interface JpegImageEncodeOptions {
   quality?: number;
@@ -9,6 +12,37 @@ export interface JpegImageEncodeOptions {
 
 export function encodeJpegImage(image: IImage, options: JpegImageEncodeOptions = {}): Uint8Array {
   return encodeRgbaToJpeg(image.pixels, image.width, image.height, options);
+}
+
+export class ThirdPartyJpegImageEncoder implements IImageEncoder {
+  readonly id = "third-party-jpeg-js-encoder";
+  readonly format = "jpeg";
+
+  encode(surface: IImageSurface, options?: Record<string, unknown>): Uint8Array {
+    return encodeRgbaToJpeg(surface.pixels, surface.width, surface.height, (options ?? {}) as JpegImageEncodeOptions);
+  }
+}
+
+/**
+ * Backward-compat alias (the implementation is now third-party based).
+ */
+export class LegacyJpegImageEncoder extends ThirdPartyJpegImageEncoder {}
+
+let registered = false;
+
+export function registerThirdPartyJpegImageEncoder(): void {
+  if (registered) {
+    return;
+  }
+  registerImageEncoder(new ThirdPartyJpegImageEncoder());
+  registered = true;
+}
+
+/**
+ * Backward-compat alias.
+ */
+export function registerLegacyJpegImageEncoder(): void {
+  registerThirdPartyJpegImageEncoder();
 }
 
 export function encodeRgbaToJpeg(
@@ -28,17 +62,25 @@ export function encodeRgbaToJpeg(
 
   const quality = normalizeQuality(options.quality ?? 90);
   const colorspace = resolveColorspace(rgba, options.colorspace ?? "auto");
-  const pixels = colorspace === "grayscale" ? rgbaToGrayscale(rgba) : rgbaToRgb(rgba);
-  const encoded = encodeDctJpeg(pixels, width, height, colorspace === "grayscale" ? 1 : 3, quality);
+  const input = colorspace === "grayscale" ? toGrayscaleRgba(rgba) : rgba;
 
-  return options.includeJfifHeader === false ? encoded : withJfifHeader(encoded);
+  const encoded = encodeJpegJs({
+    data: input,
+    width,
+    height,
+  }, quality).data;
+
+  const bytes = new Uint8Array(encoded.buffer, encoded.byteOffset, encoded.byteLength);
+  if (options.includeJfifHeader === false) {
+    return stripJfifHeader(bytes);
+  }
+  return bytes;
 }
 
 function normalizeQuality(value: number): number {
   if (!Number.isFinite(value)) {
     throw new Error(`JPEG quality must be a finite number, got ${value}`);
   }
-
   return Math.max(1, Math.min(100, Math.round(value)));
 }
 
@@ -46,75 +88,35 @@ function resolveColorspace(rgba: Uint8Array, requested: JpegImageEncodeOptions["
   if (requested === "grayscale" || requested === "rgb") {
     return requested;
   }
-
   for (let i = 0; i < rgba.length; i += 4) {
     if (rgba[i] !== rgba[i + 1] || rgba[i] !== rgba[i + 2]) {
       return "rgb";
     }
   }
-
   return "grayscale";
 }
 
-function rgbaToGrayscale(rgba: Uint8Array): Uint8Array {
-  const out = new Uint8Array(rgba.length >> 2);
-  for (let src = 0, dst = 0; src < rgba.length; src += 4, dst++) {
-    out[dst] = rgba[src] ?? 0;
+function toGrayscaleRgba(rgba: Uint8Array): Uint8Array {
+  const out = new Uint8Array(rgba.length);
+  for (let i = 0; i < rgba.length; i += 4) {
+    const y = rgba[i] ?? 0;
+    out[i] = y;
+    out[i + 1] = y;
+    out[i + 2] = y;
+    out[i + 3] = rgba[i + 3] ?? 255;
   }
   return out;
 }
 
-function rgbaToRgb(rgba: Uint8Array): Uint8Array {
-  const out = new Uint8Array((rgba.length >> 2) * 3);
-  for (let src = 0, dst = 0; src < rgba.length; src += 4) {
-    out[dst++] = rgba[src] ?? 0;
-    out[dst++] = rgba[src + 1] ?? 0;
-    out[dst++] = rgba[src + 2] ?? 0;
-  }
-  return out;
-}
-
-function withJfifHeader(jpeg: Uint8Array): Uint8Array {
-  if (hasJfifHeader(jpeg)) {
+function stripJfifHeader(jpeg: Uint8Array): Uint8Array {
+  if (jpeg.length < 20 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8 || jpeg[2] !== 0xff || jpeg[3] !== 0xe0) {
     return jpeg;
   }
-  if (jpeg.length < 2 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) {
-    throw new Error("JPEG output is missing SOI marker");
-  }
-
-  const app0 = createJfifApp0Segment();
-  const out = new Uint8Array(jpeg.length + app0.length);
-  out[0] = 0xff;
-  out[1] = 0xd8;
-  out.set(app0, 2);
-  out.set(jpeg.subarray(2), 2 + app0.length);
-  return out;
-}
-
-function hasJfifHeader(jpeg: Uint8Array): boolean {
-  return (
-    jpeg.length >= 11
-    && jpeg[0] === 0xff
-    && jpeg[1] === 0xd8
-    && jpeg[2] === 0xff
-    && jpeg[3] === 0xe0
-    && jpeg[6] === 0x4a
-    && jpeg[7] === 0x46
-    && jpeg[8] === 0x49
-    && jpeg[9] === 0x46
-    && jpeg[10] === 0x00
-  );
-}
-
-function createJfifApp0Segment(): Uint8Array {
-  return new Uint8Array([
-    0xff, 0xe0,
-    0x00, 0x10,
-    0x4a, 0x46, 0x49, 0x46, 0x00,
-    0x01, 0x01,
-    0x00,
-    0x00, 0x01,
-    0x00, 0x01,
-    0x00, 0x00,
-  ]);
+  const segmentLength = ((jpeg[4] ?? 0) << 8) | (jpeg[5] ?? 0);
+  const headerSize = 2 + 2 + segmentLength;
+  const stripped = new Uint8Array(jpeg.length - (headerSize - 2));
+  stripped[0] = 0xff;
+  stripped[1] = 0xd8;
+  stripped.set(jpeg.subarray(headerSize), 2);
+  return stripped;
 }

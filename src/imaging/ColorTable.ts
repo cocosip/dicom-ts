@@ -1,5 +1,5 @@
 import { Color32 } from "./Color32.js";
-import { readFile, writeFile } from "node:fs/promises";
+import { createRuntimeCapabilityError } from "../runtime/RuntimeCapabilityError.js";
 
 /**
  * Convenience class for managing color look-up tables with 256 color items.
@@ -20,38 +20,36 @@ export class ColorTable {
     return clone;
   }
 
-  /**
-   * Load color look-up table from file.
-   * File must be exactly 256*3 bytes in planar RGB format (R plane, G plane, B plane).
-   */
   static async loadLut(path: string): Promise<Color32[] | null> {
-    try {
-      const data = await readFile(path);
-      if (data.length !== 256 * 3) return null;
-      const lut: Color32[] = new Array(256);
-      for (let i = 0; i < 256; i++) {
-        lut[i] = new Color32(data[i]!, data[i + 256]!, data[i + 512]!, 255);
-      }
-      return lut;
-    } catch {
-      return null;
+    if (!_fileIo) {
+      throw createRuntimeCapabilityError(
+        "COLORTABLE_FILE_IO_UNSUPPORTED",
+        "ColorTable file I/O is not available in this runtime. Register a ColorTable file adapter first."
+      );
     }
+    return _fileIo.load(path);
   }
 
-  /**
-   * Save color look-up table to file.
-   * Written as planar RGB (R plane, G plane, B plane), 256*3 bytes.
-   */
   static async saveLut(path: string, lut: Color32[]): Promise<void> {
-    if (lut.length !== 256) return;
-    const data = new Uint8Array(256 * 3);
-    for (let i = 0; i < 256; i++) {
-      data[i] = lut[i]!.r;
-      data[i + 256] = lut[i]!.g;
-      data[i + 512] = lut[i]!.b;
+    if (!_fileIo) {
+      throw createRuntimeCapabilityError(
+        "COLORTABLE_FILE_IO_UNSUPPORTED",
+        "ColorTable file I/O is not available in this runtime. Register a ColorTable file adapter first."
+      );
     }
-    await writeFile(path, data);
+    await _fileIo.save(path, lut);
   }
+}
+
+export interface ColorTableFileIo {
+  load(path: string): Promise<Color32[] | null>;
+  save(path: string, lut: Color32[]): Promise<void>;
+}
+
+let _fileIo: ColorTableFileIo | null = null;
+
+export function registerColorTableFileIo(adapter: ColorTableFileIo): void {
+  _fileIo = adapter;
 }
 
 function initGrayscaleLut(reverse: boolean): Color32[] {

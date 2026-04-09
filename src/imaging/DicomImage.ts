@@ -18,6 +18,10 @@ import { DicomOverlayDataFactory } from "./DicomOverlayDataFactory.js";
 import { DicomOverlayType } from "./DicomOverlayData.js";
 import { Color32 } from "./Color32.js";
 import { CacheType } from "./CacheType.js";
+import type { IImageSurface } from "./runtime/IImageSurface.js";
+import { encodeImageSurface } from "./runtime/ImageEncoderRegistry.js";
+import { encodeImageSurfaceAsync } from "./runtime/ImageEncoderRegistry.js";
+import { convertImageSurface } from "./runtime/ImageBackendRegistry.js";
 
 /**
  * High-level DICOM image rendering API.
@@ -256,6 +260,28 @@ export class DicomImage {
       this._renderCache.set(frame, image);
     }
     return image;
+  }
+
+  renderSurface(frame: number = 0): IImageSurface {
+    const image = this.renderImage(frame);
+    return {
+      width: image.width,
+      height: image.height,
+      pixelFormat: "rgba8",
+      pixels: image.pixels,
+    };
+  }
+
+  encode(frame: number = 0, format: string = "jpeg", options?: Record<string, unknown>): Uint8Array {
+    return encodeImageSurface(this.renderSurface(frame), format, options);
+  }
+
+  async encodeAsync(frame: number = 0, format: string = "jpeg", options?: Record<string, unknown>): Promise<Uint8Array> {
+    return encodeImageSurfaceAsync(this.renderSurface(frame), format, options);
+  }
+
+  convert<T = unknown>(frame: number = 0, target: string): T {
+    return convertImageSurface<T>(this.renderSurface(frame), target);
   }
 
   // ---------------------------------------------------------------------------

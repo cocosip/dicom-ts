@@ -1,0 +1,25 @@
+{
+  "name": "dicom-ts-codec-native",
+  "version": "0.2.0-alpha.0",
+  "description": "Optional native codec provider package for dicom-ts-node",
+  "type": "module",
+  "main": "./index.cjs",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs",
+      "types": "./index.d.ts"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.cjs",
+    "index.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "dicom-ts-node": ">=0.2.0-alpha.0"
+  }
+}

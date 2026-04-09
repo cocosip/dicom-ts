@@ -1,5 +1,7 @@
 # dicom-ts 浏览器 / Node 拆包与插件化方案
 
+> 执行版计划与落地状态请见：`PLAN-BROWSER-NODE-SPLIT-FULL.md`
+
 本文件是后续拆分 `dicom-ts` npm 包结构的基线设计文档。
 目标不是立即改代码，而是先统一架构边界、包职责和实施顺序。
 

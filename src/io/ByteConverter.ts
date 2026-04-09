@@ -1,4 +1,3 @@
-import { TextEncoder } from "node:util";
 import type { IByteBuffer } from "./buffer/IByteBuffer.js";
 import { MemoryByteBuffer } from "./buffer/MemoryByteBuffer.js";
 import { EmptyBuffer } from "./buffer/EmptyBuffer.js";
@@ -23,7 +22,7 @@ export interface TypedArrayConstructor<T extends TypedArray> {
 
 export function toByteBuffer(
   value: string,
-  encoding?: string | TextEncoder,
+  encoding?: string | { encode(input: string): Uint8Array },
   padding?: number
 ): IByteBuffer {
   if (value.length === 0) return EmptyBuffer;
@@ -33,7 +32,7 @@ export function toByteBuffer(
   } else if (encoding && typeof encoding.encode === "function") {
     bytes = encoding.encode(value);
   } else {
-    bytes = new TextEncoder().encode(value);
+    bytes = new globalThis.TextEncoder().encode(value);
   }
 
   if (padding !== undefined && (bytes.length & 1) === 1) {

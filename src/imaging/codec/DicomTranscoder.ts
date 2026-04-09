@@ -14,6 +14,7 @@ import type { IByteBuffer } from "../../io/buffer/IByteBuffer.js";
 import type { IDicomTranscoder } from "./IDicomTranscoder.js";
 import type { DicomCodecParams } from "./DicomCodecParams.js";
 import { TranscoderManager } from "./TranscoderManager.js";
+import { resolveCodec } from "./provider/DicomCodecRegistry.js";
 
 export class DicomTranscoder implements IDicomTranscoder {
   readonly inputSyntax: DicomTransferSyntax;
@@ -83,7 +84,7 @@ export class DicomTranscoder implements IDicomTranscoder {
     }
 
     const sourceSyntax = this.inputSyntax ?? dataset.internalTransferSyntax;
-    const codec = TranscoderManager.getCodec(sourceSyntax);
+    const codec = getCodecForSyntax(sourceSyntax.uid.uid);
 
     const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
     const tmp = this.makeOutputDataset(dataset, DicomTransferSyntax.ExplicitVRLittleEndian);
@@ -160,7 +161,7 @@ export class DicomTranscoder implements IDicomTranscoder {
     source: DicomTransferSyntax,
     target: DicomTransferSyntax
   ): DicomDataset {
-    const codec = TranscoderManager.getCodec(source);
+    const codec = getCodecForSyntax(source.uid.uid);
 
     const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
     const output = this.makeOutputDataset(dataset, target);
@@ -173,7 +174,7 @@ export class DicomTranscoder implements IDicomTranscoder {
   }
 
   private compress(dataset: DicomDataset, target: DicomTransferSyntax): DicomDataset {
-    const codec = TranscoderManager.getCodec(target);
+    const codec = getCodecForSyntax(target.uid.uid);
 
     const oldPixelData = DicomPixelData.create(cloneDataset(dataset));
     const output = this.makeOutputDataset(dataset, target);
@@ -256,4 +257,8 @@ export class DicomTranscoder implements IDicomTranscoder {
       }
     }
   }
+}
+
+function getCodecForSyntax(uid: string) {
+  return resolveCodec(uid) ?? TranscoderManager.getCodec(DicomTransferSyntax.parse(uid));
 }

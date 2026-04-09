@@ -17,13 +17,17 @@
  * - `windows-874` maps to `windows-874` (same label in WHATWG).
  */
 
-// Import TextDecoder / TextEncoder from node:util so TypeScript recognises
-// them as proper types in projects with lib: ["ES2020"] (no DOM).
-import { TextDecoder, TextEncoder } from "node:util";
 import * as iconv from "iconv-lite";
+type BufferSource = ArrayBuffer | ArrayBufferView;
 
 // Re-export so callers can type against these without depending on DOM lib.
-export type { TextDecoder, TextEncoder };
+export interface TextDecoder {
+  decode(input?: BufferSource): string;
+}
+
+export interface TextEncoder {
+  encode(input?: string): Uint8Array;
+}
 
 // ---------------------------------------------------------------------------
 // Charset name → WHATWG TextDecoder label mapping
@@ -98,13 +102,18 @@ function iconvLabel(label: string): string {
 const _decoderCache = new Map<string, TextDecoder>();
 
 function getDecoder(label: string): TextDecoder {
+  const TextDecoderCtor = (globalThis as { TextDecoder?: new (label?: string) => TextDecoder }).TextDecoder;
+  if (!TextDecoderCtor) {
+    throw new Error("TextDecoder is not available in this runtime.");
+  }
+
   let dec = _decoderCache.get(label);
   if (!dec) {
     try {
-      dec = new TextDecoder(label);
+      dec = new TextDecoderCtor(label);
     } catch {
       // Unknown encoding label — fall back to ASCII
-      dec = new TextDecoder("ascii");
+      dec = new TextDecoderCtor("ascii");
     }
     _decoderCache.set(label, dec);
   }
@@ -116,7 +125,11 @@ function getDecoder(label: string): TextDecoder {
 // ---------------------------------------------------------------------------
 
 /** Default DICOM encoding (ASCII / ISO_IR 6). */
-export const Default: TextDecoder = new TextDecoder("ascii");
+const DefaultDecoderCtor = (globalThis as { TextDecoder?: new (label?: string) => TextDecoder }).TextDecoder;
+if (!DefaultDecoderCtor) {
+  throw new Error("TextDecoder is not available in this runtime.");
+}
+export const Default: TextDecoder = new DefaultDecoderCtor("ascii");
 
 /**
  * Get a `TextDecoder` for the given DICOM charset name.
@@ -300,19 +313,27 @@ export function encodeString(s: string, charsets: readonly string[]): Uint8Array
 }
 
 function decodeWithLabel(label: string, bytes: Uint8Array): string {
+  const TextDecoderCtor = (globalThis as { TextDecoder?: new (label?: string) => TextDecoder }).TextDecoder;
+  if (!TextDecoderCtor) {
+    throw new Error("TextDecoder is not available in this runtime.");
+  }
   if (label === "utf-8" || label === "us-ascii") {
-    return new TextDecoder(label).decode(bytes);
+    return new TextDecoderCtor(label).decode(bytes);
   }
   const encLabel = iconvLabel(label);
   if (iconv.encodingExists(encLabel)) {
-    return iconv.decode(Buffer.from(bytes), encLabel);
+    return iconv.decode(bytes, encLabel);
   }
   return getDecoder(label).decode(bytes);
 }
 
 function encodeWithLabel(label: string, s: string): Uint8Array {
+  const TextEncoderCtor = (globalThis as { TextEncoder?: new () => TextEncoder }).TextEncoder;
+  if (!TextEncoderCtor) {
+    throw new Error("TextEncoder is not available in this runtime.");
+  }
   if (label === "utf-8" || label === "us-ascii") {
-    return new TextEncoder().encode(s);
+    return new TextEncoderCtor().encode(s);
   }
 
   const encLabel = iconvLabel(label);

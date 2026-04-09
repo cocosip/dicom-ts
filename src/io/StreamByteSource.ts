@@ -176,6 +176,13 @@ export class StreamByteSource implements IByteSource {
     return createReadStream("", { fd: this.fd, start: this._position, autoClose: false });
   }
 
+  getRemainingBytes(): Uint8Array {
+    if (this._position >= this.length) {
+      return new Uint8Array(0);
+    }
+    return this.readBytes(this.length - this._position);
+  }
+
   private readBytes(count: number): Uint8Array {
     const out = Buffer.allocUnsafe(count);
     readFully(this.fd, out, this._position);

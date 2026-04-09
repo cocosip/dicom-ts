@@ -1,11 +1,10 @@
-import { readFileSync } from "node:fs";
-import { inflateRawSync, inflateSync } from "node:zlib";
 import { DicomDataset } from "../../dataset/DicomDataset.js";
 import { DicomTransferSyntax } from "../../core/DicomTransferSyntax.js";
 import * as DicomTags from "../../core/DicomTag.generated.js";
 import type { IByteSource } from "../IByteSource.js";
 import { ByteBufferByteSource } from "../ByteBufferByteSource.js";
 import { MemoryByteBuffer } from "../buffer/MemoryByteBuffer.js";
+import { getDeflateCodecOrThrow } from "../deflateRegistry.js";
 import { DicomReader } from "./DicomReader.js";
 import { DicomDatasetReaderObserver } from "./DicomDatasetReaderObserver.js";
 
@@ -38,10 +37,10 @@ export class DicomFileReader {
       : DicomTransferSyntax.ExplicitVRLittleEndian;
 
     if (transferSyntax.isDeflate) {
-      if (!isFileSource(source)) {
-        throw new Error("Deflated transfer syntax requires file-backed source for synchronous read.");
+      if (!hasRemainingBytesSource(source)) {
+        throw new Error("Deflated transfer syntax requires a source that supports reading remaining bytes.");
       }
-      const remaining = readRemainingFileBytes(source);
+      const remaining = source.getRemainingBytes();
       const inflated = inflateDeflated(remaining);
       const inflatedSource = new ByteBufferByteSource([new MemoryByteBuffer(inflated)]);
       const dataset = new DicomDataset(transferSyntax);
@@ -78,20 +77,14 @@ function readPreamble(source: IByteSource): Uint8Array | null {
 }
 
 function inflateDeflated(bytes: Uint8Array): Uint8Array {
+  const codec = getDeflateCodecOrThrow("inflate");
   try {
-    return inflateRawSync(bytes);
+    return codec.inflateRaw(bytes);
   } catch {
-    return inflateSync(bytes);
+    return codec.inflate(bytes);
   }
 }
 
-function isFileSource(source: IByteSource): source is IByteSource & { filePath: string } {
-  return typeof (source as { filePath?: string }).filePath === "string";
-}
-
-function readRemainingFileBytes(source: IByteSource & { filePath: string }): Uint8Array {
-  const fileBytes = readFileSync(source.filePath);
-  const start = Math.max(0, source.position);
-  if (start >= fileBytes.length) return new Uint8Array(0);
-  return new Uint8Array(fileBytes.buffer, fileBytes.byteOffset + start, fileBytes.length - start);
+function hasRemainingBytesSource(source: IByteSource): source is IByteSource & { getRemainingBytes: () => Uint8Array } {
+  return typeof (source as { getRemainingBytes?: unknown }).getRemainingBytes === "function";
 }

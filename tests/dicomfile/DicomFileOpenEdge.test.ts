@@ -90,4 +90,45 @@ describe("DicomFile.open edge cases", () => {
       stream.destroy();
     }
   });
+
+  it("opens browser-friendly file/blob/arrayBuffer helpers", async () => {
+    const bytes: number[] = [];
+    const pnValue = Buffer.from("Web^Friendly", "ascii");
+    pushElementExplicit16(bytes, 0x0010, 0x0010, "PN", pnValue);
+    const dicomBytes = Uint8Array.from(bytes);
+    const fileLike = createBlobLike(dicomBytes);
+
+    const openedFromFile = await DicomFile.openFromFile(fileLike);
+    const openedFromBlob = await DicomFile.openFromBlob(fileLike);
+    const openedFromArrayBuffer = await DicomFile.openFromArrayBuffer(copyToArrayBuffer(dicomBytes));
+    const openedFromBytes = DicomFile.openFromBytes(dicomBytes);
+
+    expect(openedFromFile.dataset.getString(DicomTags.PatientName)).toBe("Web^Friendly");
+    expect(openedFromBlob.dataset.getString(DicomTags.PatientName)).toBe("Web^Friendly");
+    expect(openedFromArrayBuffer.dataset.getString(DicomTags.PatientName)).toBe("Web^Friendly");
+    expect(openedFromBytes.dataset.getString(DicomTags.PatientName)).toBe("Web^Friendly");
+  });
+
+  it("opens from generic ArrayBufferView", async () => {
+    const bytes: number[] = [];
+    const pnValue = Buffer.from("View^Source", "ascii");
+    pushElementExplicit16(bytes, 0x0010, 0x0010, "PN", pnValue);
+    const dicomBytes = Uint8Array.from(bytes);
+    const view = new DataView(copyToArrayBuffer(dicomBytes));
+
+    const opened = await DicomFile.open(view);
+    expect(opened.dataset.getString(DicomTags.PatientName)).toBe("View^Source");
+  });
 });
+
+function createBlobLike(bytes: Uint8Array): { arrayBuffer: () => Promise<ArrayBuffer> } {
+  return {
+    arrayBuffer: async () => copyToArrayBuffer(bytes),
+  };
+}
+
+function copyToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}

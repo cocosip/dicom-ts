@@ -7,7 +7,7 @@ export { PlanarConfiguration, parsePlanarConfiguration } from "./PlanarConfigura
 export { BitDepth } from "./BitDepth.js";
 export { Color32 } from "./Color32.js";
 export { ColorSpace } from "./ColorSpace.js";
-export { ColorTable } from "./ColorTable.js";
+export { ColorTable, registerColorTableFileIo } from "./ColorTable.js";
 export { PixelDataConverter } from "./PixelDataConverter.js";
 export { DicomOverlayData, DicomOverlayType } from "./DicomOverlayData.js";
 export { DicomOverlayDataFactory } from "./DicomOverlayDataFactory.js";
@@ -17,7 +17,16 @@ export { RawImage } from "./RawImage.js";
 export { RawImageManager } from "./RawImageManager.js";
 export { DicomIconImage } from "./DicomIconImage.js";
 export type { JpegImageEncodeOptions } from "./JpegImage.js";
-export { encodeJpegImage, encodeRgbaToJpeg } from "./JpegImage.js";
+export {
+  encodeJpegImage,
+  encodeRgbaToJpeg,
+  ThirdPartyJpegImageEncoder,
+  registerThirdPartyJpegImageEncoder,
+  LegacyJpegImageEncoder,
+  registerLegacyJpegImageEncoder,
+} from "./JpegImage.js";
+export type { PngImageEncodeOptions } from "./PngImage.js";
+export { encodePngImage, encodeRgbaToPng, ThirdPartyPngImageEncoder, registerThirdPartyPngImageEncoder } from "./PngImage.js";
 
 export { CacheType } from "./CacheType.js";
 export { DicomImagingException } from "./DicomImagingException.js";
@@ -77,6 +86,42 @@ export type {
   DicomJpeg2000ProgressionOrder,
   DicomJpeg2000MctBinding,
 } from "./codec/jpeg2000/index.js";
+export type { ITransferSyntaxCapability } from "./codec/provider/ITransferSyntaxCapability.js";
+export type { IDicomCodecProvider } from "./codec/provider/IDicomCodecProvider.js";
+export type { IDicomCodecRegistry } from "./codec/provider/IDicomCodecRegistry.js";
+export type { IDicomTranscoderFactory } from "./codec/provider/IDicomTranscoderFactory.js";
+export {
+  getDicomCodecRegistry,
+  registerCodecProvider,
+  unregisterCodecProvider,
+  resolveCodec,
+  getCodecCapabilities,
+} from "./codec/provider/DicomCodecRegistry.js";
+export {
+  registerWebCodecProviders,
+  registerNodeCodecProviders,
+  registerNativeCodecProviders,
+} from "./codec/provider/registerBuiltins.js";
+
+export type { IImageSurface, ImagePixelFormat } from "./runtime/IImageSurface.js";
+export type { IImageEncoder } from "./runtime/IImageEncoder.js";
+export type { IImageBackend } from "./runtime/IImageBackend.js";
+export {
+  registerImageEncoder,
+  unregisterImageEncoder,
+  getImageEncoder,
+  listImageEncoders,
+  encodeImageSurface,
+  encodeImageSurfaceAsync,
+} from "./runtime/ImageEncoderRegistry.js";
+export {
+  registerImageBackend,
+  unregisterImageBackend,
+  getImageBackend,
+  listImageBackends,
+  convertImageSurface,
+} from "./runtime/ImageBackendRegistry.js";
+export { registerWebImageEncoders, registerNodeImageEncoders } from "./runtime/registerBuiltins.js";
 
 export { Point2 } from "./math/Point2.js";
 export { Point2D } from "./math/Point2D.js";
