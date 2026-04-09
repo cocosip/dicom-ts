@@ -43,7 +43,14 @@ try {
   }
 
   const rendered = image.renderImage(options.frame);
-  const jpegBytes = dicom.encodeJpegImage(rendered, { quality: options.quality });
+  const jpegBytes = typeof dicom.encodeImageSurfaceAsync === "function"
+    ? await dicom.encodeImageSurfaceAsync({
+      width: rendered.width,
+      height: rendered.height,
+      pixelFormat: "rgba8",
+      pixels: rendered.pixels,
+    }, "jpeg", { quality: options.quality })
+    : dicom.encodeJpegImage(rendered, { quality: options.quality });
   const outputPath = path.resolve(options.outputPath || defaultOutputPath(inputPath, options.frame));
 
   await ensureDirectory(path.dirname(outputPath));

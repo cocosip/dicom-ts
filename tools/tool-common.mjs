@@ -3,10 +3,17 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 export async function loadDicomTs() {
+  const importNodeEntry = () => import("../dist/esm/node/index.js");
+  const importRootEntry = () => import("../dist/esm/index.js");
+
   try {
-    return await import("../dist/esm/index.js");
+    return await importNodeEntry();
   } catch {
-    console.error("[tool] dist/esm not found. Building automatically...");
+    try {
+      return await importRootEntry();
+    } catch {
+      console.error("[tool] dist/esm not found. Building automatically...");
+    }
     const buildResult = spawnSync("npm", ["run", "build:esm"], {
       stdio: "inherit",
       shell: process.platform === "win32",
@@ -17,10 +24,14 @@ export async function loadDicomTs() {
     }
 
     try {
-      return await import("../dist/esm/index.js");
+      return await importNodeEntry();
     } catch {
-      console.error("[tool] Build succeeded but dist/esm still cannot be loaded.");
-      return null;
+      try {
+        return await importRootEntry();
+      } catch {
+        console.error("[tool] Build succeeded but dist/esm still cannot be loaded.");
+        return null;
+      }
     }
   }
 }

@@ -16,5 +16,10 @@ export {
   registerNodeSharpImageOperations,
   setNodeImageOperationMode,
   getNodeImageOperationMode,
+  whenNodeImageOperationsReady,
 } from "./registerNodeImaging.js";
-export type { NodeImageOperationMode, RegisterNodeSharpImageOptions } from "./registerNodeImaging.js";
+export type {
+  NodeImageOperationMode,
+  RegisterNodeSharpImageOptions,
+  RegisterNodeImagingOptions,
+} from "./registerNodeImaging.js";

@@ -9,12 +9,17 @@ import { createRuntimeCapabilityError } from "../runtime/RuntimeCapabilityError.
 
 let registered = false;
 let nodeImageMode: NodeImageOperationMode = "shared";
+let nodeImageInitialization: Promise<NodeImageOperationMode> | null = null;
 
 export type NodeImageOperationMode = "shared" | "sharp";
 
 export interface RegisterNodeSharpImageOptions {
   fallbackToShared?: boolean;
   sharpImport?: () => Promise<unknown>;
+}
+
+export interface RegisterNodeImagingOptions extends RegisterNodeSharpImageOptions {
+  preferredMode?: NodeImageOperationMode;
 }
 
 /**
@@ -66,7 +71,11 @@ export function getNodeImageOperationMode(): NodeImageOperationMode {
   return nodeImageMode;
 }
 
-export function registerNodeImaging(): void {
+export function whenNodeImageOperationsReady(): Promise<NodeImageOperationMode> {
+  return nodeImageInitialization ?? Promise.resolve(nodeImageMode);
+}
+
+export function registerNodeImaging(options: RegisterNodeImagingOptions = {}): void {
   if (registered) {
     return;
   }
@@ -101,7 +110,20 @@ export function registerNodeImaging(): void {
     },
   });
 
+  const preferredMode = options.preferredMode ?? readPreferredNodeImageMode();
   registerNodeSharedImageOperations();
+  const modeOptions: RegisterNodeSharpImageOptions = {
+    fallbackToShared: options.fallbackToShared ?? true,
+  };
+  if (options.sharpImport) {
+    modeOptions.sharpImport = options.sharpImport;
+  }
+  nodeImageInitialization = setNodeImageOperationMode(preferredMode, {
+    ...modeOptions,
+  }).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    throw createRuntimeCapabilityError("NODE_IMAGE_BOOTSTRAP_FAILED", message);
+  });
 
   registered = true;
 }
@@ -194,6 +216,14 @@ function normalizeQuality(value: number): number {
 
 function normalizeCompression(value: number): number {
   return Math.max(0, Math.min(9, Math.round(value)));
+}
+
+function readPreferredNodeImageMode(): NodeImageOperationMode {
+  const raw = process.env.DICOM_TS_NODE_IMAGE_MODE;
+  if (typeof raw === "string" && raw.trim().toLowerCase() === "sharp") {
+    return "sharp";
+  }
+  return "shared";
 }
 
 async function defaultSharpImport(): Promise<unknown> {
