@@ -3,6 +3,11 @@ import { Endian } from "../core/DicomTransferSyntax.js";
 
 export type ByteSourceCallback = (source: IByteSource, state: unknown) => void;
 
+export interface ReadableByteStreamLike {
+  read?: () => unknown;
+  [Symbol.asyncIterator]?: () => AsyncIterator<unknown>;
+}
+
 /**
  * Byte source interface for sequential read operations.
  */
@@ -35,5 +40,5 @@ export interface IByteSource {
   require(count: number): boolean;
   require(count: number, callback: ByteSourceCallback | null, state: unknown): boolean;
 
-  getStream(): NodeJS.ReadableStream;
+  getStream(): ReadableByteStreamLike;
 }

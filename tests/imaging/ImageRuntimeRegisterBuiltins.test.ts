@@ -7,12 +7,12 @@ import {
 import { registerWebImageEncoders } from "../../src/imaging/runtime/registerBuiltins.js";
 
 describe("Image runtime builtins", () => {
-  it("registers node backend when shared registration runs in Node runtime", () => {
-    unregisterImageBackend("node:buffer");
+  it("registers Uint8Array RGBA backend when shared registration runs", () => {
+    unregisterImageBackend("uint8array");
 
     registerWebImageEncoders();
 
-    const backend = getImageBackend("node:buffer");
+    const backend = getImageBackend("uint8array");
     expect(backend).not.toBeNull();
 
     const source = new Uint8Array([7, 8, 9, 255]);
@@ -21,7 +21,7 @@ describe("Image runtime builtins", () => {
       height: 1,
       pixelFormat: "rgba8",
       pixels: source,
-    }, "node:buffer");
+    }, "uint8array");
 
     expect(Array.from(converted)).toEqual([7, 8, 9, 255]);
     expect(converted).not.toBe(source);

@@ -43,6 +43,25 @@ describe("package manifest boundaries", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("keeps shared browser package sources free of Node runtime type and fallback leaks", async () => {
+    const files = await listTypeScriptFiles(join(root, "src"));
+    const offenders: string[] = [];
+    const nodeLeak = /\bNodeJS\.|\btypeof\s+Buffer\b|\bBuffer\.from\b|import\s+\{\s*Buffer\s*\}\s+from|["'`]node:(?:buffer|crypto|fs|path|stream|zlib)["'`]/;
+
+    for (const file of files) {
+      const relative = file.replace(root, "").replace(/\\/g, "/");
+      if (relative.startsWith("/src/node/") || relative.startsWith("/src/network/")) {
+        continue;
+      }
+      const source = await readFile(file, "utf8");
+      if (nodeLeak.test(source)) {
+        offenders.push(relative);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it("keeps package entrypoints self-contained inside each published package", async () => {
     for (const packageName of ["dicom-ts", "dicom-ts-node"] as const) {
       const packageRoot = join(root, "packages", packageName);

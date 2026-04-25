@@ -12,10 +12,6 @@ export class Base64 {
   }
 
   public static encode(data: Uint8Array): string {
-    if (typeof Buffer !== "undefined") {
-      return Buffer.from(data).toString("base64");
-    }
-
     let len = data.length;
     let extraBytes = len % 3; // if we have 1 byte left, pad 2 bytes
     let output = "";
@@ -44,10 +40,6 @@ export class Base64 {
   }
 
   public static decode(base64: string): Uint8Array {
-    if (typeof Buffer !== "undefined") {
-      return new Uint8Array(Buffer.from(base64, "base64"));
-    }
-
     let len = base64.length;
     if (len % 4 > 0) {
       throw new Error("Invalid string. Length must be a multiple of 4");

@@ -302,18 +302,6 @@ function getRandomBytes(length: number): Uint8Array {
     return cryptoLike.getRandomValues(new Uint8Array(length));
   }
 
-  try {
-    const maybeRequire = Function("return typeof require === 'function' ? require : undefined;")() as
-      | ((id: string) => any)
-      | undefined;
-    if (maybeRequire) {
-      const nodeCrypto = maybeRequire("node:crypto");
-      return new Uint8Array(nodeCrypto.randomBytes(length));
-    }
-  } catch {
-    // fall through
-  }
-
   const out = new Uint8Array(length);
   for (let i = 0; i < length; i++) {
     out[i] = Math.floor(Math.random() * 256);

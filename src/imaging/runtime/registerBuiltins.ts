@@ -13,7 +13,7 @@ export function registerWebImageEncoders(): void {
   }
   registerSharedImageEncoders();
   if (isNodeLikeRuntime()) {
-    registerImageBackend(nodeRgbaBackend);
+    registerImageBackend(uint8ArrayRgbaBackend);
     nodeRegistered = true;
   }
   webRegistered = true;
@@ -24,7 +24,7 @@ export function registerNodeImageEncoders(): void {
     return;
   }
   registerSharedImageEncoders();
-  registerImageBackend(nodeRgbaBackend);
+  registerImageBackend(uint8ArrayRgbaBackend);
   nodeRegistered = true;
 }
 
@@ -33,9 +33,9 @@ export function registerSharedImageEncoders(): void {
   registerImageEncoder(new ThirdPartyPngImageEncoder());
 }
 
-const nodeRgbaBackend: IImageBackend<Uint8Array> = {
-  id: "node-rgba-backend",
-  target: "node:buffer",
+const uint8ArrayRgbaBackend: IImageBackend<Uint8Array> = {
+  id: "uint8array-rgba-backend",
+  target: "uint8array",
   convert: (surface) => {
     const copy = new Uint8Array(surface.pixels.length);
     copy.set(surface.pixels);

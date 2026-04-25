@@ -2,6 +2,13 @@ import { Endian } from "../core/DicomTransferSyntax.js";
 
 export type ByteTargetCallback = (target: IByteTarget, state: unknown) => void;
 
+export interface WritableByteStreamLike {
+  write(chunk: Uint8Array): unknown;
+  end?: () => unknown;
+  once?: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  on?: (event: string, listener: (...args: unknown[]) => void) => unknown;
+}
+
 /**
  * Byte target interface for sequential write operations.
  */
@@ -22,5 +29,5 @@ export interface IByteTarget {
   writeBytes(buffer: Uint8Array, offset?: number, count?: number): void;
   writeBytesAsync(buffer: Uint8Array, offset?: number, count?: number): Promise<void>;
 
-  asWritableStream(): NodeJS.WritableStream;
+  asWritableStream(): WritableByteStreamLike;
 }

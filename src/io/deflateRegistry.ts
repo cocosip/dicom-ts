@@ -17,12 +17,10 @@ export function clearDeflateCodec(): void {
 }
 
 export function hasDeflateCodec(): boolean {
-  ensureDefaultNodeCodec();
   return codec !== null;
 }
 
 export function getDeflateCodecOrThrow(operation: "inflate" | "deflate"): DeflateCodec {
-  ensureDefaultNodeCodec();
   if (!codec) {
     throw createRuntimeCapabilityError(
       "DICOM_DEFLATE_UNSUPPORTED",
@@ -30,28 +28,4 @@ export function getDeflateCodecOrThrow(operation: "inflate" | "deflate"): Deflat
     );
   }
   return codec;
-}
-
-function ensureDefaultNodeCodec(): void {
-  if (codec) {
-    return;
-  }
-
-  try {
-    const maybeRequire = Function("return typeof require === 'function' ? require : undefined;")() as
-      | ((id: string) => any)
-      | undefined;
-    if (!maybeRequire) {
-      return;
-    }
-
-    const zlib = maybeRequire("node:zlib");
-    codec = {
-      inflateRaw: (data: Uint8Array) => zlib.inflateRawSync(data),
-      inflate: (data: Uint8Array) => zlib.inflateSync(data),
-      deflateRaw: (data: Uint8Array) => zlib.deflateRawSync(data),
-    };
-  } catch {
-    // ignore; runtime can still register codec explicitly
-  }
 }

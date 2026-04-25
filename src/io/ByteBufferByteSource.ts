@@ -1,7 +1,7 @@
 import { Endian } from "../core/DicomTransferSyntax.js";
 import type { IByteBuffer } from "./buffer/IByteBuffer.js";
 import { MemoryByteBuffer } from "./buffer/MemoryByteBuffer.js";
-import type { IByteSource, ByteSourceCallback } from "./IByteSource.js";
+import type { IByteSource, ByteSourceCallback, ReadableByteStreamLike } from "./IByteSource.js";
 import {
   readInt16,
   readUInt16,
@@ -196,7 +196,7 @@ export class ByteBufferByteSource implements IByteSource {
     }
   }
 
-  getStream(): NodeJS.ReadableStream {
+  getStream(): ReadableByteStreamLike {
     const chunks = this.buffers.map((b) => b.data);
     let index = 0;
     return {
@@ -206,7 +206,7 @@ export class ByteBufferByteSource implements IByteSource {
           yield chunk;
         }
       },
-    } as unknown as NodeJS.ReadableStream;
+    };
   }
 
   getRemainingBytes(): Uint8Array {
