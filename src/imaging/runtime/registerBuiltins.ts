@@ -12,10 +12,8 @@ export function registerWebImageEncoders(): void {
     return;
   }
   registerSharedImageEncoders();
-  if (isNodeLikeRuntime()) {
-    registerImageBackend(uint8ArrayRgbaBackend);
-    nodeRegistered = true;
-  }
+  registerImageBackend(uint8ArrayRgbaBackend);
+  nodeRegistered = true;
   webRegistered = true;
 }
 
@@ -42,8 +40,3 @@ const uint8ArrayRgbaBackend: IImageBackend<Uint8Array> = {
     return copy;
   },
 };
-
-function isNodeLikeRuntime(): boolean {
-  const p = (globalThis as { process?: { versions?: { node?: string } } }).process;
-  return typeof p?.versions?.node === "string" && p.versions.node.length > 0;
-}

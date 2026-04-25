@@ -46,7 +46,7 @@ describe("package manifest boundaries", () => {
   it("keeps shared browser package sources free of Node runtime type and fallback leaks", async () => {
     const files = await listTypeScriptFiles(join(root, "src"));
     const offenders: string[] = [];
-    const nodeLeak = /\bNodeJS\.|\btypeof\s+Buffer\b|\bBuffer\.from\b|import\s+\{\s*Buffer\s*\}\s+from|["'`]node:(?:buffer|crypto|fs|path|stream|zlib)["'`]/;
+    const nodeLeak = /\bNodeJS\.|\btypeof\s+Buffer\b|\bBuffer\.from\b|import\s+\{\s*Buffer\s*\}\s+from|["'`]node:(?:buffer|crypto|fs|path|stream|zlib)["'`]|globalThis[\s\S]{0,160}\)\.process|\bprocess\.(?:env|versions)\b|\bversions\??\.node\b/;
 
     for (const file of files) {
       const relative = file.replace(root, "").replace(/\\/g, "/");
