@@ -1,1 +1,1 @@
-module.exports = require("../../dist/cjs/node/index.js");
+module.exports = require("./dist/cjs/node/index.js");

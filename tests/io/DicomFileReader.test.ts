@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ByteBufferByteSource } from "../../src/io/ByteBufferByteSource.js";
 import { MemoryByteBuffer } from "../../src/io/buffer/MemoryByteBuffer.js";
-import { FileByteSource } from "../../src/io/FileByteSource.js";
+import { FileByteSource } from "../../src/node/io/FileByteSource.js";
 import { MemoryByteTarget } from "../../src/io/MemoryByteTarget.js";
 import { DicomFileReader } from "../../src/io/reader/DicomFileReader.js";
 import { DicomFileWriter } from "../../src/io/writer/DicomFileWriter.js";

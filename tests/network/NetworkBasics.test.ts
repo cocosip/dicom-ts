@@ -4,7 +4,7 @@ import * as DicomUIDs from "../../src/core/DicomUID.generated.js";
 import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import { DicomDataset } from "../../src/dataset/DicomDataset.js";
 import { DicomUniqueIdentifier } from "../../src/dataset/DicomElement.js";
-import { DicomFile } from "../../src/DicomFile.js";
+import { DicomFile } from "../../src/node/DicomFile.js";
 import {
   DicomAssociation,
   DicomCEchoRequest,

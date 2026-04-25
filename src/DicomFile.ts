@@ -33,10 +33,8 @@ export interface BlobResultLike {
   readonly arrayBuffer: () => Promise<ArrayBuffer>;
 }
 
-interface NodeDicomFileAdapter {
-  open(source: string | unknown, options: DicomFileOpenOptions): Promise<DicomFile>;
-  save(file: DicomFile, target: string | unknown, options?: DicomWriteOptions): Promise<void>;
-  hasValidHeader(path: string): Promise<boolean>;
+export interface BrowserDicomFileSaveTarget {
+  write(data: Uint8Array): void | Promise<void>;
 }
 
 /**
@@ -64,14 +62,10 @@ export class DicomFile {
 
   static async open(source: unknown, options: DicomFileOpenOptions = {}): Promise<DicomFile> {
     if (typeof source === "string" || isNodeReadableLike(source)) {
-      const adapter = await getNodeAdapter();
-      if (!adapter) {
-        throw createRuntimeCapabilityError(
-          "DICOMFILE_NODE_IO_UNSUPPORTED",
-          "Node file/stream open is not available in this runtime."
-        );
-      }
-      return adapter.open(source, options);
+      throw createRuntimeCapabilityError(
+        "DICOMFILE_NODE_IO_UNSUPPORTED",
+        "Node file/stream open is only available from the dicom-ts-node entrypoint."
+      );
     }
 
     const bytes = await sourceToBytes(source);
@@ -110,27 +104,23 @@ export class DicomFile {
   static openFromBytes(source: Uint8Array, _options: DicomFileOpenOptions = {}): DicomFile {
     const byteSource = new ByteBufferByteSource([new MemoryByteBuffer(source)]);
     const result = DicomFileReader.read(byteSource);
-    const file = DicomFile.fromReadResult(result);
+    const file = this.fromReadResult(result);
     file.format = inferFormat(result);
     return file;
   }
 
-  async save(path: string, options?: DicomWriteOptions): Promise<void>;
-  async save(target: unknown, options?: DicomWriteOptions): Promise<void>;
-  async save(target: unknown, options?: DicomWriteOptions): Promise<void> {
-    if (typeof target === "string" || isNodeWritableLike(target)) {
-      const adapter = await getNodeAdapter();
-      if (!adapter) {
-        throw createRuntimeCapabilityError(
-          "DICOMFILE_NODE_IO_UNSUPPORTED",
-          "Node file/stream save is not available in this runtime."
-        );
-      }
-      await adapter.save(this, target, options);
+  async save(options?: DicomWriteOptions): Promise<Uint8Array>;
+  async save(target: BrowserDicomFileSaveTarget, options?: DicomWriteOptions): Promise<void>;
+  async save(
+    targetOrOptions?: BrowserDicomFileSaveTarget | DicomWriteOptions,
+    options?: DicomWriteOptions,
+  ): Promise<Uint8Array | void> {
+    if (isBrowserSaveTarget(targetOrOptions)) {
+      await targetOrOptions.write(this.toUint8Array(options));
       return;
     }
 
-    throw new Error("Unsupported save target. Use save(path|stream) in Node or toArrayBuffer()/toBlob() for browser.");
+    return this.toUint8Array(targetOrOptions as DicomWriteOptions | undefined);
   }
 
   async toArrayBuffer(options?: DicomWriteOptions): Promise<ArrayBuffer> {
@@ -163,11 +153,8 @@ export class DicomFile {
   }
 
   static async hasValidHeader(path: string): Promise<boolean> {
-    const adapter = await getNodeAdapter();
-    if (!adapter) {
-      return false;
-    }
-    return adapter.hasValidHeader(path);
+    void path;
+    return false;
   }
 
   toString(): string {
@@ -195,8 +182,11 @@ export class DicomFile {
     // subclasses may override
   }
 
-  static fromReadResult(result: ReturnType<typeof DicomFileReader.read>): DicomFile {
-    const file = new DicomFile();
+  static fromReadResult<T extends DicomFile>(
+    this: new () => T,
+    result: ReturnType<typeof DicomFileReader.read>,
+  ): T {
+    const file = new this();
     file.dataset = result.dataset;
     file.dataset.internalTransferSyntax = result.transferSyntax;
     file.fileMetaInfo = new DicomFileMetaInformation(result.metaInfo);
@@ -237,28 +227,8 @@ function isNodeReadableLike(value: unknown): boolean {
     && typeof (value as { read?: unknown }).read === "function";
 }
 
-function isNodeWritableLike(value: unknown): boolean {
+function isBrowserSaveTarget(value: unknown): value is BrowserDicomFileSaveTarget {
   return !!value
     && typeof value === "object"
-    && typeof (value as { write?: unknown }).write === "function";
-}
-
-let nodeAdapterPromise: Promise<NodeDicomFileAdapter | null> | null = null;
-
-async function getNodeAdapter(): Promise<NodeDicomFileAdapter | null> {
-  if (!nodeAdapterPromise) {
-    nodeAdapterPromise = (async () => {
-      try {
-        const mod = await import("./node/DicomFileNodeAdapter.js");
-        return {
-          open: mod.openNodeDicomFile,
-          save: mod.saveNodeDicomFile,
-          hasValidHeader: mod.hasValidHeaderNode,
-        } satisfies NodeDicomFileAdapter;
-      } catch {
-        return null;
-      }
-    })();
-  }
-  return nodeAdapterPromise;
+    && typeof (value as BrowserDicomFileSaveTarget).write === "function";
 }

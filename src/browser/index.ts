@@ -7,12 +7,21 @@ registerWebCodecProviders();
 export * from "../core/index.js";
 export * from "../logging/index.js";
 export * from "../dataset/index.js";
+export * from "../media/index.js";
 export * from "../serialization/index.js";
 export * from "../imaging/index.js";
+export * from "../structured-report/index.js";
 export * from "../printing/index.js";
 
 export { DicomFileMetaInformation } from "../DicomFileMetaInformation.js";
 export { DicomFileFormat } from "../DicomFileFormat.js";
+export { DicomFile } from "../DicomFile.js";
+export type {
+  BlobLike,
+  BlobResultLike,
+  BrowserDicomFileSaveTarget,
+  DicomFileOpenOptions,
+} from "../DicomFile.js";
 
 export * from "./io.js";
 export * from "./fileAdapters.js";

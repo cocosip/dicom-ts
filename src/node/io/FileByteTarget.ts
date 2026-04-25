@@ -1,6 +1,7 @@
-import { Endian } from "../core/DicomTransferSyntax.js";
-import { LocalEndian } from "./buffer/byteSwap.js";
-import type { IByteTarget } from "./IByteTarget.js";
+import { createWriteStream } from "node:fs";
+import { Endian } from "../../core/DicomTransferSyntax.js";
+import { LocalEndian } from "../../io/buffer/byteSwap.js";
+import type { IByteTarget } from "../../io/IByteTarget.js";
 import {
   writeInt16,
   writeUInt16,
@@ -10,16 +11,19 @@ import {
   writeUInt64,
   writeSingle,
   writeDouble,
-} from "./internal/byteWriters.js";
+} from "../../io/internal/byteWriters.js";
 
 /**
- * Stream-backed byte target for sequential writing.
+ * File-backed byte target for sequential writing.
  */
-export class StreamByteTarget implements IByteTarget {
+export class FileByteTarget implements IByteTarget {
   private _endian: Endian = LocalEndian;
   private _position = 0;
+  private readonly stream: NodeJS.WritableStream;
 
-  constructor(private readonly stream: NodeJS.WritableStream) {}
+  constructor(readonly filePath: string) {
+    this.stream = createWriteStream(filePath, { flags: "w" });
+  }
 
   get endian(): Endian {
     return this._endian;
@@ -93,5 +97,9 @@ export class StreamByteTarget implements IByteTarget {
 
   asWritableStream(): NodeJS.WritableStream {
     return this.stream;
+  }
+
+  close(): void {
+    this.stream.end();
   }
 }

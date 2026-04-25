@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { openSync, closeSync, readSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { IByteBuffer } from "./IByteBuffer.js";
+import type { IByteBuffer } from "../../../io/buffer/IByteBuffer.js";
 
 /**
  * Temporary file-backed byte buffer.

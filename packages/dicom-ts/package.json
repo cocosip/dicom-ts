@@ -16,7 +16,13 @@
   "files": [
     "index.js",
     "index.cjs",
-    "index.d.ts"
+    "index.d.ts",
+    "dist"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "iconv-lite": "^0.7.2",
+    "jpeg-js": "^0.4.4",
+    "upng-js": "^2.1.0"
+  }
 }

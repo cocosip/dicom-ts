@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DicomFile } from "../../../src/DicomFile.js";
+import { DicomFile } from "../../../src/node/DicomFile.js";
 import { DicomPixelData } from "../../../src/imaging/DicomPixelData.js";
 import {
   Jpeg2000Decoder,

@@ -10,7 +10,8 @@
   "scripts": {
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
-    "build": "npm run build:cjs && npm run build:esm",
+    "build": "npm run build:cjs && npm run build:esm && npm run build:packages",
+    "build:packages": "node scripts/sync-package-dist.mjs",
     "build:all": "npm run build && npm run check:browser-safe",
     "check:browser-safe": "node scripts/check-browser-safe.mjs",
     "test": "vitest run --maxWorkers=1",
@@ -50,13 +51,8 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.19.11",
+    "@types/jpeg-js": "^0.3.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
-  },
-  "dependencies": {
-    "@types/jpeg-js": "^0.3.0",
-    "iconv-lite": "^0.7.2",
-    "jpeg-js": "^0.4.4",
-    "upng-js": "^2.1.0"
   }
 }

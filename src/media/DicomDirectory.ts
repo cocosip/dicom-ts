@@ -3,10 +3,7 @@
  *
  * Ported from fo-dicom/FO-DICOM.Core/Media/DicomDirectory.cs
  */
-import { readFileSync } from "node:fs";
-import type { Readable } from "node:stream";
-import { inflateRawSync, inflateSync } from "node:zlib";
-import { DicomFile } from "../DicomFile.js";
+import { DicomFile, type BlobLike, type DicomFileOpenOptions } from "../DicomFile.js";
 import { DicomFileMetaInformation } from "../DicomFileMetaInformation.js";
 import { DicomFileFormat } from "../DicomFileFormat.js";
 import { DicomTransferSyntax } from "../core/DicomTransferSyntax.js";
@@ -25,9 +22,8 @@ import {
 } from "../dataset/DicomElement.js";
 import { DicomSequence } from "../dataset/DicomSequence.js";
 import { ByteBufferByteSource } from "../io/ByteBufferByteSource.js";
-import { FileByteSource } from "../io/FileByteSource.js";
-import { StreamByteSource } from "../io/StreamByteSource.js";
 import { MemoryByteBuffer } from "../io/buffer/MemoryByteBuffer.js";
+import type { IByteSource } from "../io/IByteSource.js";
 import { DicomReader } from "../io/reader/DicomReader.js";
 import { DicomDatasetReaderObserver } from "../io/reader/DicomDatasetReaderObserver.js";
 import { DicomReaderMultiObserver } from "../io/reader/DicomReaderMultiObserver.js";
@@ -35,6 +31,8 @@ import { DicomWriteLengthCalculator } from "../io/writer/DicomWriteLengthCalcula
 import { recalculateGroupLength } from "../io/writer/DicomDatasetExtensions.js";
 import { DicomWriteOptions } from "../io/writer/DicomWriteOptions.js";
 import { FileReadOption } from "../io/FileReadOption.js";
+import { getDeflateCodecOrThrow } from "../io/deflateRegistry.js";
+import { createRuntimeCapabilityError } from "../runtime/RuntimeCapabilityError.js";
 import { DicomDirectoryEntry } from "./DicomDirectoryEntry.js";
 import { DicomDirectoryReaderObserver } from "./DicomDirectoryReaderObserver.js";
 import { DicomDirectoryRecord } from "./DicomDirectoryRecord.js";
@@ -122,32 +120,54 @@ export class DicomDirectory extends DicomFile {
     this.validateItems = value;
   }
 
-  static override async open(path: string, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
-  static override async open(stream: Readable, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
+  static override async open(source: Uint8Array, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
+  static override async open(source: ArrayBuffer, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
+  static override async open(source: ArrayBufferView, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
+  static override async open(source: BlobLike, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
   static override async open(
-    source: string | Readable,
+    source: unknown,
     options: DicomDirectoryOpenOptions = {}
   ): Promise<DicomDirectory> {
-    if (typeof source === "string") {
-      const fileSource = new FileByteSource(source, options.readOption, options.largeObjectSize ?? 0);
-      try {
-        return DicomDirectory.readFromSource(fileSource);
-      } finally {
-        fileSource.close();
-      }
+    if (typeof source === "string" || isNodeReadableLike(source)) {
+      throw createRuntimeCapabilityError(
+        "DICOMDIR_NODE_IO_UNSUPPORTED",
+        "Node file/stream DICOMDIR open is only available from the dicom-ts-node entrypoint."
+      );
     }
 
-    const streamSource = new StreamByteSource(source, options.readOption, options.largeObjectSize ?? 0);
-    return DicomDirectory.readFromSource(streamSource);
+    const bytes = await sourceToBytes(source);
+    return this.openFromBytes(bytes, options);
   }
 
-  static override async openAsync(path: string, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
-  static override async openAsync(stream: Readable, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
+  static override async openAsync(source: Uint8Array, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
+  static override async openAsync(source: ArrayBuffer, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
+  static override async openAsync(source: ArrayBufferView, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
+  static override async openAsync(source: BlobLike, options?: DicomDirectoryOpenOptions): Promise<DicomDirectory>;
   static override async openAsync(
-    source: string | Readable,
+    source: unknown,
     options: DicomDirectoryOpenOptions = {}
   ): Promise<DicomDirectory> {
     return this.open(source as any, options);
+  }
+
+  static override async openFromFile(file: BlobLike, options: DicomFileOpenOptions = {}): Promise<DicomDirectory> {
+    return this.openFromBlob(file, options);
+  }
+
+  static override async openFromBlob(source: BlobLike, options: DicomFileOpenOptions = {}): Promise<DicomDirectory> {
+    const buffer = await source.arrayBuffer();
+    return this.openFromArrayBuffer(buffer, options);
+  }
+
+  static override async openFromArrayBuffer(
+    source: ArrayBuffer,
+    options: DicomFileOpenOptions = {},
+  ): Promise<DicomDirectory> {
+    return this.openFromBytes(new Uint8Array(source), options);
+  }
+
+  static override openFromBytes(source: Uint8Array, _options: DicomFileOpenOptions = {}): DicomDirectory {
+    return this.readFromSource(new ByteBufferByteSource([new MemoryByteBuffer(source)]));
   }
 
   addFile(dicomFile: DicomFile, referencedFileId = ""): DicomDirectoryEntry {
@@ -448,7 +468,7 @@ export class DicomDirectory extends DicomFile {
     return offset;
   }
 
-  private static readFromSource(source: FileByteSource | StreamByteSource): DicomDirectory {
+  protected static readFromSource<T extends DicomDirectory>(this: new () => T, source: IByteSource): T {
     const preamble = readPreamble(source);
 
     const metaInfo = new DicomDataset(DicomTransferSyntax.ExplicitVRLittleEndian);
@@ -469,10 +489,7 @@ export class DicomDirectory extends DicomFile {
     let dirObserver: DicomDirectoryReaderObserver;
 
     if (transferSyntax.isDeflate) {
-      if (!(source instanceof FileByteSource)) {
-        throw new Error("Deflated transfer syntax requires file-backed source for synchronous read.");
-      }
-      const remaining = readRemainingFileBytes(source);
+      const remaining = readRemainingBytes(source);
       const inflated = inflateDeflated(remaining);
       const inflatedSource = new ByteBufferByteSource([new MemoryByteBuffer(inflated)]);
       dataset = new DicomDataset(transferSyntax);
@@ -486,7 +503,7 @@ export class DicomDirectory extends DicomFile {
       reader.read(source, new DicomReaderMultiObserver([dsObserver, dirObserver]), { transferSyntax });
     }
 
-    const dir = new DicomDirectory();
+    const dir = new this();
     dir.dataset = dataset;
     dir.dataset.internalTransferSyntax = transferSyntax;
     dir.fileMetaInfo = new DicomFileMetaInformation(metaInfo);
@@ -505,7 +522,7 @@ function sequenceHeaderLength(syntax: DicomTransferSyntax): number {
   return syntax.isExplicitVR ? 12 : 8;
 }
 
-function readPreamble(source: FileByteSource | StreamByteSource): Uint8Array | null {
+function readPreamble(source: IByteSource): Uint8Array | null {
   const start = source.position;
   try {
     if (!source.require(132)) {
@@ -532,18 +549,50 @@ function inferFormat(preamble: Uint8Array | null, metaInfo: DicomDataset): Dicom
 }
 
 function inflateDeflated(bytes: Uint8Array): Uint8Array {
+  const codec = getDeflateCodecOrThrow("inflate");
   try {
-    return inflateRawSync(bytes);
+    return codec.inflateRaw(bytes);
   } catch {
-    return inflateSync(bytes);
+    return codec.inflate(bytes);
   }
 }
 
-function readRemainingFileBytes(source: FileByteSource): Uint8Array {
-  const fileBytes = readFileSync(source.filePath);
-  const start = Math.max(0, source.position);
-  if (start >= fileBytes.length) return new Uint8Array(0);
-  return new Uint8Array(fileBytes.buffer, fileBytes.byteOffset + start, fileBytes.length - start);
+function readRemainingBytes(source: IByteSource): Uint8Array {
+  if (hasRemainingBytes(source)) {
+    return source.getRemainingBytes();
+  }
+  throw new Error("Deflated transfer syntax requires a source that supports reading remaining bytes.");
+}
+
+function hasRemainingBytes(source: IByteSource): source is IByteSource & { getRemainingBytes(): Uint8Array } {
+  return typeof (source as { getRemainingBytes?: unknown }).getRemainingBytes === "function";
+}
+
+async function sourceToBytes(source: unknown): Promise<Uint8Array> {
+  if (source instanceof Uint8Array) {
+    return source;
+  }
+  if (source instanceof ArrayBuffer) {
+    return new Uint8Array(source);
+  }
+  if (ArrayBuffer.isView(source)) {
+    return new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
+  }
+  if (isBlobLike(source)) {
+    const buffer = await source.arrayBuffer();
+    return new Uint8Array(buffer);
+  }
+  throw new Error("Unsupported source for DicomDirectory.open().");
+}
+
+function isBlobLike(value: unknown): value is BlobLike {
+  return !!value && typeof value === "object" && typeof (value as BlobLike).arrayBuffer === "function";
+}
+
+function isNodeReadableLike(value: unknown): boolean {
+  return !!value
+    && typeof value === "object"
+    && typeof (value as { read?: unknown }).read === "function";
 }
 
 function withValidationSuppressed(dataset: DicomDataset, fn: () => void): void {

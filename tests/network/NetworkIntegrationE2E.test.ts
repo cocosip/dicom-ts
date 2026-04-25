@@ -5,7 +5,7 @@ import * as Tags from "../../src/core/DicomTag.generated.js";
 import * as DicomUIDs from "../../src/core/DicomUID.generated.js";
 import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import { DicomDataset } from "../../src/dataset/DicomDataset.js";
-import { DicomFile } from "../../src/DicomFile.js";
+import { DicomFile } from "../../src/node/DicomFile.js";
 import {
   AAssociateRJ,
   AdvancedDicomClientConnection,

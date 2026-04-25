@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DicomFile } from "../../src/DicomFile.js";
+import { DicomFile } from "../../src/node/DicomFile.js";
 import { DicomDataset } from "../../src/dataset/DicomDataset.js";
 import { DicomPersonName, DicomUniqueIdentifier } from "../../src/dataset/DicomElement.js";
 import { DicomUID } from "../../src/core/DicomUID.js";

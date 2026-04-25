@@ -1,5 +1,5 @@
 /**
- * DICOM file scanner for directory trees.
+ * DICOM file scanner for Node.js directory trees.
  *
  * Ported from fo-dicom/FO-DICOM.Core/Media/DicomFileScanner.cs
  */
@@ -91,7 +91,7 @@ export class DicomFileScanner {
       const file = await DicomFile.open(filePath);
       this.onFileFound?.(this, file, filePath);
     } catch {
-      // ignore
+      // ignore unreadable or non-DICOM files
     }
   }
 }

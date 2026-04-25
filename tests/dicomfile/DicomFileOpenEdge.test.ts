@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
-import { DicomFile } from "../../src/DicomFile.js";
+import { DicomFile as BrowserDicomFile } from "../../src/DicomFile.js";
+import { DicomFile } from "../../src/node/DicomFile.js";
 import { DicomFileFormat } from "../../src/DicomFileFormat.js";
 import * as DicomTags from "../../src/core/DicomTag.generated.js";
 
@@ -98,10 +99,10 @@ describe("DicomFile.open edge cases", () => {
     const dicomBytes = Uint8Array.from(bytes);
     const fileLike = createBlobLike(dicomBytes);
 
-    const openedFromFile = await DicomFile.openFromFile(fileLike);
-    const openedFromBlob = await DicomFile.openFromBlob(fileLike);
-    const openedFromArrayBuffer = await DicomFile.openFromArrayBuffer(copyToArrayBuffer(dicomBytes));
-    const openedFromBytes = DicomFile.openFromBytes(dicomBytes);
+    const openedFromFile = await BrowserDicomFile.openFromFile(fileLike);
+    const openedFromBlob = await BrowserDicomFile.openFromBlob(fileLike);
+    const openedFromArrayBuffer = await BrowserDicomFile.openFromArrayBuffer(copyToArrayBuffer(dicomBytes));
+    const openedFromBytes = BrowserDicomFile.openFromBytes(dicomBytes);
 
     expect(openedFromFile.dataset.getString(DicomTags.PatientName)).toBe("Web^Friendly");
     expect(openedFromBlob.dataset.getString(DicomTags.PatientName)).toBe("Web^Friendly");
@@ -116,8 +117,34 @@ describe("DicomFile.open edge cases", () => {
     const dicomBytes = Uint8Array.from(bytes);
     const view = new DataView(copyToArrayBuffer(dicomBytes));
 
-    const opened = await DicomFile.open(view);
+    const opened = await BrowserDicomFile.open(view);
     expect(opened.dataset.getString(DicomTags.PatientName)).toBe("View^Source");
+  });
+
+  it("saves browser-friendly bytes and writable targets", async () => {
+    const bytes: number[] = [];
+    const pnValue = Buffer.from("Save^Browser", "ascii");
+    pushElementExplicit16(bytes, 0x0010, 0x0010, "PN", pnValue);
+
+    const opened = await BrowserDicomFile.open(Uint8Array.from(bytes));
+    const saved = await opened.save();
+    const chunks: Uint8Array[] = [];
+    await opened.save({
+      write: (data) => {
+        chunks.push(data);
+      },
+    });
+
+    expect(saved).toBeInstanceOf(Uint8Array);
+    expect(saved.length).toBeGreaterThan(0);
+    expect(chunks.length).toBe(1);
+    expect(chunks[0]!.length).toBe(saved.length);
+  });
+
+  it("rejects path open from browser/shared DicomFile", async () => {
+    await expect(BrowserDicomFile.open("local.dcm")).rejects.toMatchObject({
+      code: "DICOMFILE_NODE_IO_UNSUPPORTED",
+    });
   });
 });
 

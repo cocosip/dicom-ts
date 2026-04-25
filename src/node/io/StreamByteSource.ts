@@ -1,12 +1,12 @@
 import { createReadStream, fstatSync, readSync } from "node:fs";
-import { Endian } from "../core/DicomTransferSyntax.js";
-import { LocalEndian } from "./buffer/byteSwap.js";
-import type { IByteSource, ByteSourceCallback } from "./IByteSource.js";
-import { FileReadOption, normalizeReadOption } from "./FileReadOption.js";
-import type { IByteBuffer } from "./buffer/IByteBuffer.js";
-import { EmptyBuffer } from "./buffer/EmptyBuffer.js";
-import { MemoryByteBuffer } from "./buffer/MemoryByteBuffer.js";
-import { CompositeByteBuffer } from "./buffer/CompositeByteBuffer.js";
+import { Endian } from "../../core/DicomTransferSyntax.js";
+import { LocalEndian } from "../../io/buffer/byteSwap.js";
+import type { IByteSource, ByteSourceCallback } from "../../io/IByteSource.js";
+import { FileReadOption, normalizeReadOption } from "../../io/FileReadOption.js";
+import type { IByteBuffer } from "../../io/buffer/IByteBuffer.js";
+import { EmptyBuffer } from "../../io/buffer/EmptyBuffer.js";
+import { MemoryByteBuffer } from "../../io/buffer/MemoryByteBuffer.js";
+import { CompositeByteBuffer } from "../../io/buffer/CompositeByteBuffer.js";
 import { StreamByteBuffer } from "./buffer/StreamByteBuffer.js";
 import {
   readInt16,
@@ -17,7 +17,7 @@ import {
   readUInt64,
   readSingle,
   readDouble,
-} from "./internal/byteReaders.js";
+} from "../../io/internal/byteReaders.js";
 
 const DEFAULT_LARGE_OBJECT_SIZE = 64 * 1024;
 const MAX_BUFFER_LENGTH = 0x7fffffff;

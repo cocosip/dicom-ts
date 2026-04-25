@@ -5,12 +5,8 @@ export type { ByteSourceCallback, IByteSource } from "./IByteSource.js";
 export type { ByteTargetCallback, IByteTarget } from "./IByteTarget.js";
 
 export { ByteBufferByteSource } from "./ByteBufferByteSource.js";
-export { FileByteSource } from "./FileByteSource.js";
-export { StreamByteSource } from "./StreamByteSource.js";
 
 export { MemoryByteTarget } from "./MemoryByteTarget.js";
-export { StreamByteTarget } from "./StreamByteTarget.js";
-export { FileByteTarget } from "./FileByteTarget.js";
 export { registerDeflateCodec, clearDeflateCodec, hasDeflateCodec } from "./deflateRegistry.js";
 
 export * from "./reader/index.js";

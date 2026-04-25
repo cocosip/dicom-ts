@@ -1,5 +1,5 @@
 import { readSync } from "node:fs";
-import type { IByteBuffer } from "./IByteBuffer.js";
+import type { IByteBuffer } from "../../../io/buffer/IByteBuffer.js";
 
 /**
  * Byte buffer backed by a seekable stream (file descriptor).

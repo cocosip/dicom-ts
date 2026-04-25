@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createReadStream, createWriteStream, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DicomFile } from "../../src/DicomFile.js";
+import { DicomFile } from "../../src/node/DicomFile.js";
 import { DicomDataset } from "../../src/dataset/DicomDataset.js";
 import {
   DicomLongString,
@@ -14,8 +14,8 @@ import {
 } from "../../src/dataset/DicomElement.js";
 import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import { FileReadOption } from "../../src/io/FileReadOption.js";
-import { FileByteBuffer } from "../../src/io/buffer/FileByteBuffer.js";
-import { StreamByteBuffer } from "../../src/io/buffer/StreamByteBuffer.js";
+import { FileByteBuffer } from "../../src/node/io/buffer/FileByteBuffer.js";
+import { StreamByteBuffer } from "../../src/node/io/buffer/StreamByteBuffer.js";
 import * as DicomUIDs from "../../src/core/DicomUID.generated.js";
 import * as DicomTags from "../../src/core/DicomTag.generated.js";
 

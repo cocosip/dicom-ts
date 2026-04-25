@@ -1,1 +1,1 @@
-export * from "../../dist/esm/browser/index.js";
+export * from "./dist/esm/browser/index.js";

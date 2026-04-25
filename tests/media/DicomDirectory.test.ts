@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DicomDirectory } from "../../src/media/DicomDirectory.js";
+import { DicomDirectory as NodeDicomDirectory } from "../../src/node/media/DicomDirectory.js";
 import { DicomFile } from "../../src/DicomFile.js";
 import { DicomDataset } from "../../src/dataset/DicomDataset.js";
 import {
@@ -40,7 +41,7 @@ describe("DicomDirectory", () => {
   });
 
   it("saves and opens a DICOMDIR with directory records", async () => {
-    const dir = new DicomDirectory();
+    const dir = new NodeDicomDirectory();
     const file1 = createTestFile("1");
     const file2 = createTestFile("2");
 
@@ -52,7 +53,7 @@ describe("DicomDirectory", () => {
 
     try {
       await dir.save(filePath);
-      const opened = await DicomDirectory.open(filePath);
+      const opened = await NodeDicomDirectory.open(filePath);
 
       expect(opened.fileMetaInfo.mediaStorageSOPClassUID?.uid)
         .toBe(DicomUIDs.MediaStorageDirectoryStorage.uid);
@@ -68,5 +69,51 @@ describe("DicomDirectory", () => {
     } finally {
       rmSync(dirPath, { recursive: true, force: true });
     }
+  });
+
+  it("saves and opens a browser-style DICOMDIR from bytes", async () => {
+    const dir = new DicomDirectory();
+    const file1 = createTestFile("1");
+    const file2 = createTestFile("2");
+
+    dir.addFile(file1, "IMG1");
+    dir.addFile(file2, "IMG2");
+
+    const bytes = await dir.save();
+    expect(bytes).toBeInstanceOf(Uint8Array);
+
+    const opened = await DicomDirectory.open(bytes);
+    const patient = opened.rootDirectoryRecord;
+    const study = patient?.lowerLevelDirectoryRecord;
+    const series = study?.lowerLevelDirectoryRecord;
+    const images = Array.from(series?.lowerLevelDirectoryRecordCollection ?? []);
+
+    expect(opened.fileMetaInfo.mediaStorageSOPClassUID?.uid)
+      .toBe(DicomUIDs.MediaStorageDirectoryStorage.uid);
+    expect(patient?.directoryRecordType).toBe("PATIENT");
+    expect(images.length).toBe(2);
+  });
+
+  it("opens a browser-style DICOMDIR from blob-like sources and writes to save targets", async () => {
+    const dir = new DicomDirectory();
+    dir.addFile(createTestFile("1"), "IMG1");
+
+    const written: Uint8Array[] = [];
+    await dir.save({
+      write(data) {
+        written.push(data);
+      },
+    });
+
+    const blobLike = {
+      arrayBuffer: async () => written[0]!.buffer.slice(
+        written[0]!.byteOffset,
+        written[0]!.byteOffset + written[0]!.byteLength,
+      ),
+    };
+    const opened = await DicomDirectory.open(blobLike);
+
+    expect(written).toHaveLength(1);
+    expect(opened.rootDirectoryRecord?.directoryRecordType).toBe("PATIENT");
   });
 });

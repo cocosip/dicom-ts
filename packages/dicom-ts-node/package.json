@@ -16,7 +16,8 @@
   "files": [
     "index.js",
     "index.cjs",
-    "index.d.ts"
+    "index.d.ts",
+    "dist"
   ],
   "license": "MIT",
   "dependencies": {

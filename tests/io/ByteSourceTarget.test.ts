@@ -8,14 +8,14 @@ import { once } from "node:events";
 
 import { Endian, FileReadOption } from "../../src/io/index.js";
 import { MemoryByteBuffer } from "../../src/io/buffer/MemoryByteBuffer.js";
-import { FileByteBuffer } from "../../src/io/buffer/FileByteBuffer.js";
-import { StreamByteBuffer } from "../../src/io/buffer/StreamByteBuffer.js";
+import { FileByteBuffer } from "../../src/node/io/buffer/FileByteBuffer.js";
+import { StreamByteBuffer } from "../../src/node/io/buffer/StreamByteBuffer.js";
 import { ByteBufferByteSource } from "../../src/io/ByteBufferByteSource.js";
-import { FileByteSource } from "../../src/io/FileByteSource.js";
-import { StreamByteSource } from "../../src/io/StreamByteSource.js";
+import { FileByteSource } from "../../src/node/io/FileByteSource.js";
+import { StreamByteSource } from "../../src/node/io/StreamByteSource.js";
 import { MemoryByteTarget } from "../../src/io/MemoryByteTarget.js";
-import { StreamByteTarget } from "../../src/io/StreamByteTarget.js";
-import { FileByteTarget } from "../../src/io/FileByteTarget.js";
+import { StreamByteTarget } from "../../src/node/io/StreamByteTarget.js";
+import { FileByteTarget } from "../../src/node/io/FileByteTarget.js";
 
 function tempPath(): string {
   return join(tmpdir(), `dicom-ts-${randomBytes(8).toString("hex")}.bin`);

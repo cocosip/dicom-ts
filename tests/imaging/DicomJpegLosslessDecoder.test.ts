@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { DicomFile } from "../../src/DicomFile.js";
+import { DicomFile } from "../../src/node/DicomFile.js";
 import * as Tags from "../../src/core/DicomTag.generated.js";
 import { DicomTransferSyntax } from "../../src/core/DicomTransferSyntax.js";
 import { cloneDataset } from "../../src/dataset/DicomDatasetExtensions.js";

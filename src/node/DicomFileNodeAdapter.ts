@@ -1,23 +1,28 @@
 import { open as openFs } from "node:fs/promises";
 import type { Readable, Writable } from "node:stream";
 import { DicomFile, type DicomFileOpenOptions } from "../DicomFile.js";
-import { FileByteSource } from "../io/FileByteSource.js";
-import { StreamByteSource } from "../io/StreamByteSource.js";
-import { FileByteTarget } from "../io/FileByteTarget.js";
-import { StreamByteTarget } from "../io/StreamByteTarget.js";
+import { FileByteSource } from "./io/FileByteSource.js";
+import { StreamByteSource } from "./io/StreamByteSource.js";
+import { FileByteTarget } from "./io/FileByteTarget.js";
+import { StreamByteTarget } from "./io/StreamByteTarget.js";
 import { DicomFileReader } from "../io/reader/DicomFileReader.js";
 import type { DicomWriteOptions } from "../io/writer/DicomWriteOptions.js";
 import { DicomFileFormat } from "../DicomFileFormat.js";
 
-export async function openNodeDicomFile(
+interface DicomFileFactory<T extends DicomFile> {
+  fromReadResult(result: ReturnType<typeof DicomFileReader.read>): T;
+}
+
+export async function openNodeDicomFile<T extends DicomFile = DicomFile>(
   source: string | unknown,
   options: DicomFileOpenOptions = {},
-): Promise<DicomFile> {
+  FileCtor: DicomFileFactory<T> = DicomFile,
+): Promise<T> {
   if (typeof source === "string") {
     const fileSource = new FileByteSource(source, options.readOption, options.largeObjectSize ?? 0);
     try {
       const result = DicomFileReader.read(fileSource);
-      const file = DicomFile.fromReadResult(result);
+      const file = FileCtor.fromReadResult(result);
       file.format = inferFormat(result);
       return file;
     } finally {
@@ -27,7 +32,7 @@ export async function openNodeDicomFile(
 
   const streamSource = new StreamByteSource(source as Readable, options.readOption, options.largeObjectSize ?? 0);
   const result = DicomFileReader.read(streamSource);
-  const file = DicomFile.fromReadResult(result);
+  const file = FileCtor.fromReadResult(result);
   file.format = inferFormat(result);
   return file;
 }

@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { DicomFile, type DicomFileOpenOptions } from "../DicomFile.js";
+import { DicomFile, type DicomFileOpenOptions } from "./DicomFile.js";
 import { DicomDataset } from "../dataset/DicomDataset.js";
 import type { DicomWriteOptions } from "../io/writer/DicomWriteOptions.js";
 

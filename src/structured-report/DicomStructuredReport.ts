@@ -1,8 +1,11 @@
-
-import type { Readable, Writable } from "node:stream";
-import { DicomFile } from "../DicomFile.js";
+import {
+  DicomFile,
+  type BlobLike,
+  type BrowserDicomFileSaveTarget,
+} from "../DicomFile.js";
 import { DicomWriteOptions } from "../io/writer/DicomWriteOptions.js";
 import * as DicomTags from "../core/DicomTag.generated.js";
+import { createRuntimeCapabilityError } from "../runtime/RuntimeCapabilityError.js";
 import { DicomContentItem, DicomContinuity, DicomRelationship } from "./DicomContentItem.js";
 import { DicomCodeItem } from "./DicomCodeItem.js";
 
@@ -21,49 +24,83 @@ export class DicomStructuredReport extends DicomContentItem {
     super(arg0);
   }
 
-  static async open(path: string): Promise<DicomStructuredReport>;
-  static async open(stream: Readable): Promise<DicomStructuredReport>;
-  static async open(source: string | Readable): Promise<DicomStructuredReport> {
-    const file = typeof source === "string"
-      ? await DicomFile.open(source)
-      : await DicomFile.open(source);
+  static async open(source: Uint8Array): Promise<DicomStructuredReport>;
+  static async open(source: ArrayBuffer): Promise<DicomStructuredReport>;
+  static async open(source: ArrayBufferView): Promise<DicomStructuredReport>;
+  static async open(source: BlobLike): Promise<DicomStructuredReport>;
+  static async open(source: unknown): Promise<DicomStructuredReport> {
+    if (typeof source === "string" || isNodeReadableLike(source)) {
+      throw createRuntimeCapabilityError(
+        "DICOMSR_NODE_IO_UNSUPPORTED",
+        "Node file/stream structured-report open is only available from the dicom-ts-node entrypoint."
+      );
+    }
+    const file = await DicomFile.open(source);
     return new DicomStructuredReport(file.dataset);
   }
 
-  static async openAsync(path: string): Promise<DicomStructuredReport>;
-  static async openAsync(stream: Readable): Promise<DicomStructuredReport>;
-  static async openAsync(source: string | Readable): Promise<DicomStructuredReport> {
-    if (typeof source === "string") {
-      return this.open(source);
-    }
-    return this.open(source);
+  static async openAsync(source: Uint8Array): Promise<DicomStructuredReport>;
+  static async openAsync(source: ArrayBuffer): Promise<DicomStructuredReport>;
+  static async openAsync(source: ArrayBufferView): Promise<DicomStructuredReport>;
+  static async openAsync(source: BlobLike): Promise<DicomStructuredReport>;
+  static async openAsync(source: unknown): Promise<DicomStructuredReport> {
+    return this.open(source as any);
   }
 
-  async save(path: string): Promise<void>;
-  async save(stream: Writable): Promise<void>;
-  async save(target: string | Writable): Promise<void> {
+  async save(options?: DicomWriteOptions): Promise<Uint8Array>;
+  async save(target: BrowserDicomFileSaveTarget, options?: DicomWriteOptions): Promise<void>;
+  async save(
+    targetOrOptions?: BrowserDicomFileSaveTarget | DicomWriteOptions,
+    options?: DicomWriteOptions,
+  ): Promise<Uint8Array | void> {
+    if (typeof targetOrOptions === "string" || isNodeWritableLike(targetOrOptions)) {
+      throw createRuntimeCapabilityError(
+        "DICOMSR_NODE_IO_UNSUPPORTED",
+        "Node file/stream structured-report save is only available from the dicom-ts-node entrypoint."
+      );
+    }
+
     const file = new DicomFile(this.dataset);
-    const options = createStructuredReportWriteOptions();
-    if (typeof target === "string") {
-      await file.save(target, options);
+    const writeOptions = createStructuredReportWriteOptions(options);
+    if (isBrowserSaveTarget(targetOrOptions)) {
+      await file.save(targetOrOptions, writeOptions);
       return;
     }
-    await file.save(target, options);
+    return await file.save(writeOptions);
   }
 
-  async saveAsync(path: string): Promise<void>;
-  async saveAsync(stream: Writable): Promise<void>;
-  async saveAsync(target: string | Writable): Promise<void> {
-    if (typeof target === "string") {
-      return this.save(target);
-    }
-    return this.save(target);
+  async saveAsync(options?: DicomWriteOptions): Promise<Uint8Array>;
+  async saveAsync(target: BrowserDicomFileSaveTarget, options?: DicomWriteOptions): Promise<void>;
+  async saveAsync(
+    targetOrOptions?: BrowserDicomFileSaveTarget | DicomWriteOptions,
+    options?: DicomWriteOptions,
+  ): Promise<Uint8Array | void> {
+    return this.save(targetOrOptions as any, options);
   }
 }
 
-function createStructuredReportWriteOptions(): DicomWriteOptions {
-  const options = new DicomWriteOptions(DicomWriteOptions.Default);
+export function createStructuredReportWriteOptions(base?: DicomWriteOptions): DicomWriteOptions {
+  const options = new DicomWriteOptions(base ?? DicomWriteOptions.Default);
   options.explicitLengthSequenceItems = true;
   options.explicitLengthSequences = true;
   return options;
+}
+
+function isBrowserSaveTarget(value: unknown): value is BrowserDicomFileSaveTarget {
+  return !!value
+    && typeof value === "object"
+    && typeof (value as BrowserDicomFileSaveTarget).write === "function";
+}
+
+function isNodeReadableLike(value: unknown): boolean {
+  return !!value
+    && typeof value === "object"
+    && typeof (value as { read?: unknown }).read === "function";
+}
+
+function isNodeWritableLike(value: unknown): boolean {
+  return !!value
+    && typeof value === "object"
+    && typeof (value as { write?: unknown }).write === "function"
+    && !isBrowserSaveTarget(value);
 }
